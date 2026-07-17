@@ -1,0 +1,591 @@
+Command: /home/kamna/.espressif/python_env/idf5.5_py3.10_env/bin/python /home/kamna/esp/esp-idf/tools/idf_monitor.py -p /dev/ttyACM0 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 -m '/home/kamna/.espressif/python_env/idf5.5_py3.10_env/bin/python' '/home/kamna/esp/esp-idf/tools/idf.py'
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x29 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x400490d7
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xd24
+load:0x403cb700,len:0x2ef0
+entry 0x403c891c
+[0;32mI (24) boot: ESP-IDF 5.5.4 2nd stage bootloader[0m
+[0;32mI (24) boot: compile time Jul 17 2026 10:27:32[0m
+[0;32mI (25) boot: Multicore bootloader[0m
+[0;32mI (25) boot: chip revision: v0.2[0m
+[0;32mI (27) boot: efuse block revision: v1.4[0m
+[0;32mI (31) boot.esp32s3: Boot SPI Speed : 80MHz[0m
+[0;32mI (35) boot.esp32s3: SPI Mode       : DIO[0m
+[0;32mI (39) boot.esp32s3: SPI Flash Size : 16MB[0m
+[0;32mI (43) boot: Enabling RNG early entropy source...[0m
+[0;32mI (47) boot: Partition Table:[0m
+[0;32mI (50) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (62) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (69) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (76) boot: End of partition table[0m
+[0;32mI (79) esp_image: segment 0: paddr=00010020 vaddr=3c020020 size=0c950h ( 51536) map[0m
+[0;32mI (95) esp_image: segment 1: paddr=0001c978 vaddr=3fc93c00 size=03010h ( 12304) load[0m
+[0;32mI (98) esp_image: segment 2: paddr=0001f990 vaddr=40374000 size=00688h (  1672) load[0m
+[0;32mI (101) esp_image: segment 3: paddr=00020020 vaddr=42000020 size=1b7e4h (112612) map[0m
+[0;32mI (128) esp_image: segment 4: paddr=0003b80c vaddr=40374688 size=0f49ch ( 62620) load[0m
+[0;32mI (142) esp_image: segment 5: paddr=0004acb0 vaddr=50000000 size=00020h (    32) load[0m
+[0;32mI (149) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (149) boot: Disabling RNG early entropy source...[0m
+[0;32mI (160) cpu_start: Multicore app[0m
+[0;32mI (169) cpu_start: GPIO 44 and 43 are used as console UART I/O pins[0m
+[0;32mI (169) cpu_start: Pro cpu start user code[0m
+[0;32mI (170) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (171) app_init: Application information:[0m
+[0;32mI (175) app_init: Project name:     Smart_Street_Light[0m
+[0;32mI (180) app_init: App version:      281933d[0m
+[0;32mI (184) app_init: Compile time:     Jul 17 2026 10:27:19[0m
+[0;32mI (189) app_init: ELF file SHA256:  98f778499...[0m
+[0;32mI (193) app_init: ESP-IDF:          5.5.4[0m
+[0;32mI (197) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (200) efuse_init: Max chip rev:     v0.99 [0m
+[0;32mI (204) efuse_init: Chip rev:         v0.2[0m
+[0;32mI (208) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (215) heap_init: At 3FC97560 len 000521B0 (328 KiB): RAM[0m
+[0;32mI (220) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM[0m
+[0;32mI (225) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM[0m
+[0;32mI (230) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM[0m
+[0;32mI (237) spi_flash: detected chip: generic[0m
+[0;32mI (239) spi_flash: flash io: dio[0m
+[0;33mW (242) i2c: This driver is an old driver, please migrate your application code to adapt `driver/i2c_master.h`[0m
+[0;32mI (252) sleep_gpio: Configure to isolate all GPIO pins in sleep state[0m
+[0;32mI (258) sleep_gpio: Enable automatic switching of GPIO sleep configuration[0m
+[0;32mI (265) main_task: Started on CPU0[0m
+[0;32mI (275) main_task: Calling app_main()[0m
+[0;32mI (275) MAIN_APP: System Booting...[0m
+[0;32mI (275) RTC_DRIVER: ==========================================[0m
+[0;32mI (275) RTC_DRIVER:         MEMULAI SCANNER I2C...            [0m
+[1;31mE (285) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (295) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (295) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (305) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (305) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (315) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (325) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (325) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (335) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (335) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (345) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (345) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (355) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (365) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (365) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (375) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (375) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (385) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (395) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (395) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (405) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (405) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (415) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (415) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (425) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (435) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (435) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (445) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (445) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (455) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (455) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (465) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (475) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (475) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (485) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (485) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (495) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (505) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (505) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (515) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (515) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (525) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (525) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (535) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (545) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (545) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (555) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (555) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (565) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (575) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (575) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (585) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (585) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (595) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (595) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (605) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (615) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (615) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (625) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (625) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (635) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (645) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (645) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (655) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (655) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (665) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (665) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (675) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (685) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (685) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (695) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (695) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (705) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (715) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (715) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (725) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (725) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (735) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (735) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (745) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (755) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (755) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (765) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (765) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (775) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (775) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (785) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (795) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (795) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (805) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (805) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (815) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (825) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (825) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (835) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (835) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (845) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (845) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (855) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (865) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (865) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (875) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (875) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (885) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (895) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (895) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (905) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (905) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (915) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (915) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (925) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (935) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (935) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (945) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (945) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (955) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (965) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (965) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (975) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (975) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (985) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (985) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (995) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (1005) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (1005) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (1015) i2c: i2c_master_cmd_begin(1552): i2c driver not installed[0m
+[1;31mE (1015) RTC_DRIVER: GAGAL: Tidak ada perangkat I2C yang membalas![0m
+[0;32mI (1025) RTC_DRIVER: ==========================================[0m
+[0;32mI (1035) MAIN_APP: Relay initialized.[0m
+[0;32mI (1035) MAIN_APP: ADC LDR initialized.[0m
+[0;32mI (1035) RTC_DRIVER: RTC I2C Initialized[0m
+[0;32mI (1045) RTC_DRIVER: Waktu berhasil disetel dan Osilator Dihidupkan![0m
+[0;32mI (1045) PZEM_DRIVER: PZEM UART Initialized[0m
+[0;32mI (1055) GPS_DRIVER: Menekan tombol Power Modem (PWRKEY GPIO46)...[0m
+[0;32mI (2155) GPS_DRIVER: Menunggu OS Modem Booting (4 detik)...[0m
+[0;32mI (6755) GPS_DRIVER: Modem dan Antena GPS berhasil dihidupkan![0m
+[0;32mI (6755) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (6755) MAIN_APP: [LDR] Raw ADC: 779[0m
+[0;32mI (6755) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (6755) main_task: Returned from app_main()[0m
+[0;32mI (6755) MAIN_APP: [RTC] Detik (Hex): 0x00[0m
+[0;33mW (6865) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (7165) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (7165) MAIN_APP: =================================[0m
+
+[0;32mI (10165) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (10165) MAIN_APP: [LDR] Raw ADC: 1087[0m
+[0;32mI (10165) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (10165) MAIN_APP: [RTC] Detik (Hex): 0x01[0m
+[0;33mW (10265) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (10565) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (10565) MAIN_APP: =================================[0m
+
+[0;32mI (13565) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (13565) MAIN_APP: [LDR] Raw ADC: 1077[0m
+[0;32mI (13565) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (13565) MAIN_APP: [RTC] Detik (Hex): 0x02[0m
+[0;33mW (13665) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (13965) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (13965) MAIN_APP: =================================[0m
+
+[0;32mI (16965) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (16965) MAIN_APP: [LDR] Raw ADC: 1134[0m
+[0;32mI (16965) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (16965) MAIN_APP: [RTC] Detik (Hex): 0x02[0m
+[0;33mW (17065) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (17365) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (17365) MAIN_APP: =================================[0m
+
+[0;32mI (20365) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (20365) MAIN_APP: [LDR] Raw ADC: 1239[0m
+[0;32mI (20365) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (20365) MAIN_APP: [RTC] Detik (Hex): 0x03[0m
+[0;33mW (20465) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (20765) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (20765) MAIN_APP: =================================[0m
+
+[0;32mI (23765) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (23765) MAIN_APP: [LDR] Raw ADC: 1055[0m
+[0;32mI (23765) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (23765) MAIN_APP: [RTC] Detik (Hex): 0x03[0m
+[0;33mW (23865) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (24165) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (24165) MAIN_APP: =================================[0m
+
+[0;32mI (27165) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (27165) MAIN_APP: [LDR] Raw ADC: 1261[0m
+[0;32mI (27165) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (27165) MAIN_APP: [RTC] Detik (Hex): 0x04[0m
+[0;33mW (27265) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (27565) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (27565) MAIN_APP: =================================[0m
+
+[0;32mI (30565) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (30565) MAIN_APP: [LDR] Raw ADC: 1278[0m
+[0;32mI (30565) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (30565) MAIN_APP: [RTC] Detik (Hex): 0x05[0m
+[0;33mW (30665) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (30965) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (30965) MAIN_APP: =================================[0m
+
+[0;32mI (33965) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (33965) MAIN_APP: [LDR] Raw ADC: 1166[0m
+[0;32mI (33965) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (33965) MAIN_APP: [RTC] Detik (Hex): 0x05[0m
+[0;33mW (34065) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (34365) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (34365) MAIN_APP: =================================[0m
+
+[0;32mI (37365) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (37365) MAIN_APP: [LDR] Raw ADC: 1131[0m
+[0;32mI (37365) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (37365) MAIN_APP: [RTC] Detik (Hex): 0x06[0m
+[0;33mW (37465) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (37765) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (37765) MAIN_APP: =================================[0m
+
+[0;32mI (40765) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (40765) MAIN_APP: [LDR] Raw ADC: 1131[0m
+[0;32mI (40765) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (40765) MAIN_APP: [RTC] Detik (Hex): 0x07[0m
+[0;33mW (40865) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (41165) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (41165) MAIN_APP: =================================[0m
+
+[0;32mI (44165) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (44165) MAIN_APP: [LDR] Raw ADC: 1062[0m
+[0;32mI (44165) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (44165) MAIN_APP: [RTC] Detik (Hex): 0x07[0m
+[0;33mW (44265) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (44565) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (44565) MAIN_APP: =================================[0m
+
+[0;32mI (47565) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (47565) MAIN_APP: [LDR] Raw ADC: 1086[0m
+[0;32mI (47565) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (47565) MAIN_APP: [RTC] Detik (Hex): 0x08[0m
+[0;33mW (47665) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (47965) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (47965) MAIN_APP: =================================[0m
+
+[0;32mI (50965) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (50965) MAIN_APP: [LDR] Raw ADC: 1162[0m
+[0;32mI (50965) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (50965) MAIN_APP: [RTC] Detik (Hex): 0x08[0m
+[0;33mW (51065) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (51365) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (51365) MAIN_APP: =================================[0m
+
+[0;32mI (54365) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (54365) MAIN_APP: [LDR] Raw ADC: 1179[0m
+[0;32mI (54365) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (54365) MAIN_APP: [RTC] Detik (Hex): 0x09[0m
+[0;33mW (54465) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (54765) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (54765) MAIN_APP: =================================[0m
+
+[0;32mI (57765) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (57765) MAIN_APP: [LDR] Raw ADC: 1083[0m
+[0;32mI (57765) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (57765) MAIN_APP: [RTC] Detik (Hex): 0x0a[0m
+[0;33mW (57865) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (58165) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (58165) MAIN_APP: =================================[0m
+
+[0;32mI (61165) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (61165) MAIN_APP: [LDR] Raw ADC: 1098[0m
+[0;32mI (61165) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (61165) MAIN_APP: [RTC] Detik (Hex): 0x0a[0m
+[0;33mW (61265) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (61565) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (61565) MAIN_APP: =================================[0m
+
+[0;32mI (64565) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (64565) MAIN_APP: [LDR] Raw ADC: 1111[0m
+[0;32mI (64565) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (64565) MAIN_APP: [RTC] Detik (Hex): 0x0b[0m
+[0;33mW (64665) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (64965) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (64965) MAIN_APP: =================================[0m
+
+[0;32mI (67965) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (67965) MAIN_APP: [LDR] Raw ADC: 1147[0m
+[0;32mI (67965) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (67965) MAIN_APP: [RTC] Detik (Hex): 0x0c[0m
+[0;33mW (68065) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (68365) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (68365) MAIN_APP: =================================[0m
+
+[0;32mI (71365) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (71365) MAIN_APP: [LDR] Raw ADC: 1164[0m
+[0;32mI (71365) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (71365) MAIN_APP: [RTC] Detik (Hex): 0x0c[0m
+[0;33mW (71465) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (71765) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (71765) MAIN_APP: =================================[0m
+
+[0;32mI (74765) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (74765) MAIN_APP: [LDR] Raw ADC: 1055[0m
+[0;32mI (74765) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (74765) MAIN_APP: [RTC] Detik (Hex): 0x0d[0m
+[0;33mW (74865) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (75165) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (75165) MAIN_APP: =================================[0m
+
+[0;32mI (78165) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (78165) MAIN_APP: [LDR] Raw ADC: 1047[0m
+[0;32mI (78165) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (78165) MAIN_APP: [RTC] Detik (Hex): 0x0e[0m
+[0;33mW (78265) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (78565) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (78565) MAIN_APP: =================================[0m
+
+[0;32mI (81565) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (81565) MAIN_APP: [LDR] Raw ADC: 1043[0m
+[0;32mI (81565) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (81565) MAIN_APP: [RTC] Detik (Hex): 0x0e[0m
+[0;33mW (81665) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (81965) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (81965) MAIN_APP: =================================[0m
+
+[0;32mI (84965) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (84965) MAIN_APP: [LDR] Raw ADC: 1044[0m
+[0;32mI (84965) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (84965) MAIN_APP: [RTC] Detik (Hex): 0x0f[0m
+[0;33mW (85065) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (85365) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (85365) MAIN_APP: =================================[0m
+
+[0;32mI (88365) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (88365) MAIN_APP: [LDR] Raw ADC: 1035[0m
+[0;32mI (88365) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (88365) MAIN_APP: [RTC] Detik (Hex): 0x10[0m
+[0;33mW (88465) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (88765) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (88765) MAIN_APP: =================================[0m
+
+[0;32mI (91765) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (91765) MAIN_APP: [LDR] Raw ADC: 1045[0m
+[0;32mI (91765) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (91765) MAIN_APP: [RTC] Detik (Hex): 0x10[0m
+[0;33mW (91865) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (92165) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (92165) MAIN_APP: =================================[0m
+
+[0;32mI (95165) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (95165) MAIN_APP: [LDR] Raw ADC: 1031[0m
+[0;32mI (95165) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (95165) MAIN_APP: [RTC] Detik (Hex): 0x11[0m
+[0;33mW (95265) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (95565) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (95565) MAIN_APP: =================================[0m
+
+[0;32mI (98565) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (98565) MAIN_APP: [LDR] Raw ADC: 1063[0m
+[0;32mI (98565) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (98565) MAIN_APP: [RTC] Detik (Hex): 0x12[0m
+[0;33mW (98665) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (98965) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (98965) MAIN_APP: =================================[0m
+
+[0;32mI (101965) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (101965) MAIN_APP: [LDR] Raw ADC: 1033[0m
+[0;32mI (101965) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (101965) MAIN_APP: [RTC] Detik (Hex): 0x12[0m
+[0;33mW (102065) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (102365) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (102365) MAIN_APP: =================================[0m
+
+[0;32mI (105365) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (105365) MAIN_APP: [LDR] Raw ADC: 1043[0m
+[0;32mI (105365) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (105365) MAIN_APP: [RTC] Detik (Hex): 0x13[0m
+[0;33mW (105465) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (105765) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (105765) MAIN_APP: =================================[0m
+
+[0;32mI (108765) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (108765) MAIN_APP: [LDR] Raw ADC: 1023[0m
+[0;32mI (108765) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (108765) MAIN_APP: [RTC] Detik (Hex): 0x14[0m
+[0;33mW (108865) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (109165) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (109165) MAIN_APP: =================================[0m
+
+[0;32mI (112165) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (112165) MAIN_APP: [LDR] Raw ADC: 1048[0m
+[0;32mI (112165) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (112165) MAIN_APP: [RTC] Detik (Hex): 0x14[0m
+[0;33mW (112265) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (112565) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (112565) MAIN_APP: =================================[0m
+
+[0;32mI (115565) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (115565) MAIN_APP: [LDR] Raw ADC: 1056[0m
+[0;32mI (115565) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (115565) MAIN_APP: [RTC] Detik (Hex): 0x15[0m
+[0;33mW (115665) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (115965) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (115965) MAIN_APP: =================================[0m
+
+[0;32mI (118965) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (118965) MAIN_APP: [LDR] Raw ADC: 1035[0m
+[0;32mI (118965) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (118965) MAIN_APP: [RTC] Detik (Hex): 0x16[0m
+[0;33mW (119065) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (119365) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (119365) MAIN_APP: =================================[0m
+
+[0;32mI (122365) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (122365) MAIN_APP: [LDR] Raw ADC: 1051[0m
+[0;32mI (122365) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (122365) MAIN_APP: [RTC] Detik (Hex): 0x17[0m
+[0;33mW (122465) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (122765) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (122765) MAIN_APP: =================================[0m
+
+[0;32mI (125765) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (125765) MAIN_APP: [LDR] Raw ADC: 1042[0m
+[0;32mI (125765) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (125765) MAIN_APP: [RTC] Detik (Hex): 0x18[0m
+[0;33mW (125865) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (126165) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (126165) MAIN_APP: =================================[0m
+
+[0;32mI (129165) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (129165) MAIN_APP: [LDR] Raw ADC: 1047[0m
+[0;32mI (129165) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (129165) MAIN_APP: [RTC] Detik (Hex): 0x19[0m
+[0;33mW (129265) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (129565) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (129565) MAIN_APP: =================================[0m
+
+[0;32mI (132565) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (132565) MAIN_APP: [LDR] Raw ADC: 1051[0m
+[0;32mI (132565) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (132565) MAIN_APP: [RTC] Detik (Hex): 0x1a[0m
+[0;33mW (132665) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (132965) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (132965) MAIN_APP: =================================[0m
+
+[0;32mI (135965) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (135965) MAIN_APP: [LDR] Raw ADC: 1079[0m
+[0;32mI (135965) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (135965) MAIN_APP: [RTC] Detik (Hex): 0x1b[0m
+[0;33mW (136065) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (136365) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (136365) MAIN_APP: =================================[0m
+
+[0;32mI (139365) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (139365) MAIN_APP: [LDR] Raw ADC: 1055[0m
+[0;32mI (139365) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (139365) MAIN_APP: [RTC] Detik (Hex): 0x1c[0m
+[0;33mW (139465) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (139765) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (139765) MAIN_APP: =================================[0m
+
+[0;32mI (142765) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (142765) MAIN_APP: [LDR] Raw ADC: 1037[0m
+[0;32mI (142765) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (142765) MAIN_APP: [RTC] Detik (Hex): 0x1e[0m
+[0;33mW (142865) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (143165) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (143165) MAIN_APP: =================================[0m
+
+[0;32mI (146165) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (146165) MAIN_APP: [LDR] Raw ADC: 1071[0m
+[0;32mI (146165) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (146165) MAIN_APP: [RTC] Detik (Hex): 0x1f[0m
+[0;33mW (146265) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (146565) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (146565) MAIN_APP: =================================[0m
+
+[0;32mI (149565) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (149565) MAIN_APP: [LDR] Raw ADC: 1215[0m
+[0;32mI (149565) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (149565) MAIN_APP: [RTC] Detik (Hex): 0x20[0m
+[0;33mW (149665) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (149965) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (149965) MAIN_APP: =================================[0m
+
+[0;32mI (152965) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (152965) MAIN_APP: [LDR] Raw ADC: 1243[0m
+[0;32mI (152965) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (152965) MAIN_APP: [RTC] Detik (Hex): 0x21[0m
+[0;33mW (153065) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (153365) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (153365) MAIN_APP: =================================[0m
+
+[0;32mI (156365) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (156365) MAIN_APP: [LDR] Raw ADC: 1058[0m
+[0;32mI (156365) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (156365) MAIN_APP: [RTC] Detik (Hex): 0x22[0m
+[0;33mW (156465) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (156765) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (156765) MAIN_APP: =================================[0m
+
+[0;32mI (159765) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (159765) MAIN_APP: [LDR] Raw ADC: 1047[0m
+[0;32mI (159765) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (159765) MAIN_APP: [RTC] Detik (Hex): 0x24[0m
+[0;33mW (159865) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (160165) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (160165) MAIN_APP: =================================[0m
+
+[0;32mI (163165) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (163165) MAIN_APP: [LDR] Raw ADC: 1048[0m
+[0;32mI (163165) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (163165) MAIN_APP: [RTC] Detik (Hex): 0x27[0m
+[0;33mW (163265) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (163565) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (163565) MAIN_APP: =================================[0m
+
+[0;32mI (166565) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (166565) MAIN_APP: [LDR] Raw ADC: 1055[0m
+[0;32mI (166565) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (166565) MAIN_APP: [RTC] Detik (Hex): 0x2a[0m
+[0;33mW (166665) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (166965) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (166965) MAIN_APP: =================================[0m
+
+[0;32mI (169965) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (169965) MAIN_APP: [LDR] Raw ADC: 1051[0m
+[0;32mI (169965) MAIN_APP: [RELAY] Gelap - Memutus daya AC ke Driver[0m
+[0;32mI (169965) MAIN_APP: [RTC] Detik (Hex): 0x2d[0m
+[0;33mW (170065) MAIN_APP: [PZEM] Gagal membaca data[0m
+[0;32mI (170365) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (170365) MAIN_APP: =================================[0m
+

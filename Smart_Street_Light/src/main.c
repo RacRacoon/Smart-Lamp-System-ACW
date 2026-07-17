@@ -18,6 +18,11 @@ static const char *TAG = "MAIN_APP";
 
 adc_oneshot_unit_handle_t adc1_handle;
 
+// Fungsi untuk mengubah format BCD dari RTC kembali menjadi Desimal biasa
+static uint8_t bcd_to_dec(uint8_t val) {
+    return ((val / 16 * 10) + (val % 16));
+}
+
 // Inisialisasi Relay
 void init_relay() {
     gpio_config_t io_conf = {
@@ -28,7 +33,7 @@ void init_relay() {
         .pull_up_en = GPIO_PULLUP_DISABLE
     };
     gpio_config(&io_conf);
-    gpio_set_level(RELAY_PIN, 1);
+    gpio_set_level(RELAY_PIN, 0);
     ESP_LOGI(TAG, "Relay initialized.");
 }
 
@@ -57,7 +62,7 @@ void sensor_task(void *pvParameters) {
         // 1. Baca LDR & Kontrol Relay
         if (adc_oneshot_read(adc1_handle, LDR_ADC_CHAN, &ldr_val) == ESP_OK) {
             ESP_LOGI(TAG, "[LDR] Raw ADC: %d", ldr_val);
-            if (ldr_val < 500) { 
+            if (ldr_val < 400) { 
                 gpio_set_level(RELAY_PIN, 1); 
                 ESP_LOGI(TAG, "[RELAY] Terang - Menyambung daya AC ke Driver");
             } else { 
@@ -67,9 +72,17 @@ void sensor_task(void *pvParameters) {
         }
 
         // 2. Baca RTC
-        if (rtc_read_seconds(&rtc_sec)) {
-            ESP_LOGI(TAG, "[RTC] Detik (Hex): 0x%02x", rtc_sec);
+        rtc_time_t current_time = rtc_read_time();
+        if (current_time.valid) {
+            // Konversi dari BCD (Sistem IC) ke Desimal (Sistem Manusia)
+            uint8_t jam   = bcd_to_dec(current_time.hours);
+            uint8_t menit = bcd_to_dec(current_time.minutes);
+            uint8_t detik = bcd_to_dec(current_time.seconds);
+
+            // Cetak dengan format 00:00:00 (%02d memastikan ada angka 0 di depan jika nilainya < 10)
+            ESP_LOGI(TAG, "[RTC] Waktu Aktual : %02d:%02d:%02d", jam, menit, detik);
         }
+
 
         // 3. Baca PZEM
         pzem_data_t pzem_data = pzem_read_registers();
@@ -96,10 +109,12 @@ void sensor_task(void *pvParameters) {
 void app_main(void) {
     ESP_LOGI(TAG, "System Booting...");
     
-    // Inisialisasi semua periferal perangkat keras
     init_relay();
     init_adc_ldr();
-    rtc_init();
+    ds1307_init();
+
+    ds1307_set_time(12, 53, 0);
+
     pzem_init();
     gps_init();
 
