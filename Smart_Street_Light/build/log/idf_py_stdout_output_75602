@@ -1,0 +1,506 @@
+Command: /home/kamna/.espressif/python_env/idf5.5_py3.10_env/bin/python /home/kamna/esp/esp-idf/tools/idf_monitor.py -p /dev/ttyACM0 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 -m '/home/kamna/.espressif/python_env/idf5.5_py3.10_env/bin/python' '/home/kamna/esp/esp-idf/tools/idf.py'
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x28 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x40048df6
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xd24
+load:0x403cb700,len:0x2ef0
+entry 0x403c891c
+[0;32mI (24) boot: ESP-IDF 5.5.4 2nd stage bootloader[0m
+[0;32mI (24) boot: compile time Jul 16 2026 16:01:09[0m
+[0;32mI (25) boot: Multicore bootloader[0m
+[0;32mI (25) boot: chip revision: v0.2[0m
+[0;32mI (27) boot: efuse block revision: v1.4[0m
+[0;32mI (31) boot.esp32s3: Boot SPI Speed : 80MHz[0m
+[0;32mI (35) boot.esp32s3: SPI Mode       : DIO[0m
+[0;32mI (39) boot.esp32s3: SPI Flash Size : 16MB[0m
+[0;32mI (43) boot: Enabling RNG early entropy source...[0m
+[0;32mI (47) boot: Partition Table:[0m
+[0;32mI (50) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (62) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (69) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (76) boot: End of partition table[0m
+[0;32mI (79) esp_image: segment 0: paddr=00010020 vaddr=3c020020 size=0c400h ( 50176) map[0m
+[0;32mI (95) esp_image: segment 1: paddr=0001c428 vaddr=3fc93c00 size=03010h ( 12304) load[0m
+[0;32mI (98) esp_image: segment 2: paddr=0001f440 vaddr=40374000 size=00bd8h (  3032) load[0m
+[0;32mI (102) esp_image: segment 3: paddr=00020020 vaddr=42000020 size=1ac04h (109572) map[0m
+[0;32mI (128) esp_image: segment 4: paddr=0003ac2c vaddr=40374bd8 size=0ef4ch ( 61260) load[0m
+[0;32mI (142) esp_image: segment 5: paddr=00049b80 vaddr=50000000 size=00020h (    32) load[0m
+[0;32mI (148) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (148) boot: Disabling RNG early entropy source...[0m
+[0;32mI (159) cpu_start: Multicore app[0m
+[0;32mI (168) cpu_start: GPIO 44 and 43 are used as console UART I/O pins[0m
+[0;32mI (169) cpu_start: Pro cpu start user code[0m
+[0;32mI (169) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (170) app_init: Application information:[0m
+[0;32mI (174) app_init: Project name:     Smart_Street_Light[0m
+[0;32mI (179) app_init: App version:      0e1d58b-dirty[0m
+[0;32mI (183) app_init: Compile time:     Jul 16 2026 16:00:56[0m
+[0;32mI (188) app_init: ELF file SHA256:  0c2b73a30...[0m
+[0;32mI (193) app_init: ESP-IDF:          5.5.4[0m
+[0;32mI (196) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (200) efuse_init: Max chip rev:     v0.99 [0m
+[0;32mI (204) efuse_init: Chip rev:         v0.2[0m
+[0;32mI (208) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (214) heap_init: At 3FC97560 len 000521B0 (328 KiB): RAM[0m
+[0;32mI (219) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM[0m
+[0;32mI (225) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM[0m
+[0;32mI (230) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM[0m
+[0;32mI (236) spi_flash: detected chip: generic[0m
+[0;32mI (239) spi_flash: flash io: dio[0m
+[0;33mW (242) i2c: This driver is an old driver, please migrate your application code to adapt `driver/i2c_master.h`[0m
+[0;32mI (251) sleep_gpio: Configure to isolate all GPIO pins in sleep state[0m
+[0;32mI (258) sleep_gpio: Enable automatic switching of GPIO sleep configuration[0m
+[0;32mI (265) main_task: Started on CPU0[0m
+[0;32mI (275) main_task: Calling app_main()[0m
+[0;32mI (275) SMART_POLE: Booting Smart Pole System (Internal GPS)...[0m
+[0;32mI (275) SMART_POLE: ADC untuk LDR (GPIO09) berhasil diinisialisasi.[0m
+[0;32mI (285) SMART_POLE: I2C untuk RTC (GPIO02, 03) berhasil diinisialisasi.[0m
+[0;32mI (285) SMART_POLE: UART2 untuk PZEM (GPIO15, 16) berhasil diinisialisasi.[0m
+[0;32mI (295) SMART_POLE: UART1 untuk Modem/GPS Internal (GPIO4, 5) berhasil diinisialisasi.[0m
+[0;32mI (305) main_task: Returned from app_main()[0m
+[0;32mI (805) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (805) SMART_POLE: [LDR] Raw ADC: 1499[0m
+[0;33mW (1805) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (1955) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (2255) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (2255) SMART_POLE: ==========================================[0m
+
+[0;32mI (5255) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (5255) SMART_POLE: [LDR] Raw ADC: 1507[0m
+[0;33mW (6255) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (6405) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (6705) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (6705) SMART_POLE: ==========================================[0m
+
+[0;32mI (9705) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (9705) SMART_POLE: [LDR] Raw ADC: 1518[0m
+[0;33mW (10705) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (10855) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (11155) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (11155) SMART_POLE: ==========================================[0m
+
+[0;32mI (14155) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (14155) SMART_POLE: [LDR] Raw ADC: 1547[0m
+[0;33mW (15155) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (15305) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (15605) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (15605) SMART_POLE: ==========================================[0m
+
+[0;32mI (18605) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (18605) SMART_POLE: [LDR] Raw ADC: 1519[0m
+[0;33mW (19605) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (19755) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (20055) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (20055) SMART_POLE: ==========================================[0m
+
+[0;32mI (23055) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (23055) SMART_POLE: [LDR] Raw ADC: 1527[0m
+[0;33mW (24055) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (24205) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (24505) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (24505) SMART_POLE: ==========================================[0m
+
+[0;32mI (27505) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (27505) SMART_POLE: [LDR] Raw ADC: 1529[0m
+[0;33mW (28505) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (28655) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (28955) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (28955) SMART_POLE: ==========================================[0m
+
+[0;32mI (31955) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (31955) SMART_POLE: [LDR] Raw ADC: 1525[0m
+[0;33mW (32955) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (33105) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (33405) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (33405) SMART_POLE: ==========================================[0m
+
+[0;32mI (36405) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (36405) SMART_POLE: [LDR] Raw ADC: 1553[0m
+[0;33mW (37405) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (37555) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (37855) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (37855) SMART_POLE: ==========================================[0m
+
+[0;32mI (40855) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (40855) SMART_POLE: [LDR] Raw ADC: 1545[0m
+[0;33mW (41855) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (42005) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (42305) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (42305) SMART_POLE: ==========================================[0m
+
+[0;32mI (45305) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (45305) SMART_POLE: [LDR] Raw ADC: 1532[0m
+[0;33mW (46305) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (46455) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (46755) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (46755) SMART_POLE: ==========================================[0m
+
+[0;32mI (49755) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (49755) SMART_POLE: [LDR] Raw ADC: 1545[0m
+[0;33mW (50755) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (50905) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (51205) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (51205) SMART_POLE: ==========================================[0m
+
+[0;32mI (54205) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (54205) SMART_POLE: [LDR] Raw ADC: 1532[0m
+[0;33mW (55205) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (55355) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (55655) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (55655) SMART_POLE: ==========================================[0m
+
+[0;32mI (58655) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (58655) SMART_POLE: [LDR] Raw ADC: 1546[0m
+[0;33mW (59655) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (59805) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (60105) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (60105) SMART_POLE: ==========================================[0m
+
+[0;32mI (63105) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (63105) SMART_POLE: [LDR] Raw ADC: 1529[0m
+[0;33mW (64105) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (64255) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (64555) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (64555) SMART_POLE: ==========================================[0m
+
+[0;32mI (67555) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (67555) SMART_POLE: [LDR] Raw ADC: 1575[0m
+[0;33mW (68555) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (68705) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (69005) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (69005) SMART_POLE: ==========================================[0m
+
+[0;32mI (72005) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (72005) SMART_POLE: [LDR] Raw ADC: 1541[0m
+[0;33mW (73005) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (73155) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (73455) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (73455) SMART_POLE: ==========================================[0m
+
+[0;32mI (76455) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (76455) SMART_POLE: [LDR] Raw ADC: 1547[0m
+[0;33mW (77455) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (77605) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (77905) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (77905) SMART_POLE: ==========================================[0m
+
+[0;32mI (80905) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (80905) SMART_POLE: [LDR] Raw ADC: 1533[0m
+[0;33mW (81905) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (82055) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (82355) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (82355) SMART_POLE: ==========================================[0m
+
+[0;32mI (85355) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (85355) SMART_POLE: [LDR] Raw ADC: 1557[0m
+[0;33mW (86355) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (86505) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (86805) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (86805) SMART_POLE: ==========================================[0m
+
+[0;32mI (89805) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (89805) SMART_POLE: [LDR] Raw ADC: 1531[0m
+[0;33mW (90805) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (90955) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (91255) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (91255) SMART_POLE: ==========================================[0m
+
+[0;32mI (94255) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (94255) SMART_POLE: [LDR] Raw ADC: 1559[0m
+[0;33mW (95255) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (95405) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (95705) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (95705) SMART_POLE: ==========================================[0m
+
+[0;32mI (98705) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (98705) SMART_POLE: [LDR] Raw ADC: 1543[0m
+[0;33mW (99705) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (99855) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (100155) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (100155) SMART_POLE: ==========================================[0m
+
+[0;32mI (103155) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (103155) SMART_POLE: [LDR] Raw ADC: 1546[0m
+[0;33mW (104155) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (104305) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (104605) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (104605) SMART_POLE: ==========================================[0m
+
+[0;32mI (107605) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (107605) SMART_POLE: [LDR] Raw ADC: 1545[0m
+[0;33mW (108605) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (108755) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (109055) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (109055) SMART_POLE: ==========================================[0m
+
+[0;32mI (112055) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (112055) SMART_POLE: [LDR] Raw ADC: 1556[0m
+[0;33mW (113055) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (113205) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (113505) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (113505) SMART_POLE: ==========================================[0m
+
+[0;32mI (116505) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (116505) SMART_POLE: [LDR] Raw ADC: 1547[0m
+[0;33mW (117505) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (117655) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (117955) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (117955) SMART_POLE: ==========================================[0m
+
+[0;32mI (120955) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (120955) SMART_POLE: [LDR] Raw ADC: 1557[0m
+[0;33mW (121955) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (122105) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (122405) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (122405) SMART_POLE: ==========================================[0m
+
+[0;32mI (125405) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (125405) SMART_POLE: [LDR] Raw ADC: 1547[0m
+[0;33mW (126405) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (126555) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (126855) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (126855) SMART_POLE: ==========================================[0m
+
+[0;32mI (129855) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (129855) SMART_POLE: [LDR] Raw ADC: 1548[0m
+[0;33mW (130855) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (131005) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (131305) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (131305) SMART_POLE: ==========================================[0m
+
+[0;32mI (134305) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (134305) SMART_POLE: [LDR] Raw ADC: 1559[0m
+[0;33mW (135305) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (135455) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (135755) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (135755) SMART_POLE: ==========================================[0m
+
+[0;32mI (138755) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (138755) SMART_POLE: [LDR] Raw ADC: 1519[0m
+[0;33mW (139755) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (139905) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (140205) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (140205) SMART_POLE: ==========================================[0m
+
+[0;32mI (143205) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (143205) SMART_POLE: [LDR] Raw ADC: 1555[0m
+[0;33mW (144205) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (144355) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (144655) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (144655) SMART_POLE: ==========================================[0m
+
+[0;32mI (147655) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (147655) SMART_POLE: [LDR] Raw ADC: 1533[0m
+[0;33mW (148655) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (148805) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (149105) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (149105) SMART_POLE: ==========================================[0m
+
+[0;32mI (152105) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (152105) SMART_POLE: [LDR] Raw ADC: 1571[0m
+[0;33mW (153105) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (153255) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (153555) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (153555) SMART_POLE: ==========================================[0m
+
+[0;32mI (156555) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (156555) SMART_POLE: [LDR] Raw ADC: 1591[0m
+[0;33mW (157555) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (157705) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (158005) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (158005) SMART_POLE: ==========================================[0m
+
+[0;32mI (161005) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (161005) SMART_POLE: [LDR] Raw ADC: 1527[0m
+[0;33mW (162005) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (162155) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (162455) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (162455) SMART_POLE: ==========================================[0m
+
+[0;32mI (165455) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (165455) SMART_POLE: [LDR] Raw ADC: 1556[0m
+[0;33mW (166455) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (166605) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (166905) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (166905) SMART_POLE: ==========================================[0m
+
+[0;32mI (169905) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (169905) SMART_POLE: [LDR] Raw ADC: 1545[0m
+[0;33mW (170905) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (171055) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (171355) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (171355) SMART_POLE: ==========================================[0m
+
+[0;32mI (174355) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (174355) SMART_POLE: [LDR] Raw ADC: 1560[0m
+[0;33mW (175355) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (175505) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (175805) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (175805) SMART_POLE: ==========================================[0m
+
+[0;32mI (178805) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (178805) SMART_POLE: [LDR] Raw ADC: 1561[0m
+[0;33mW (179805) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (179955) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (180255) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (180255) SMART_POLE: ==========================================[0m
+
+[0;32mI (183255) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (183255) SMART_POLE: [LDR] Raw ADC: 1561[0m
+[0;33mW (184255) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (184405) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (184705) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (184705) SMART_POLE: ==========================================[0m
+
+[0;32mI (187705) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (187705) SMART_POLE: [LDR] Raw ADC: 1573[0m
+[0;33mW (188705) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (188855) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (189155) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (189155) SMART_POLE: ==========================================[0m
+
+[0;32mI (192155) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (192155) SMART_POLE: [LDR] Raw ADC: 1613[0m
+[0;33mW (193155) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (193305) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (193605) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (193605) SMART_POLE: ==========================================[0m
+
+[0;32mI (196605) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (196605) SMART_POLE: [LDR] Raw ADC: 567[0m
+[0;33mW (197605) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (197755) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (198055) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (198055) SMART_POLE: ==========================================[0m
+
+[0;32mI (201055) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (201055) SMART_POLE: [LDR] Raw ADC: 247[0m
+[0;33mW (202055) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (202205) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (202505) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (202505) SMART_POLE: ==========================================[0m
+
+[0;32mI (205505) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (205505) SMART_POLE: [LDR] Raw ADC: 211[0m
+[0;33mW (206505) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (206655) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (206955) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (206955) SMART_POLE: ==========================================[0m
+
+[0;32mI (209955) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (209955) SMART_POLE: [LDR] Raw ADC: 1557[0m
+[0;33mW (210955) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (211105) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (211405) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (211405) SMART_POLE: ==========================================[0m
+
+[0;32mI (214405) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (214405) SMART_POLE: [LDR] Raw ADC: 1555[0m
+[0;33mW (215405) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (215555) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (215855) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (215855) SMART_POLE: ==========================================[0m
+
+[0;32mI (218855) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (218855) SMART_POLE: [LDR] Raw ADC: 1567[0m
+[0;33mW (219855) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (220005) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (220305) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (220305) SMART_POLE: ==========================================[0m
+
+[0;32mI (223305) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (223305) SMART_POLE: [LDR] Raw ADC: 1565[0m
+[0;33mW (224305) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (224455) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (224755) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (224755) SMART_POLE: ==========================================[0m
+
+[0;32mI (227755) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (227755) SMART_POLE: [LDR] Raw ADC: 1560[0m
+[0;33mW (228755) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (228905) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (229205) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (229205) SMART_POLE: ==========================================[0m
+
+[0;32mI (232205) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (232205) SMART_POLE: [LDR] Raw ADC: 1563[0m
+[0;33mW (233205) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (233355) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (233655) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (233655) SMART_POLE: ==========================================[0m
+
+[0;32mI (236655) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (236655) SMART_POLE: [LDR] Raw ADC: 1565[0m
+[0;33mW (237655) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (237805) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (238105) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (238105) SMART_POLE: ==========================================[0m
+
+[0;32mI (241105) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (241105) SMART_POLE: [LDR] Raw ADC: 1555[0m
+[0;33mW (242105) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (242255) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (242555) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (242555) SMART_POLE: ==========================================[0m
+
+[0;32mI (245555) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (245555) SMART_POLE: [LDR] Raw ADC: 1560[0m
+[0;33mW (246555) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (246705) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (247005) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (247005) SMART_POLE: ==========================================[0m
+
+[0;32mI (250005) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (250005) SMART_POLE: [LDR] Raw ADC: 1565[0m
+[0;33mW (251005) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (251155) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (251455) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (251455) SMART_POLE: ==========================================[0m
+
+[0;32mI (254455) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (254455) SMART_POLE: [LDR] Raw ADC: 1558[0m
+[0;33mW (255455) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (255605) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (255905) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (255905) SMART_POLE: ==========================================[0m
+
+[0;32mI (258905) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (258905) SMART_POLE: [LDR] Raw ADC: 1565[0m
+[0;33mW (259905) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (260055) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (260355) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (260355) SMART_POLE: ==========================================[0m
+
+[0;32mI (263355) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (263355) SMART_POLE: [LDR] Raw ADC: 1565[0m
+[0;33mW (264355) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (264505) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (264805) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (264805) SMART_POLE: ==========================================[0m
+
+[0;32mI (267805) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (267805) SMART_POLE: [LDR] Raw ADC: 1578[0m
+[0;33mW (268805) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (268955) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (269255) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (269255) SMART_POLE: ==========================================[0m
+
+[0;32mI (272255) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (272255) SMART_POLE: [LDR] Raw ADC: 1581[0m
+[0;33mW (273255) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (273405) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (273705) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (273705) SMART_POLE: ==========================================[0m
+
+[0;32mI (276705) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (276705) SMART_POLE: [LDR] Raw ADC: 1581[0m
+[0;33mW (277705) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;33mW (277855) SMART_POLE: [PZEM] Timeout.[0m
+[0;32mI (278155) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (278155) SMART_POLE: ==========================================[0m
+

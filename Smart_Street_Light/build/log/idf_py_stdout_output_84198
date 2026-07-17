@@ -1,0 +1,142 @@
+Command: /home/kamna/.espressif/python_env/idf5.5_py3.10_env/bin/python /home/kamna/esp/esp-idf/tools/idf_monitor.py -p /dev/ttyACM0 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 -m '/home/kamna/.espressif/python_env/idf5.5_py3.10_env/bin/python' '/home/kamna/esp/esp-idf/tools/idf.py'
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x28 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x40048d14
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xd24
+load:0x403cb700,len:0x2ef0
+entry 0x403c891c
+[0;32mI (24) boot: ESP-IDF 5.5.4 2nd stage bootloader[0m
+[0;32mI (24) boot: compile time Jul 16 2026 16:01:09[0m
+[0;32mI (25) boot: Multicore bootloader[0m
+[0;32mI (25) boot: chip revision: v0.2[0m
+[0;32mI (27) boot: efuse block revision: v1.4[0m
+[0;32mI (31) boot.esp32s3: Boot SPI Speed : 80MHz[0m
+[0;32mI (35) boot.esp32s3: SPI Mode       : DIO[0m
+[0;32mI (39) boot.esp32s3: SPI Flash Size : 16MB[0m
+[0;32mI (43) boot: Enabling RNG early entropy source...[0m
+[0;32mI (47) boot: Partition Table:[0m
+[0;32mI (50) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (62) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (69) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (76) boot: End of partition table[0m
+[0;32mI (79) esp_image: segment 0: paddr=00010020 vaddr=3c020020 size=0c6a0h ( 50848) map[0m
+[0;32mI (95) esp_image: segment 1: paddr=0001c6c8 vaddr=3fc93c00 size=03010h ( 12304) load[0m
+[0;32mI (98) esp_image: segment 2: paddr=0001f6e0 vaddr=40374000 size=00938h (  2360) load[0m
+[0;32mI (102) esp_image: segment 3: paddr=00020020 vaddr=42000020 size=1b374h (111476) map[0m
+[0;32mI (128) esp_image: segment 4: paddr=0003b39c vaddr=40374938 size=0f1ech ( 61932) load[0m
+[0;32mI (142) esp_image: segment 5: paddr=0004a590 vaddr=50000000 size=00020h (    32) load[0m
+[0;32mI (149) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (149) boot: Disabling RNG early entropy source...[0m
+[0;32mI (160) cpu_start: Multicore app[0m
+[0;32mI (168) cpu_start: GPIO 44 and 43 are used as console UART I/O pins[0m
+[0;32mI (169) cpu_start: Pro cpu start user code[0m
+[0;32mI (169) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (171) app_init: Application information:[0m
+[0;32mI (175) app_init: Project name:     Smart_Street_Light[0m
+[0;32mI (179) app_init: App version:      0e1d58b-dirty[0m
+[0;32mI (184) app_init: Compile time:     Jul 16 2026 16:00:56[0m
+[0;32mI (189) app_init: ELF file SHA256:  2aedab68f...[0m
+[0;32mI (193) app_init: ESP-IDF:          5.5.4[0m
+[0;32mI (197) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (201) efuse_init: Max chip rev:     v0.99 [0m
+[0;32mI (205) efuse_init: Chip rev:         v0.2[0m
+[0;32mI (209) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (215) heap_init: At 3FC97560 len 000521B0 (328 KiB): RAM[0m
+[0;32mI (220) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM[0m
+[0;32mI (225) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM[0m
+[0;32mI (230) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM[0m
+[0;32mI (237) spi_flash: detected chip: generic[0m
+[0;32mI (239) spi_flash: flash io: dio[0m
+[0;33mW (243) i2c: This driver is an old driver, please migrate your application code to adapt `driver/i2c_master.h`[0m
+[0;32mI (252) sleep_gpio: Configure to isolate all GPIO pins in sleep state[0m
+[0;32mI (258) sleep_gpio: Enable automatic switching of GPIO sleep configuration[0m
+[0;32mI (265) main_task: Started on CPU0[0m
+[0;32mI (275) main_task: Calling app_main()[0m
+[0;32mI (275) SMART_POLE: Booting Smart Pole System (Internal GPS)...[0m
+[0;32mI (275) SMART_POLE: Relay (GPIO47) berhasil diinisialisasi. Status awal: OFF/LOW.[0m
+[0;32mI (285) SMART_POLE: ADC untuk LDR (GPIO09) berhasil diinisialisasi.[0m
+[0;32mI (295) SMART_POLE: I2C untuk RTC (GPIO02, 03) berhasil diinisialisasi.[0m
+[0;32mI (295) SMART_POLE: UART2 untuk PZEM (GPIO15, 16) berhasil diinisialisasi.[0m
+[0;32mI (305) SMART_POLE: UART1 untuk Modem/GPS Internal (GPIO4, 5) berhasil diinisialisasi.[0m
+[0;32mI (315) main_task: Returned from app_main()[0m
+[0;32mI (815) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (815) SMART_POLE: [LDR] Raw ADC: 1821[0m
+[0;32mI (815) SMART_POLE: [RELAY] MALAM/Gelap - Menyambung daya AC ke Driver[0m
+[0;33mW (1815) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[1;31mE (1965) SMART_POLE: [PZEM] Timeout / Tidak ada respons.[0m
+[0;32mI (2265) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (2265) SMART_POLE: ==========================================[0m
+
+[0;32mI (5265) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (5265) SMART_POLE: [LDR] Raw ADC: 1828[0m
+[0;32mI (5265) SMART_POLE: [RELAY] MALAM/Gelap - Menyambung daya AC ke Driver[0m
+[0;33mW (6265) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[1;31mE (6415) SMART_POLE: [PZEM] Timeout / Tidak ada respons.[0m
+[0;32mI (6715) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (6715) SMART_POLE: ==========================================[0m
+
+[0;32mI (9715) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (9715) SMART_POLE: [LDR] Raw ADC: 171[0m
+[0;32mI (9715) SMART_POLE: [RELAY] SIANG/Terang - Memutus daya AC ke Driver[0m
+[0;33mW (10715) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[1;31mE (10865) SMART_POLE: [PZEM] Timeout / Tidak ada respons.[0m
+[0;32mI (11165) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (11165) SMART_POLE: ==========================================[0m
+
+[0;32mI (14165) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (14165) SMART_POLE: [LDR] Raw ADC: 142[0m
+[0;32mI (14165) SMART_POLE: [RELAY] SIANG/Terang - Memutus daya AC ke Driver[0m
+[0;33mW (15165) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;32mI (15315) SMART_POLE: [PZEM] DATA LISTRIK AKTIF:[0m
+[0;32mI (15315) SMART_POLE:        -> Tegangan : 241.6 V[0m
+[0;32mI (15315) SMART_POLE:        -> Arus     : 0.829 A[0m
+[0;32mI (15315) SMART_POLE:        -> Daya     : 198.9 W[0m
+[0;32mI (15315) SMART_POLE:        -> Energi   : 2699 Wh[0m
+[0;32mI (15325) SMART_POLE:        -> Frekuensi: 50.0 Hz[0m
+[0;32mI (15325) SMART_POLE:        -> Power Fac: 0.99[0m
+[0;32mI (15635) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (15635) SMART_POLE: ==========================================[0m
+
+[0;32mI (18635) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (18635) SMART_POLE: [LDR] Raw ADC: 148[0m
+[0;32mI (18635) SMART_POLE: [RELAY] SIANG/Terang - Memutus daya AC ke Driver[0m
+[0;33mW (19635) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[0;32mI (19785) SMART_POLE: [PZEM] DATA LISTRIK AKTIF:[0m
+[0;32mI (19785) SMART_POLE:        -> Tegangan : 241.7 V[0m
+[0;32mI (19785) SMART_POLE:        -> Arus     : 0.828 A[0m
+[0;32mI (19785) SMART_POLE:        -> Daya     : 198.6 W[0m
+[0;32mI (19785) SMART_POLE:        -> Energi   : 2699 Wh[0m
+[0;32mI (19795) SMART_POLE:        -> Frekuensi: 50.0 Hz[0m
+[0;32mI (19795) SMART_POLE:        -> Power Fac: 0.99[0m
+[0;32mI (20105) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (20105) SMART_POLE: ==========================================[0m
+
+[0;32mI (23105) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (23105) SMART_POLE: [LDR] Raw ADC: 651[0m
+[0;32mI (23105) SMART_POLE: [RELAY] MALAM/Gelap - Menyambung daya AC ke Driver[0m
+[0;33mW (24105) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[1;31mE (24255) SMART_POLE: [PZEM] Timeout / Tidak ada respons.[0m
+[0;32mI (24555) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (24555) SMART_POLE: ==========================================[0m
+
+[0;32mI (27555) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (27555) SMART_POLE: [LDR] Raw ADC: 1815[0m
+[0;32mI (27555) SMART_POLE: [RELAY] MALAM/Gelap - Menyambung daya AC ke Driver[0m
+[0;33mW (28555) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[1;31mE (28705) SMART_POLE: [PZEM] Timeout / Tidak ada respons.[0m
+[0;32mI (29005) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (29005) SMART_POLE: ==========================================[0m
+
+[0;32mI (32005) SMART_POLE: ========== MEMBACA SEMUA SENSOR ==========[0m
+[0;32mI (32005) SMART_POLE: [LDR] Raw ADC: 1805[0m
+[0;32mI (32005) SMART_POLE: [RELAY] MALAM/Gelap - Menyambung daya AC ke Driver[0m
+[0;33mW (33005) SMART_POLE: [RTC] Gagal membaca I2C.[0m
+[1;31mE (33155) SMART_POLE: [PZEM] Timeout / Tidak ada respons.[0m
+[0;32mI (33455) SMART_POLE: [GPS] Tidak ada balasan dari modem.[0m
+[0;32mI (33455) SMART_POLE: ==========================================[0m
+
