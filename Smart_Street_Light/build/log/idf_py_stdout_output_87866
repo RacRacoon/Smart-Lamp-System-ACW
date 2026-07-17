@@ -1,0 +1,212 @@
+Command: /home/kamna/.espressif/python_env/idf5.5_py3.10_env/bin/python /home/kamna/esp/esp-idf/tools/idf_monitor.py -p /dev/ttyACM1 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 -m '/home/kamna/.espressif/python_env/idf5.5_py3.10_env/bin/python' '/home/kamna/esp/esp-idf/tools/idf.py'
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x29 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x40048e22
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xd24
+load:0x403cb700,len:0x2ef0
+entry 0x403c891c
+[0;32mI (24) boot: ESP-IDF 5.5.4 2nd stage bootloader[0m
+[0;32mI (24) boot: compile time Jul 17 2026 10:27:32[0m
+[0;32mI (25) boot: Multicore bootloader[0m
+[0;32mI (25) boot: chip revision: v0.2[0m
+[0;32mI (27) boot: efuse block revision: v1.4[0m
+[0;32mI (31) boot.esp32s3: Boot SPI Speed : 80MHz[0m
+[0;32mI (35) boot.esp32s3: SPI Mode       : DIO[0m
+[0;32mI (39) boot.esp32s3: SPI Flash Size : 16MB[0m
+[0;32mI (43) boot: Enabling RNG early entropy source...[0m
+[0;32mI (47) boot: Partition Table:[0m
+[0;32mI (50) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (62) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (69) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (76) boot: End of partition table[0m
+[0;32mI (79) esp_image: segment 0: paddr=00010020 vaddr=3c020020 size=0cc90h ( 52368) map[0m
+[0;32mI (95) esp_image: segment 1: paddr=0001ccb8 vaddr=3fc93c00 size=03080h ( 12416) load[0m
+[0;32mI (98) esp_image: segment 2: paddr=0001fd40 vaddr=40374000 size=002d8h (   728) load[0m
+[0;32mI (101) esp_image: segment 3: paddr=00020020 vaddr=42000020 size=1ed8ch (126348) map[0m
+[0;32mI (131) esp_image: segment 4: paddr=0003edb4 vaddr=403742d8 size=0f860h ( 63584) load[0m
+[0;32mI (145) esp_image: segment 5: paddr=0004e61c vaddr=50000000 size=00020h (    32) load[0m
+[0;32mI (152) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (152) boot: Disabling RNG early entropy source...[0m
+[0;32mI (163) cpu_start: Multicore app[0m
+[0;32mI (171) cpu_start: GPIO 44 and 43 are used as console UART I/O pins[0m
+[0;32mI (172) cpu_start: Pro cpu start user code[0m
+[0;32mI (172) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (174) app_init: Application information:[0m
+[0;32mI (177) app_init: Project name:     Smart_Street_Light[0m
+[0;32mI (182) app_init: App version:      7628e96-dirty[0m
+[0;32mI (187) app_init: Compile time:     Jul 17 2026 13:47:46[0m
+[0;32mI (192) app_init: ELF file SHA256:  b775f76dc...[0m
+[0;32mI (196) app_init: ESP-IDF:          5.5.4[0m
+[0;32mI (200) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (204) efuse_init: Max chip rev:     v0.99 [0m
+[0;32mI (208) efuse_init: Chip rev:         v0.2[0m
+[0;32mI (211) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (218) heap_init: At 3FC975F8 len 00052118 (328 KiB): RAM[0m
+[0;32mI (223) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM[0m
+[0;32mI (228) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM[0m
+[0;32mI (233) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM[0m
+[0;32mI (240) spi_flash: detected chip: generic[0m
+[0;32mI (242) spi_flash: flash io: dio[0m
+[0;33mW (246) i2c: This driver is an old driver, please migrate your application code to adapt `driver/i2c_master.h`[0m
+[0;32mI (255) sleep_gpio: Configure to isolate all GPIO pins in sleep state[0m
+[0;32mI (261) sleep_gpio: Enable automatic switching of GPIO sleep configuration[0m
+[0;32mI (268) main_task: Started on CPU0[0m
+[0;32mI (278) main_task: Calling app_main()[0m
+[0;32mI (278) MAIN_APP: System Booting...[0m
+[0;32mI (278) MAIN_APP: Relay initialized.[0m
+[0;32mI (278) MAIN_APP: ADC LDR initialized.[0m
+[0;32mI (288) RTC_DRIVER: RTC I2C Initialized[0m
+[0;32mI (288) PZEM_DRIVER: PZEM UART Initialized[0m
+[0;32mI (288) GPS_DRIVER: Menekan tombol Power Modem (PWRKEY GPIO46)...[0m
+[0;32mI (1398) GPS_DRIVER: Menunggu OS Modem Booting (4 detik)...[0m
+[0;32mI (5998) GPS_DRIVER: Modem dan Antena GPS berhasil dihidupkan![0m
+[0;32mI (5998) main_task: Returned from app_main()[0m
+[0;32mI (5998) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (5998) MAIN_APP: [LDR] Raw ADC: 1385[0m
+[0;32mI (5998) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (6108) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (6108) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (6108) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:15[0m
+[0;32mI (6408) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (6408) MAIN_APP: =================================[0m
+
+[0;32mI (9408) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (9408) MAIN_APP: [LDR] Raw ADC: 1389[0m
+[0;32mI (9408) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (9508) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (9508) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (9508) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:18[0m
+[0;32mI (9808) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (9808) MAIN_APP: =================================[0m
+
+[0;32mI (12808) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (12808) MAIN_APP: [LDR] Raw ADC: 1353[0m
+[0;32mI (12808) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (12908) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (12908) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (12908) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:21[0m
+[0;32mI (13208) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (13208) MAIN_APP: =================================[0m
+
+[0;32mI (16208) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (16208) MAIN_APP: [LDR] Raw ADC: 1383[0m
+[0;32mI (16208) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (16308) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (16308) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (16308) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:25[0m
+[0;32mI (16608) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (16608) MAIN_APP: =================================[0m
+
+[0;32mI (19608) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (19608) MAIN_APP: [LDR] Raw ADC: 1429[0m
+[0;32mI (19608) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (19708) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (19708) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (19708) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:28[0m
+[0;32mI (20008) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (20008) MAIN_APP: =================================[0m
+
+[0;32mI (23008) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (23008) MAIN_APP: [LDR] Raw ADC: 1228[0m
+[0;32mI (23008) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (23108) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (23108) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (23108) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:32[0m
+[0;32mI (23408) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (23408) MAIN_APP: =================================[0m
+
+[0;32mI (26408) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (26408) MAIN_APP: [LDR] Raw ADC: 1208[0m
+[0;32mI (26408) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (26508) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (26508) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (26508) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:35[0m
+[0;32mI (26808) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (26808) MAIN_APP: =================================[0m
+
+[0;32mI (29808) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (29808) MAIN_APP: [LDR] Raw ADC: 1263[0m
+[0;32mI (29808) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (29908) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (29908) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (29908) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:38[0m
+[0;32mI (30208) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (30208) MAIN_APP: =================================[0m
+
+[0;32mI (33208) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (33208) MAIN_APP: [LDR] Raw ADC: 1210[0m
+[0;32mI (33208) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (33308) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (33308) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (33308) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:42[0m
+[0;32mI (33608) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (33608) MAIN_APP: =================================[0m
+
+[0;32mI (36608) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (36608) MAIN_APP: [LDR] Raw ADC: 1253[0m
+[0;32mI (36608) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (36708) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (36708) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (36708) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:45[0m
+[0;32mI (37008) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (37008) MAIN_APP: =================================[0m
+
+[0;32mI (40008) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (40008) MAIN_APP: [LDR] Raw ADC: 1224[0m
+[0;32mI (40008) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (40108) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (40108) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (40108) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:49[0m
+[0;32mI (40408) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (40408) MAIN_APP: =================================[0m
+
+[0;32mI (43408) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (43408) MAIN_APP: [LDR] Raw ADC: 1237[0m
+[0;32mI (43408) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (43508) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (43508) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (43508) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:52[0m
+[0;32mI (43808) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (43808) MAIN_APP: =================================[0m
+
+[0;32mI (46808) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (46808) MAIN_APP: [LDR] Raw ADC: 1243[0m
+[0;32mI (46808) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (46908) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (46908) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (46908) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:55[0m
+[0;32mI (47208) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (47208) MAIN_APP: =================================[0m
+
+[0;32mI (50208) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (50208) MAIN_APP: [LDR] Raw ADC: 1254[0m
+[0;32mI (50208) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (50308) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (50308) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (50308) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:46:59[0m
+[0;32mI (50608) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (50608) MAIN_APP: =================================[0m
+
+[0;32mI (53608) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (53608) MAIN_APP: [LDR] Raw ADC: 1177[0m
+[0;32mI (53608) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (53708) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (53708) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (53708) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:47:02[0m
+[0;32mI (54008) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (54008) MAIN_APP: =================================[0m
+
+[0;32mI (57008) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (57008) MAIN_APP: [LDR] Raw ADC: 1223[0m
+[0;32mI (57008) MAIN_APP: [RELAY] Gelap - Menyalakan daya AC ke Driver[0m
+[0;33mW (57108) MAIN_APP: [PZEM] Gagal membaca data (Lampu/Driver Mati)[0m
+[0;32mI (57108) MAIN_APP: [SYSTEM] UPTIME LAMPU: 0 Hari, 00:00:00[0m
+[0;32mI (57108) MAIN_APP: [RTC] Waktu Aktual: 2026-07-17 14:47:06[0m
+[0;32mI (57408) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (57408) MAIN_APP: =================================[0m
+

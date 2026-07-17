@@ -63,43 +63,58 @@ static uint8_t dec_to_bcd(uint8_t val) {
     return ((val / 10 * 16) + (val % 10));
 }
 
-void ds1307_set_time(uint8_t hours, uint8_t minutes, uint8_t seconds) {
-    uint8_t data[4];
-    data[0] = 0x00; // Alamat register awal (0x00 = Seconds)
-    data[1] = dec_to_bcd(seconds); // Akan menimpa bit CH menjadi 0 (Osilator ON)
-    data[2] = dec_to_bcd(minutes);
-    data[3] = dec_to_bcd(hours);
-
-    // Tulis ke perangkat (Menimpa register detik, menit, jam sekaligus)
-    esp_err_t err = i2c_master_write_to_device(I2C_MASTER_NUM, DS1307_ADDR, data, 4, pdMS_TO_TICKS(1000));
+// Membaca akumulasi Uptime Lampu dari NV-RAM RTC
+uint32_t ds1307_read_uptime(void) {
+    uint8_t start_reg = 0x08; // Alamat awal NV-RAM DS1307
+    uint8_t data[4] = {0};
+    
+    esp_err_t err = i2c_master_write_read_device(I2C_MASTER_NUM, DS1307_ADDR, &start_reg, 1, data, 4, pdMS_TO_TICKS(100));
+    
     if (err == ESP_OK) {
-        ESP_LOGI(TAG, "Waktu berhasil disetel dan Osilator Dihidupkan!");
-    } else {
-        ESP_LOGW(TAG, "Gagal menyetel waktu I2C.");
+        uint32_t uptime = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+        // Jika memori masih kosong / baru (0xFFFFFFFF), anggap 0
+        if (uptime == 0xFFFFFFFF) return 0; 
+        return uptime;
     }
+    return 0;
 }
 
-// ... [Biarkan fungsi ds1307_init dan ds1307_set_time tetap seperti sebelumnya] ...
+// Menulis akumulasi Uptime Lampu ke NV-RAM RTC
+void ds1307_write_uptime(uint32_t uptime_sec) {
+    uint8_t data[5];
+    data[0] = 0x08; // Alamat register tujuan
+    
+    // Pecah nilai 32-bit menjadi 4 keping byte
+    data[1] = (uptime_sec >> 24) & 0xFF;
+    data[2] = (uptime_sec >> 16) & 0xFF;
+    data[3] = (uptime_sec >> 8) & 0xFF;
+    data[4] = uptime_sec & 0xFF;
+
+    // SRAM = Aman ditulis terus-terusan setiap lampu menyala
+    i2c_master_write_to_device(I2C_MASTER_NUM, DS1307_ADDR, data, 5, pdMS_TO_TICKS(100));
+}
 
 rtc_time_t rtc_read_time(void) {
     rtc_time_t time_data = {0};
     time_data.valid = false;
     
     uint8_t start_reg = 0x00; // Mulai baca dari Register 0x00 (Detik)
-    uint8_t data[3];          // Buffer untuk menampung [Detik, Menit, Jam]
+    uint8_t data[7];          // Kita cuma butuh 7 Byte (Detik sampai Tahun)
 
-    // Meminta 3 byte secara langsung
-    esp_err_t err = i2c_master_write_read_device(I2C_MASTER_NUM, DS1307_ADDR, &start_reg, 1, data, 3, pdMS_TO_TICKS(1000));
+    // Meminta 7 byte secara langsung
+    esp_err_t err = i2c_master_write_read_device(I2C_MASTER_NUM, DS1307_ADDR, &start_reg, 1, data, 7, pdMS_TO_TICKS(1000));
     
     if (err == ESP_OK) {
-        // data[0] = Detik (Kita mask dengan 0x7F untuk membuang bit CH jika terbaca)
-        time_data.seconds = data[0] & 0x7F; 
+        // PERHATIKAN INDEXNYA DIMULAI DARI 0, DAN BITMASK JANGAN DIHAPUS
+        time_data.seconds = data[0] & 0x7F; // Register 0x00 = Detik
+        time_data.minutes = data[1];        // Register 0x01 = Menit
+        time_data.hours   = data[2] & 0x3F; // Register 0x02 = Jam
         
-        // data[1] = Menit
-        time_data.minutes = data[1];        
+        // data[3] adalah register Hari (1-7), tidak kita masukkan ke struct
         
-        // data[2] = Jam (Kita mask dengan 0x3F untuk membuang bit format 12/24 jam)
-        time_data.hours   = data[2] & 0x3F; 
+        time_data.date    = data[4] & 0x3F; // Register 0x04 = Tanggal
+        time_data.month   = data[5] & 0x1F; // Register 0x05 = Bulan
+        time_data.year    = data[6];        // Register 0x06 = Tahun
         
         time_data.valid = true;
     } else {
