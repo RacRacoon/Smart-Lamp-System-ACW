@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Manager - Smart Lighting Dashboard</title>
+    <!-- Maplibre GL untuk OpenFreeMap Vektor 3D -->
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+        <h2>City Manager</h2>
+        <ul id="sidebar-menu">
+            <li class="active" onclick="navigateTo('dashboard', this)">
+                <a href="javascript:void(0)">Dashboard</a>
+            </li>
+            <li onclick="navigateTo('manage', this)">
+                <a href="javascript:void(0)">Manage Nodes</a>
+            </li>
+            <li onclick="navigateTo('telemetry', this)">
+                <a href="javascript:void(0)">Telemetry Logs</a>
+            </li>
+            <li>
+                <a href="javascript:void(0)">Inbox Alerts <span class="badge" id="alert-badge">0</span></a>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+
+        <!-- Halaman 1: Dashboard View (Eksisting) -->
+        <div id="page-dashboard">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">
+                    Overview Perangkat: <span id="current-device-id">-</span>
+                </h1>
+                
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="color: var(--text-muted); font-size: 14px;">Pilih Lampu:</span>
+                    <select id="device-selector" onchange="switchDevice(this.value)" style="background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 8px 15px; border-radius: 5px; cursor: pointer;">
+                        <option value="">Belum ada lampu</option>
+                    </select>
+                </div>
+            </div>
+            <!-- Stats Cards Grid -->
+            <div class="cards-grid">
+                <div class="card">
+                    <h3>Status Perangkat</h3>
+                    <div class="status-indicator status-healthy" id="status-text">Healthy</div>
+                </div>
+
+                <div class="card lifespan-card" id="lifespan-container">
+                    <h3>Lifespan Perangkat</h3>
+                    <div class="big-value"><span id="uptime-value">4,500</span> / 10,000 jam</div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="lifespan-bar"></div>
+                    </div>
+                    <p class="status-note" id="lifespan-note">Kondisi Operasional Normal</p>
+                </div>
+
+                <div class="card">
+                    <h3>Daya Aktif (PZEM)</h3>
+                    <div class="big-value"><span id="power-value">99.5</span> W</div>
+                    <div class="sub-stats">
+                        <span>Voltase: <strong id="volt-value">221.2</strong>V</span>
+                        <span>Arus: <strong id="current-value">0.45</strong>A</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Koordinat GPS</h3>
+                    <div class="gps-text-layout">
+                        <div class="gps-item">
+                            <span class="gps-label">Lat:</span>
+                            <span class="gps-num" id="lat-value">-7.2791</span>
+                        </div>
+                        <div class="gps-item">
+                            <span class="gps-label">Lng:</span>
+                            <span class="gps-num" id="lng-value">112.7961</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">Kendali Cepat (Manual Override)</h2>
+                    <!-- Switch Pengunci Manual Override -->
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="lock-status-text" style="font-size: 13px; color: var(--text-muted); font-weight: 600;">TERKUNCI</span>
+                        <label class="switch">
+                            <input type="checkbox" id="override-lock-toggle" onchange="toggleManualOverride(this.checked)">
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="controls-grid">
+                    <div class="control-group">
+                        <label>Tingkat Dimming (1 - 10V): <span id="dim-label">8</span></label>
+                        <!-- Tambahkan atribut disabled secara default -->
+                        <input type="range" min="1" max="10" value="8" class="slider" id="dim-slider" oninput="updateDimLabel(this.value)" disabled>
+                    </div>
+                    <div class="control-group">
+                        <label>CCT (Warmness/Color Temp): <span id="cct-label">50</span>%</label>
+                        <!-- Tambahkan atribut disabled secara default -->
+                        <input type="range" min="0" max="100" value="50" class="slider" id="cct-slider" oninput="updateCctLabel(this.value)" disabled>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section Peta dengan Layout Split Dinamis -->
+            <div class="map-section">
+                <h2>Visualisasi Posisi Node Lampu (3D Real-time)</h2>
+                <div class="map-split-container">
+                    <!-- Sisi Kiri: Peta Maplibre -->
+                    <div id="map-wrapper" style="flex: 1; transition: flex 0.5s cubic-bezier(0.25, 1, 0.5, 1);">
+                        <div id="map"></div>
+                    </div>
+                    
+                    <!-- Sisi Kanan: Info Panel (Default Tersembunyi lebar 0) -->
+                    <div id="map-info-panel">
+                        <div class="panel-header">
+                            <h3>Detail Node: <span id="panel-node-id">-</span></h3>
+                            <button onclick="closeMapPanel()" class="close-panel-btn">&times;</button>
+                        </div>
+                        
+                        <div class="panel-body">
+                            <!-- Mini Schedule Timeline -->
+                            <div class="info-group">
+                                <h4>Jadwal Fase Aktif (RTC)</h4>
+                                <div class="timeline-mini">
+                                    <div class="timeline-item">
+                                        <span class="tl-time" id="panel-time-1">17:30</span>
+                                        <span class="tl-desc">Kecerahan: <strong id="panel-dim-1">6</strong>V | CCT: <strong id="panel-cct-1">30</strong>%</span>
+                                    </div>
+                                    <div class="timeline-item">
+                                        <span class="tl-time" id="panel-time-2">23:00</span>
+                                        <span class="tl-desc">Kecerahan: <strong id="panel-dim-2">4</strong>V | CCT: <strong id="panel-cct-2">80</strong>%</span>
+                                    </div>
+                                    <div class="timeline-item">
+                                        <span class="tl-time" id="panel-time-3">03:30</span>
+                                        <span class="tl-desc">Kecerahan: <strong id="panel-dim-3">8</strong>V | CCT: <strong id="panel-cct-3">100</strong>%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Halaman 2: Manage Nodes View (Dengan Fitur Sektor Baru) -->
+        <div id="page-manage" style="display: none;">
+            
+            <!-- Bagian Menu Pilihan Sektor / Node -->
+            <div class="controls-section" style="margin-bottom: 30px;">
+                <h2>Metode Konfigurasi Manajemen</h2>
+                <div style="display: flex; gap: 20px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="config-mode" value="node" checked onchange="changeConfigTarget(this.value)" style="width: 18px; height: 18px;">
+                        <span style="font-weight: 600;">Konfigurasi Per-Node (Individu)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="config-mode" value="sector" onchange="changeConfigTarget(this.value)" style="width: 18px; height: 18px;">
+                        <span style="font-weight: 600;">Konfigurasi Per-Sektor (Grup Sektor)</span>
+                    </label>
+                </div>
+
+                <!-- Target Detil Kontrol (Dinamis Sesuai Mode Pilihan) -->
+                <div id="node-selector-container">
+                    <span style="color: var(--text-muted); font-size: 14px; display: block; margin-bottom: 8px;">Pilih Node Target:</span>
+                    <select id="manage-node-selector" onchange="switchDevice(this.value)" style="background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 8px 15px; border-radius: 5px; cursor: pointer; width: 100%; max-width: 350px;">
+                        <option value="">Belum ada lampu</option>
+                    </select>
+                    <!-- Untuk backward-compatibility dengan JS lama -->
+                    <span style="display:none;" id="manage-node-title">-</span>
+                </div>
+                <div id="sector-selector-container" style="display: none;">
+                    <span style="color: var(--text-muted); font-size: 14px; display: block; margin-bottom: 8px;">Pilih Sektor Target:</span>
+                    <select id="sector-selector-input" onchange="loadSectorSettingsToUI(this.value)" style="background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 8px 15px; border-radius: 5px; cursor: pointer; width: 100%; max-width: 350px;">
+                        <option value="">Belum ada sektor</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Panel 1: Time-based Dimming Scheduler -->
+            <div class="controls-section">
+                <h2>Penjadwalan Keterangan & Kelembutan Cahaya (Time-of-Day Scheduler)</h2>
+                <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
+                    Atur konfigurasi tingkat kecerahan (1-10V) serta intensitas kehangatan warna (CCT %) yang akan dieksekusi oleh modul RTC lokal eksternal DS3231 secara otomatis berdasarkan target jam operasional.
+                </p>
+                
+                <div class="controls-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                    <!-- Slot Waktu 1: Sore Hari -->
+                    <div class="card" style="background: rgba(0,0,0,0.1);">
+                        <h3 style="color: var(--primary);">Fase 1: Mulai Beroperasi (Sore)</h3>
+                        <div class="control-group" style="margin-top: 10px;">
+                            <label>Jam Mulai:</label>
+                            <input type="time" id="sched-time-1" value="17:30" class="device-selector" style="width: 100%; margin-bottom: 15px; background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 6px; border-radius: 4px;">
+                            
+                            <label>Kecerahan: <span id="sched-dim-label-1">6</span> V</label>
+                            <input type="range" min="1" max="10" value="6" class="slider" id="sched-dim-1" oninput="document.getElementById('sched-dim-label-1').innerText=this.value" style="margin-bottom: 15px;">
+                            
+                            <label>Kekuningan (CCT): <span id="sched-cct-label-1">30</span>%</label>
+                            <input type="range" min="0" max="100" value="30" class="slider" id="sched-cct-1" oninput="document.getElementById('sched-cct-label-1').innerText=this.value">
+                        </div>
+                    </div>
+
+                    <!-- Slot Waktu 2: Larut Malam -->
+                    <div class="card" style="background: rgba(0,0,0,0.1);">
+                        <h3 style="color: var(--warning);">Fase 2: Hemat Energi (Tengah Malam)</h3>
+                        <div class="control-group" style="margin-top: 10px;">
+                            <label>Jam Mulai:</label>
+                            <input type="time" id="sched-time-2" value="23:00" class="device-selector" style="width: 100%; margin-bottom: 15px; background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 6px; border-radius: 4px;">
+                            
+                            <label>Kecerahan: <span id="sched-dim-label-2">4</span> V</label>
+                            <input type="range" min="1" max="10" value="4" class="slider" id="sched-dim-2" oninput="document.getElementById('sched-dim-label-2').innerText=this.value" style="margin-bottom: 15px;">
+                            
+                            <label>Kekuningan (CCT): <span id="sched-cct-label-2">80</span>%</label>
+                            <input type="range" min="0" max="100" value="80" class="slider" id="sched-cct-2" oninput="document.getElementById('sched-cct-label-2').innerText=this.value">
+                        </div>
+                    </div>
+
+                    <!-- Slot Waktu 3: Dini Hari -->
+                    <div class="card" style="background: rgba(0,0,0,0.1);">
+                        <h3 style="color: var(--danger);">Fase 3: Antisipasi Kabut (Dini Hari)</h3>
+                        <div class="control-group" style="margin-top: 10px;">
+                            <label>Jam Mulai:</label>
+                            <input type="time" id="sched-time-3" value="03:30" class="device-selector" style="width: 100%; margin-bottom: 15px; background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 6px; border-radius: 4px;">
+                            
+                            <label>Kecerahan: <span id="sched-dim-label-3">8</span> V</label>
+                            <input type="range" min="1" max="10" value="8" class="slider" id="sched-dim-3" oninput="document.getElementById('sched-dim-label-3').innerText=this.value" style="margin-bottom: 15px;">
+                            
+                            <label>Kekuningan (CCT): <span id="sched-cct-label-3">100</span>%</label>
+                            <input type="range" min="0" max="100" value="100" class="slider" id="sched-cct-3" oninput="document.getElementById('sched-cct-label-3').innerText=this.value">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <!-- Page Telemetry Logs -->
+        <div id="page-telemetry" class="page-content" style="display: none; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">Telemetry Logs & Historical Data</h1>
+                
+                <!-- Dropdown Pilih Lampu -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="color: var(--text-muted); font-size: 14px;">Pilih Lampu:</span>
+                    <select id="telemetry-device-selector" onchange="changeTelemetryDevice(this.value)" style="background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 8px 15px; border-radius: 5px; cursor: pointer;">
+                        <option value="">Belum ada lampu</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Grid Card Status Saat Ini (Quick View) -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 25px;">
+                <div style="background: #151f32; padding: 20px; border-radius: 6px; border: 1px solid #2e3a50;">
+                    <p style="color: var(--text-muted); margin: 0 0 5px 0; font-size: 13px; text-transform: uppercase;">Rata-rata Tegangan</p>
+                    <h3 style="color: #3b82f6; font-size: 28px; margin: 0;" id="avg-volt">220.5 V</h3>
+                </div>
+                <div style="background: #151f32; padding: 20px; border-radius: 6px; border: 1px solid #2e3a50;">
+                    <p style="color: var(--text-muted); margin: 0 0 5px 0; font-size: 13px; text-transform: uppercase;">Rata-rata Arus</p>
+                    <h3 style="color: #10b981; font-size: 28px; margin: 0;" id="avg-amp">0.45 A</h3>
+                </div>
+                <div style="background: #151f32; padding: 20px; border-radius: 6px; border: 1px solid #2e3a50;">
+                    <p style="color: var(--text-muted); margin: 0 0 5px 0; font-size: 13px; text-transform: uppercase;">Konsumsi Daya Kumulatif</p>
+                    <h3 style="color: #f59e0b; font-size: 28px; margin: 0;" id="avg-watt">98.2 W</h3>
+                </div>
+            </div>
+
+            <!-- Container Grafik -->
+            <div style="background: #151f32; padding: 25px; border-radius: 6px; border: 1px solid #2e3a50; position: relative; height: 450px;">
+                <canvas id="telemetryChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
