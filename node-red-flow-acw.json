@@ -1,0 +1,361 @@
+[
+  {
+    "id": "flow_smart_lights_complete",
+    "type": "tab",
+    "label": "Smart Lights Docker System",
+    "disabled": false,
+    "info": "Flow terintegrasi untuk menerima telemetry MQTT lampu-lampu (L-101 s/d L-106), memproses datanya, menyimpannya langsung ke database PostgreSQL, serta menyediakan mekanisme pengiriman perintah balik."
+  },
+  {
+    "id": "mqtt_in_telemetry_all",
+    "type": "mqtt in",
+    "z": "flow_smart_lights_complete",
+    "name": "Sub Telemetry Semua Lampu",
+    "topic": "iot/lights/+/telemetry",
+    "qos": "1",
+    "datatype": "json",
+    "broker": "docker_mosquitto_broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 180,
+    "y": 140,
+    "wires": [
+      [
+        "aaff3443ce49623c"
+      ]
+    ]
+  },
+  {
+    "id": "func_process_and_query",
+    "type": "function",
+    "z": "flow_smart_lights_complete",
+    "name": "Parse & Generate SQL Query",
+    "func": "let data = msg.payload; \n\n// 1. Validasi awal: Jika payload kosong, langsung abaikan agar tidak crash\nif (!data || (typeof data === \"string\" && data.trim() === \"\")) {\n    return null; // Menghentikan alur jika payload kosong\n}\n\n// 2. Jika payload berupa string, parse dengan aman menggunakan try-catch\nif (typeof data === \"string\") {\n    try {\n        data = JSON.parse(data);\n    } catch (e) {\n        node.error(\"Gagal melakukan parse JSON: \" + e.message, msg);\n        return null; // Menghentikan alur jika format JSON rusak\n    }\n}\n\n// 3. Ekstrak Device ID dari msg.topic (Contoh: iot/lights/L-101/telemetry)\nlet topicParts = msg.topic.split(\"/\");\nlet deviceId = topicParts[2] || \"UNKNOWN\";\n\n// 4. Pasang Device ID ke objek data\ndata.id = deviceId;\n\n// --- LOGIKA THRESHOLD USIA LAMPU UNTUK FRONTEND (WebSocket) ---\nif (data.uptime >= 10000) {\n    data.health = \"Need Maintenance\";\n} else if (data.uptime >= 8000) {\n    data.health = \"Warning\";\n} else {\n    data.health = \"Healthy\";\n}\n\n// --- CLONING DI NODE-RED UNTUK WEBSOCKET ---\nmsg.full_json = RED.util.cloneMessage(data); \n\n// --- UNTUK POSTGRESQL ---\nmsg.query = `\n    INSERT INTO telemetry_logs (device_id, volt, current, power, uptime, created_at) \n    VALUES ($1, $2, $3, $4, $5, NOW())\n`;\nmsg.params = [\n    data.id, \n    data.volt || 0, \n    data.current || 0, \n    data.power || 0, \n    data.uptime || 0\n];\n\n// Kosongkan payload agar tidak mengganggu driver database\nmsg.payload = \"\"; \n\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 810,
+    "y": 140,
+    "wires": [
+      [
+        "postgres_db_node",
+        "debug_raw_data"
+      ]
+    ]
+  },
+  {
+    "id": "postgres_db_node",
+    "type": "postgresql",
+    "z": "flow_smart_lights_complete",
+    "name": "Save to PostgreSQL",
+    "query": "db",
+    "postgreSQLConfig": "f7f72ff7bfaa5606",
+    "split": false,
+    "rowsPerMsg": 1,
+    "outputs": 1,
+    "x": 1120,
+    "y": 140,
+    "wires": [
+      [
+        "debug_db_status"
+      ]
+    ]
+  },
+  {
+    "id": "debug_raw_data",
+    "type": "debug",
+    "z": "flow_smart_lights_complete",
+    "name": "Log Raw Telemetry",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": true,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "deviceId",
+    "statusType": "msg",
+    "x": 1110,
+    "y": 60,
+    "wires": []
+  },
+  {
+    "id": "debug_db_status",
+    "type": "debug",
+    "z": "flow_smart_lights_complete",
+    "name": "Log DB Insert OK",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": true,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "INSERT Berhasil",
+    "statusType": "str",
+    "x": 1390,
+    "y": 60,
+    "wires": []
+  },
+  {
+    "id": "00778fe480935313",
+    "type": "debug",
+    "z": "flow_smart_lights_complete",
+    "name": "Debug MQTT",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 560,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "4a24f6457b6dab38",
+    "type": "websocket out",
+    "z": "flow_smart_lights_complete",
+    "name": "Dashboard",
+    "server": "7c28fc3256852ad3",
+    "client": "",
+    "x": 570,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "38b6fb37b53e9b72",
+    "type": "inject",
+    "z": "flow_smart_lights_complete",
+    "name": "Tes Dashboard",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "{\"id\":\"L-101\",\"sector\":\"Sektor 1 (Jalan Tunjungan)\",\"health\":\"Healthy\",\"uptime\":4500,\"volt\":221.2,\"current\":0.45,\"power\":99.5,\"lat\":-7.25782,\"lng\":112.73797,\"alerts\":0}",
+    "payloadType": "json",
+    "x": 160,
+    "y": 220,
+    "wires": [
+      [
+        "4a24f6457b6dab38"
+      ]
+    ]
+  },
+  {
+    "id": "aaff3443ce49623c",
+    "type": "delay",
+    "z": "flow_smart_lights_complete",
+    "name": "",
+    "pauseType": "delay",
+    "timeout": "2",
+    "timeoutUnits": "seconds",
+    "rate": "1",
+    "nbRateUnits": "1",
+    "rateUnits": "second",
+    "randomFirst": "1",
+    "randomLast": "5",
+    "randomUnits": "seconds",
+    "drop": false,
+    "allowrate": false,
+    "outputs": 1,
+    "x": 420,
+    "y": 140,
+    "wires": [
+      [
+        "func_process_and_query",
+        "4a24f6457b6dab38",
+        "00778fe480935313"
+      ]
+    ]
+  },
+  {
+    "id": "cbd3a4420afc44ab",
+    "type": "inject",
+    "z": "flow_smart_lights_complete",
+    "name": "Tes lampu Baru",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "iot/lights/L-107/telemetry",
+    "payload": "{\"id\":\"L-107\",\"sector\":\"Sektor 2 (Kertajaya - Depan ITS)\",\"uptime\":9000,\"volt\":222.1,\"current\":0.41,\"power\":91,\"lat\":-7.279315,\"lng\":112.789253,\"alerts\":0,\"history\":{\"labels\":[\"02:00\",\"04:00\",\"06:00\",\"08:00\",\"10:00\",\"12:00\",\"14:00\"],\"volt\":[220.5,221.8,222,221.2,220.9,221.4,222.1],\"ampere\":[0.85,0.82,0.4,0.12,0.05,0.05,0.41],\"watt\":[187.4,181.8,88.8,26.5,11,11,91]}}",
+    "payloadType": "json",
+    "x": 160,
+    "y": 80,
+    "wires": [
+      [
+        "aaff3443ce49623c"
+      ]
+    ]
+  },
+  {
+    "id": "4be670bef54df894",
+    "type": "http in",
+    "z": "flow_smart_lights_complete",
+    "name": "",
+    "url": "/api/devices-latest",
+    "method": "get",
+    "upload": false,
+    "skipBodyParsing": false,
+    "swaggerDoc": "",
+    "x": 200,
+    "y": 460,
+    "wires": [
+      [
+        "3330c5d02bd1ff10"
+      ]
+    ]
+  },
+  {
+    "id": "a76fbbeb9476b587",
+    "type": "http response",
+    "z": "flow_smart_lights_complete",
+    "name": "",
+    "statusCode": "",
+    "headers": {},
+    "x": 890,
+    "y": 580,
+    "wires": []
+  },
+  {
+    "id": "d9728cf2e3f716e6",
+    "type": "change",
+    "z": "flow_smart_lights_complete",
+    "name": "",
+    "rules": [
+      {
+        "t": "set",
+        "p": "headers",
+        "pt": "msg",
+        "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS\",\"Access-Control-Allow-Headers\":\"Content-Type\"}",
+        "tot": "json"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 680,
+    "y": 580,
+    "wires": [
+      [
+        "a76fbbeb9476b587"
+      ]
+    ]
+  },
+  {
+    "id": "3330c5d02bd1ff10",
+    "type": "postgresql",
+    "z": "flow_smart_lights_complete",
+    "name": "Get from DB",
+    "query": "SELECT DISTINCT ON (d.device_id)\n    d.device_id AS id,\n    d.sector_name AS sector,\n    d.latitude AS lat,\n    d.longitude AS lng,\n    d.max_lifespan AS max_lifespan,\n    COALESCE(t.volt, 0) AS volt,\n    COALESCE(t.current, 0) AS current,\n    COALESCE(t.power, 0) AS power,\n    COALESCE(t.uptime, 0) AS uptime,\n    t.created_at AS last_update\nFROM devices d\nLEFT JOIN telemetry_logs t ON d.device_id = t.device_id\nORDER BY d.device_id, t.created_at DESC;",
+    "postgreSQLConfig": "f7f72ff7bfaa5606",
+    "split": false,
+    "rowsPerMsg": 1,
+    "outputs": 1,
+    "x": 470,
+    "y": 460,
+    "wires": [
+      [
+        "d9728cf2e3f716e6"
+      ]
+    ]
+  },
+  {
+    "id": "docker_mosquitto_broker",
+    "type": "mqtt-broker",
+    "name": "Docker Mosquitto",
+    "broker": "172.17.0.1",
+    "port": "1883",
+    "clientid": "nodered_backend",
+    "autoConnect": true,
+    "usetls": false,
+    "compatmode": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "iot/backend/status",
+    "birthQos": "1",
+    "birthRetain": "true",
+    "birthPayload": "online",
+    "birthMsg": {},
+    "closeTopic": "iot/backend/status",
+    "closeQos": "1",
+    "closeRetain": "true",
+    "closePayload": "offline",
+    "closeMsg": {},
+    "willTopic": "iot/backend/status",
+    "willQos": "1",
+    "willRetain": "true",
+    "willPayload": "offline",
+    "willMsg": {},
+    "userProps": "",
+    "sessionExpiry": ""
+  },
+  {
+    "id": "f7f72ff7bfaa5606",
+    "type": "postgreSQLConfig",
+    "name": "",
+    "host": "postgres_db",
+    "hostFieldType": "str",
+    "port": 5432,
+    "portFieldType": "num",
+    "database": "smart_lights",
+    "databaseFieldType": "str",
+    "ssl": "false",
+    "sslFieldType": "bool",
+    "applicationName": "",
+    "applicationNameType": "str",
+    "max": 10,
+    "maxFieldType": "num",
+    "idle": 1000,
+    "idleFieldType": "num",
+    "connectionTimeout": 10000,
+    "connectionTimeoutFieldType": "num",
+    "user": "admin",
+    "userFieldType": "str",
+    "password": "ACW123",
+    "passwordFieldType": "str"
+  },
+  {
+    "id": "7c28fc3256852ad3",
+    "type": "websocket-listener",
+    "path": "/ws/telemetry",
+    "wholemsg": "false"
+  },
+  {
+    "id": "5823a3217146db34",
+    "type": "global-config",
+    "env": [],
+    "modules": {
+      "node-red-contrib-postgresql": "0.15.4"
+    }
+  }
+]
