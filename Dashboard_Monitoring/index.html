@@ -25,7 +25,7 @@
             <li onclick="navigateTo('telemetry', this)">
                 <a href="javascript:void(0)">Telemetry Logs</a>
             </li>
-            <li>
+            <li onclick="navigateTo('alerts', this)">
                 <a href="javascript:void(0)">Inbox Alerts <span class="badge" id="alert-badge">0</span></a>
             </li>
         </ul>
@@ -267,11 +267,11 @@
                 </div>
                 <div style="background: #151f32; padding: 20px; border-radius: 6px; border: 1px solid #2e3a50;">
                     <p style="color: var(--text-muted); margin: 0 0 5px 0; font-size: 13px; text-transform: uppercase;">Rata-rata Arus</p>
-                    <h3 style="color: #10b981; font-size: 28px; margin: 0;" id="avg-amp">0.45 A</h3>
+                    <h3 style="color: #10b981; font-size: 28px; margin: 0;" id="avg-current">0.45 A</h3>
                 </div>
                 <div style="background: #151f32; padding: 20px; border-radius: 6px; border: 1px solid #2e3a50;">
                     <p style="color: var(--text-muted); margin: 0 0 5px 0; font-size: 13px; text-transform: uppercase;">Konsumsi Daya Kumulatif</p>
-                    <h3 style="color: #f59e0b; font-size: 28px; margin: 0;" id="avg-watt">98.2 W</h3>
+                    <h3 style="color: #f59e0b; font-size: 28px; margin: 0;" id="avg-power">98.2 W</h3>
                 </div>
             </div>
 
@@ -280,6 +280,81 @@
                 <canvas id="telemetryChart"></canvas>
             </div>
         </div>
+
+        <!-- Halaman 4: Inbox Alerts -->
+        <div id="page-alerts" style="display: none;">
+
+            <!-- Page Header -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 12px;">
+                <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">Inbox Alerts</h1>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-alert-action btn-mark-all" onclick="markAllRead()">
+                        ✓ Tandai Semua Dibaca
+                    </button>
+                    <button class="btn-alert-action btn-clear-all" onclick="clearAllAlerts()">
+                        🗑 Hapus Semua
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filter & Toolbar Bar -->
+            <div class="alert-toolbar">
+                <!-- Filter by Severity Pills -->
+                <div class="filter-pills" id="severity-filter-pills">
+                    <button class="filter-pill active" onclick="setAlertFilter('severity', 'all', this)">Semua</button>
+                    <button class="filter-pill filter-pill-critical" onclick="setAlertFilter('severity', 'critical', this)">Critical</button>
+                    <button class="filter-pill filter-pill-warning" onclick="setAlertFilter('severity', 'warning', this)">Warning</button>
+                    <button class="filter-pill filter-pill-info" onclick="setAlertFilter('severity', 'info', this)">Info</button>
+                </div>
+
+                <!-- Filter by Node Dropdown -->
+                <select id="alert-node-filter" class="alert-node-select" onchange="setAlertFilter('node', this.value, null)">
+                    <option value="all">Semua Node</option>
+                </select>
+
+                <!-- Search Input -->
+                <input
+                    type="text"
+                    id="alert-search"
+                    class="alert-search-input"
+                    placeholder="Cari pesan alert..."
+                    oninput="handleAlertSearch(this.value)"
+                />
+            </div>
+
+            <!-- Stats Summary Row -->
+            <div class="alert-stats-grid">
+                <div class="alert-stat-card">
+                    <p class="alert-stat-label">Total Alerts</p>
+                    <h3 class="alert-stat-value" id="stat-total">0</h3>
+                </div>
+                <div class="alert-stat-card">
+                    <p class="alert-stat-label">Belum Dibaca</p>
+                    <h3 class="alert-stat-value" id="stat-unread" style="color: var(--warning);">0</h3>
+                </div>
+                <div class="alert-stat-card">
+                    <p class="alert-stat-label">Critical</p>
+                    <h3 class="alert-stat-value" id="stat-critical" style="color: var(--danger);">0</h3>
+                </div>
+            </div>
+
+            <!-- Alert Inbox List -->
+            <div id="alert-list"></div>
+
+            <!-- Empty State -->
+            <div id="alert-empty-state" class="alert-empty-state" style="display: none;">
+                <div class="alert-empty-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2"/>
+                        <path d="M2 8l10 7 10-7"/>
+                    </svg>
+                </div>
+                <p class="alert-empty-text">Tidak ada alert saat ini</p>
+                <p class="alert-empty-sub">Sistem berjalan normal. Alert akan muncul secara otomatis.</p>
+            </div>
+
+        </div>
+
     </div>
     <script src="script.js"></script>
 </body>

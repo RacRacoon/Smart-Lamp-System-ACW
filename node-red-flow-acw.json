@@ -1,361 +1,951 @@
 [
-  {
-    "id": "flow_smart_lights_complete",
-    "type": "tab",
-    "label": "Smart Lights Docker System",
-    "disabled": false,
-    "info": "Flow terintegrasi untuk menerima telemetry MQTT lampu-lampu (L-101 s/d L-106), memproses datanya, menyimpannya langsung ke database PostgreSQL, serta menyediakan mekanisme pengiriman perintah balik."
-  },
-  {
-    "id": "mqtt_in_telemetry_all",
-    "type": "mqtt in",
-    "z": "flow_smart_lights_complete",
-    "name": "Sub Telemetry Semua Lampu",
-    "topic": "iot/lights/+/telemetry",
-    "qos": "1",
-    "datatype": "json",
-    "broker": "docker_mosquitto_broker",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 180,
-    "y": 140,
-    "wires": [
-      [
-        "aaff3443ce49623c"
-      ]
-    ]
-  },
-  {
-    "id": "func_process_and_query",
-    "type": "function",
-    "z": "flow_smart_lights_complete",
-    "name": "Parse & Generate SQL Query",
-    "func": "let data = msg.payload; \n\n// 1. Validasi awal: Jika payload kosong, langsung abaikan agar tidak crash\nif (!data || (typeof data === \"string\" && data.trim() === \"\")) {\n    return null; // Menghentikan alur jika payload kosong\n}\n\n// 2. Jika payload berupa string, parse dengan aman menggunakan try-catch\nif (typeof data === \"string\") {\n    try {\n        data = JSON.parse(data);\n    } catch (e) {\n        node.error(\"Gagal melakukan parse JSON: \" + e.message, msg);\n        return null; // Menghentikan alur jika format JSON rusak\n    }\n}\n\n// 3. Ekstrak Device ID dari msg.topic (Contoh: iot/lights/L-101/telemetry)\nlet topicParts = msg.topic.split(\"/\");\nlet deviceId = topicParts[2] || \"UNKNOWN\";\n\n// 4. Pasang Device ID ke objek data\ndata.id = deviceId;\n\n// --- LOGIKA THRESHOLD USIA LAMPU UNTUK FRONTEND (WebSocket) ---\nif (data.uptime >= 10000) {\n    data.health = \"Need Maintenance\";\n} else if (data.uptime >= 8000) {\n    data.health = \"Warning\";\n} else {\n    data.health = \"Healthy\";\n}\n\n// --- CLONING DI NODE-RED UNTUK WEBSOCKET ---\nmsg.full_json = RED.util.cloneMessage(data); \n\n// --- UNTUK POSTGRESQL ---\nmsg.query = `\n    INSERT INTO telemetry_logs (device_id, volt, current, power, uptime, created_at) \n    VALUES ($1, $2, $3, $4, $5, NOW())\n`;\nmsg.params = [\n    data.id, \n    data.volt || 0, \n    data.current || 0, \n    data.power || 0, \n    data.uptime || 0\n];\n\n// Kosongkan payload agar tidak mengganggu driver database\nmsg.payload = \"\"; \n\nreturn msg;",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 810,
-    "y": 140,
-    "wires": [
-      [
-        "postgres_db_node",
-        "debug_raw_data"
-      ]
-    ]
-  },
-  {
-    "id": "postgres_db_node",
-    "type": "postgresql",
-    "z": "flow_smart_lights_complete",
-    "name": "Save to PostgreSQL",
-    "query": "db",
-    "postgreSQLConfig": "f7f72ff7bfaa5606",
-    "split": false,
-    "rowsPerMsg": 1,
-    "outputs": 1,
-    "x": 1120,
-    "y": 140,
-    "wires": [
-      [
-        "debug_db_status"
-      ]
-    ]
-  },
-  {
-    "id": "debug_raw_data",
-    "type": "debug",
-    "z": "flow_smart_lights_complete",
-    "name": "Log Raw Telemetry",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": true,
-    "complete": "payload",
-    "targetType": "msg",
-    "statusVal": "deviceId",
-    "statusType": "msg",
-    "x": 1110,
-    "y": 60,
-    "wires": []
-  },
-  {
-    "id": "debug_db_status",
-    "type": "debug",
-    "z": "flow_smart_lights_complete",
-    "name": "Log DB Insert OK",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": true,
-    "complete": "payload",
-    "targetType": "msg",
-    "statusVal": "INSERT Berhasil",
-    "statusType": "str",
-    "x": 1390,
-    "y": 60,
-    "wires": []
-  },
-  {
-    "id": "00778fe480935313",
-    "type": "debug",
-    "z": "flow_smart_lights_complete",
-    "name": "Debug MQTT",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "payload",
-    "targetType": "msg",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 560,
-    "y": 40,
-    "wires": []
-  },
-  {
-    "id": "4a24f6457b6dab38",
-    "type": "websocket out",
-    "z": "flow_smart_lights_complete",
-    "name": "Dashboard",
-    "server": "7c28fc3256852ad3",
-    "client": "",
-    "x": 570,
-    "y": 220,
-    "wires": []
-  },
-  {
-    "id": "38b6fb37b53e9b72",
-    "type": "inject",
-    "z": "flow_smart_lights_complete",
-    "name": "Tes Dashboard",
-    "props": [
-      {
-        "p": "payload"
-      },
-      {
-        "p": "topic",
-        "vt": "str"
-      }
-    ],
-    "repeat": "",
-    "crontab": "",
-    "once": false,
-    "onceDelay": 0.1,
-    "topic": "",
-    "payload": "{\"id\":\"L-101\",\"sector\":\"Sektor 1 (Jalan Tunjungan)\",\"health\":\"Healthy\",\"uptime\":4500,\"volt\":221.2,\"current\":0.45,\"power\":99.5,\"lat\":-7.25782,\"lng\":112.73797,\"alerts\":0}",
-    "payloadType": "json",
-    "x": 160,
-    "y": 220,
-    "wires": [
-      [
-        "4a24f6457b6dab38"
-      ]
-    ]
-  },
-  {
-    "id": "aaff3443ce49623c",
-    "type": "delay",
-    "z": "flow_smart_lights_complete",
-    "name": "",
-    "pauseType": "delay",
-    "timeout": "2",
-    "timeoutUnits": "seconds",
-    "rate": "1",
-    "nbRateUnits": "1",
-    "rateUnits": "second",
-    "randomFirst": "1",
-    "randomLast": "5",
-    "randomUnits": "seconds",
-    "drop": false,
-    "allowrate": false,
-    "outputs": 1,
-    "x": 420,
-    "y": 140,
-    "wires": [
-      [
-        "func_process_and_query",
-        "4a24f6457b6dab38",
-        "00778fe480935313"
-      ]
-    ]
-  },
-  {
-    "id": "cbd3a4420afc44ab",
-    "type": "inject",
-    "z": "flow_smart_lights_complete",
-    "name": "Tes lampu Baru",
-    "props": [
-      {
-        "p": "payload"
-      },
-      {
-        "p": "topic",
-        "vt": "str"
-      }
-    ],
-    "repeat": "",
-    "crontab": "",
-    "once": false,
-    "onceDelay": 0.1,
-    "topic": "iot/lights/L-107/telemetry",
-    "payload": "{\"id\":\"L-107\",\"sector\":\"Sektor 2 (Kertajaya - Depan ITS)\",\"uptime\":9000,\"volt\":222.1,\"current\":0.41,\"power\":91,\"lat\":-7.279315,\"lng\":112.789253,\"alerts\":0,\"history\":{\"labels\":[\"02:00\",\"04:00\",\"06:00\",\"08:00\",\"10:00\",\"12:00\",\"14:00\"],\"volt\":[220.5,221.8,222,221.2,220.9,221.4,222.1],\"ampere\":[0.85,0.82,0.4,0.12,0.05,0.05,0.41],\"watt\":[187.4,181.8,88.8,26.5,11,11,91]}}",
-    "payloadType": "json",
-    "x": 160,
-    "y": 80,
-    "wires": [
-      [
-        "aaff3443ce49623c"
-      ]
-    ]
-  },
-  {
-    "id": "4be670bef54df894",
-    "type": "http in",
-    "z": "flow_smart_lights_complete",
-    "name": "",
-    "url": "/api/devices-latest",
-    "method": "get",
-    "upload": false,
-    "skipBodyParsing": false,
-    "swaggerDoc": "",
-    "x": 200,
-    "y": 460,
-    "wires": [
-      [
-        "3330c5d02bd1ff10"
-      ]
-    ]
-  },
-  {
-    "id": "a76fbbeb9476b587",
-    "type": "http response",
-    "z": "flow_smart_lights_complete",
-    "name": "",
-    "statusCode": "",
-    "headers": {},
-    "x": 890,
-    "y": 580,
-    "wires": []
-  },
-  {
-    "id": "d9728cf2e3f716e6",
-    "type": "change",
-    "z": "flow_smart_lights_complete",
-    "name": "",
-    "rules": [
-      {
-        "t": "set",
-        "p": "headers",
-        "pt": "msg",
-        "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS\",\"Access-Control-Allow-Headers\":\"Content-Type\"}",
-        "tot": "json"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 680,
-    "y": 580,
-    "wires": [
-      [
-        "a76fbbeb9476b587"
-      ]
-    ]
-  },
-  {
-    "id": "3330c5d02bd1ff10",
-    "type": "postgresql",
-    "z": "flow_smart_lights_complete",
-    "name": "Get from DB",
-    "query": "SELECT DISTINCT ON (d.device_id)\n    d.device_id AS id,\n    d.sector_name AS sector,\n    d.latitude AS lat,\n    d.longitude AS lng,\n    d.max_lifespan AS max_lifespan,\n    COALESCE(t.volt, 0) AS volt,\n    COALESCE(t.current, 0) AS current,\n    COALESCE(t.power, 0) AS power,\n    COALESCE(t.uptime, 0) AS uptime,\n    t.created_at AS last_update\nFROM devices d\nLEFT JOIN telemetry_logs t ON d.device_id = t.device_id\nORDER BY d.device_id, t.created_at DESC;",
-    "postgreSQLConfig": "f7f72ff7bfaa5606",
-    "split": false,
-    "rowsPerMsg": 1,
-    "outputs": 1,
-    "x": 470,
-    "y": 460,
-    "wires": [
-      [
-        "d9728cf2e3f716e6"
-      ]
-    ]
-  },
-  {
-    "id": "docker_mosquitto_broker",
-    "type": "mqtt-broker",
-    "name": "Docker Mosquitto",
-    "broker": "172.17.0.1",
-    "port": "1883",
-    "clientid": "nodered_backend",
-    "autoConnect": true,
-    "usetls": false,
-    "compatmode": false,
-    "protocolVersion": "4",
-    "keepalive": "60",
-    "cleansession": true,
-    "autoUnsubscribe": true,
-    "birthTopic": "iot/backend/status",
-    "birthQos": "1",
-    "birthRetain": "true",
-    "birthPayload": "online",
-    "birthMsg": {},
-    "closeTopic": "iot/backend/status",
-    "closeQos": "1",
-    "closeRetain": "true",
-    "closePayload": "offline",
-    "closeMsg": {},
-    "willTopic": "iot/backend/status",
-    "willQos": "1",
-    "willRetain": "true",
-    "willPayload": "offline",
-    "willMsg": {},
-    "userProps": "",
-    "sessionExpiry": ""
-  },
-  {
-    "id": "f7f72ff7bfaa5606",
-    "type": "postgreSQLConfig",
-    "name": "",
-    "host": "postgres_db",
-    "hostFieldType": "str",
-    "port": 5432,
-    "portFieldType": "num",
-    "database": "smart_lights",
-    "databaseFieldType": "str",
-    "ssl": "false",
-    "sslFieldType": "bool",
-    "applicationName": "",
-    "applicationNameType": "str",
-    "max": 10,
-    "maxFieldType": "num",
-    "idle": 1000,
-    "idleFieldType": "num",
-    "connectionTimeout": 10000,
-    "connectionTimeoutFieldType": "num",
-    "user": "admin",
-    "userFieldType": "str",
-    "password": "ACW123",
-    "passwordFieldType": "str"
-  },
-  {
-    "id": "7c28fc3256852ad3",
-    "type": "websocket-listener",
-    "path": "/ws/telemetry",
-    "wholemsg": "false"
-  },
-  {
-    "id": "5823a3217146db34",
-    "type": "global-config",
-    "env": [],
-    "modules": {
-      "node-red-contrib-postgresql": "0.15.4"
+    {
+        "id": "f30bcbc17b591f22",
+        "type": "tab",
+        "label": "Smart Lights Docker System",
+        "disabled": false,
+        "info": "Flow terintegrasi untuk menerima telemetry MQTT lampu-lampu (L-101 s/d L-106), memproses datanya, menyimpannya langsung ke database PostgreSQL, serta menyediakan mekanisme pengiriman perintah balik."
+    },
+    {
+        "id": "11cb04ce0a768f25",
+        "type": "mqtt in",
+        "z": "f30bcbc17b591f22",
+        "name": "Sub Telemetry Semua Lampu",
+        "topic": "iot/lights/+/telemetry",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "docker_mosquitto_broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 240,
+        "wires": [
+            [
+                "a8a94d3726a57d3c",
+                "6a11b6f9dd3cfe32"
+            ]
+        ]
+    },
+    {
+        "id": "172245d468e0a128",
+        "type": "function",
+        "z": "f30bcbc17b591f22",
+        "name": "Parse & Generate SQL Query",
+        "func": "let data = msg.payload; \n\nif (!data || (typeof data === \"string\" && data.trim() === \"\")) return null;\n\nif (typeof data === \"string\") {\n    try { data = JSON.parse(data); } \n    catch (e) { return null; }\n}\n\nlet topicParts = msg.topic ? msg.topic.split(\"/\") : [];\nlet deviceId = data.id || data.device_id || topicParts[2] || \"UNKNOWN\";\n\n// Pastikan properti ID konsisten\ndata.id = deviceId;\ndata.device_id = deviceId;\n\n// === KONVERSI UPTIME KE JAM ===\nif (data.uptime !== undefined) {\n    data.uptime = parseFloat((data.uptime / 3600).toFixed(1)); \n} else {\n    data.uptime = 0;\n}\n\nif (data.uptime >= 10000) {\n    data.health = \"Need Maintenance\";\n} else if (data.uptime >= 8000) {\n    data.health = \"Warning\";\n} else {\n    data.health = \"Healthy\";\n}\n\nconst sector = data.sector || 'Sektor 2 (Kertajaya - Depan ITS)';\nconst lat = data.lat || -7.279315;\nconst lng = data.lng || 112.789253;\nconst volt = data.volt || 0;\nconst current = data.current || 0;\nconst power = data.power || (volt * current);\n\n// === 1. QUERY TUNGGAL CTE (Auto Insert Device + Insert Telemetry) ===\nmsg.query = `\n    WITH auto_register_device AS (\n        INSERT INTO devices (device_id, sector_name, latitude, longitude, max_lifespan)\n        VALUES ($1, $2, $3, $4, 10000)\n        ON CONFLICT (device_id) DO NOTHING\n    )\n    INSERT INTO telemetry_logs (device_id, volt, current, power, uptime, created_at) \n    VALUES ($1, $5, $6, $7, $8, NOW());\n`;\n\n// === 2. PARAMETER UTUK POSTGRESQL ===\nmsg.params = [\n    deviceId,     // $1\n    sector,       // $2\n    lat,          // $3\n    lng,          // $4\n    volt,         // $5\n    current,      // $6\n    power,        // $7\n    data.uptime   // $8\n];\n\n// === 3. PERTAHANKAN PAYLOAD BERBENTUK JSON UNTUK WEBSOCKET DASHBOARD ===\nmsg.payload = data; \n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 140,
+        "wires": [
+            [
+                "ac2d1ddae8a9aa85",
+                "d374d8e909433d2a",
+                "406c6023626f91d0"
+            ]
+        ]
+    },
+    {
+        "id": "ac2d1ddae8a9aa85",
+        "type": "postgresql",
+        "z": "f30bcbc17b591f22",
+        "name": "Save to PostgreSQL",
+        "query": "db",
+        "postgreSQLConfig": "f7f72ff7bfaa5606",
+        "split": false,
+        "rowsPerMsg": 1,
+        "outputs": 1,
+        "x": 990,
+        "y": 20,
+        "wires": [
+            [
+                "b8dde5fb49e0a401"
+            ]
+        ]
+    },
+    {
+        "id": "d374d8e909433d2a",
+        "type": "debug",
+        "z": "f30bcbc17b591f22",
+        "name": "Log Raw Telemetry",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "deviceId",
+        "statusType": "msg",
+        "x": 1150,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "b8dde5fb49e0a401",
+        "type": "debug",
+        "z": "f30bcbc17b591f22",
+        "name": "Log DB Insert OK",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "INSERT Berhasil",
+        "statusType": "str",
+        "x": 1300,
+        "y": 20,
+        "wires": []
+    },
+    {
+        "id": "406c6023626f91d0",
+        "type": "websocket out",
+        "z": "f30bcbc17b591f22",
+        "name": "Dashboard",
+        "server": "7c28fc3256852ad3",
+        "client": "",
+        "x": 950,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "a8a94d3726a57d3c",
+        "type": "delay",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "1",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 410,
+        "y": 200,
+        "wires": [
+            [
+                "172245d468e0a128"
+            ]
+        ]
+    },
+    {
+        "id": "957096d5c14281dc",
+        "type": "inject",
+        "z": "f30bcbc17b591f22",
+        "name": "Tes lampu Baru",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "iot/lights/L-108/telemetry",
+        "payload": "{\"id\":\"L-108\",\"sector\":\"Sektor 2 (Kertajaya - Depan ITS)\",\"uptime\":7500,\"volt\":290.1,\"current\":0.9,\"power\":95,\"lat\":-7.279556,\"lng\":112.786818,\"alerts\":0,\"history\":{\"labels\":[\"02:00\",\"04:00\",\"06:00\",\"08:00\",\"10:00\",\"12:00\",\"14:00\"],\"volt\":[220.5,221.8,222,221.2,220.9,221.4,222.1],\"ampere\":[0.85,0.82,0.4,0.12,0.05,0.05,0.41],\"watt\":[187.4,181.8,88.8,26.5,11,11,91]}}",
+        "payloadType": "json",
+        "x": 170,
+        "y": 60,
+        "wires": [
+            [
+                "a8a94d3726a57d3c"
+            ]
+        ]
+    },
+    {
+        "id": "06c9efd1a11c11f7",
+        "type": "http in",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "url": "/api/devices-latest",
+        "method": "get",
+        "upload": false,
+        "skipBodyParsing": false,
+        "swaggerDoc": "",
+        "x": 160,
+        "y": 560,
+        "wires": [
+            [
+                "9458d0562ee368e8"
+            ]
+        ]
+    },
+    {
+        "id": "6e05f7f55212b097",
+        "type": "http response",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "statusCode": "",
+        "headers": {},
+        "x": 890,
+        "y": 560,
+        "wires": []
+    },
+    {
+        "id": "09dee52757476a86",
+        "type": "change",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "headers",
+                "pt": "msg",
+                "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS\",\"Access-Control-Allow-Headers\":\"Content-Type\"}",
+                "tot": "json"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 660,
+        "y": 560,
+        "wires": [
+            [
+                "6e05f7f55212b097"
+            ]
+        ]
+    },
+    {
+        "id": "9458d0562ee368e8",
+        "type": "postgresql",
+        "z": "f30bcbc17b591f22",
+        "name": "Get from DB",
+        "query": "SELECT DISTINCT ON (d.device_id)\n    d.device_id AS id,\n    d.sector_name AS sector,\n    d.latitude AS lat,\n    d.longitude AS lng,\n    d.max_lifespan AS max_lifespan,\n    COALESCE(t.volt, 0) AS volt,\n    COALESCE(t.current, 0) AS current,\n    COALESCE(t.power, 0) AS power,\n    COALESCE(t.uptime, 0) AS uptime,\n    t.created_at AS last_update\nFROM devices d\nLEFT JOIN telemetry_logs t ON d.device_id = t.device_id\nORDER BY d.device_id, t.created_at DESC;",
+        "postgreSQLConfig": "f7f72ff7bfaa5606",
+        "split": false,
+        "rowsPerMsg": 1,
+        "outputs": 1,
+        "x": 430,
+        "y": 560,
+        "wires": [
+            [
+                "09dee52757476a86"
+            ]
+        ]
+    },
+    {
+        "id": "7eb24aba36ab15dd",
+        "type": "http in",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "url": "/api/telemetry-history",
+        "method": "get",
+        "upload": false,
+        "skipBodyParsing": false,
+        "swaggerDoc": "",
+        "x": 170,
+        "y": 640,
+        "wires": [
+            [
+                "9ef91f938d6115cd"
+            ]
+        ]
+    },
+    {
+        "id": "9ef91f938d6115cd",
+        "type": "function",
+        "z": "f30bcbc17b591f22",
+        "name": "Prepare SQL Query",
+        "func": "let deviceId = msg.req.query.device_id || 'L-101';\n\nmsg.query = `\n    SELECT \n        TO_CHAR(created_at, 'HH24:MI') as time_label,\n        volt,\n        current as ampere,\n        power as watt\n    FROM (\n        SELECT created_at, volt, current, power\n        FROM telemetry_logs\n        WHERE device_id = $1\n        ORDER BY created_at DESC\n        LIMIT 100\n    ) sub\n    ORDER BY created_at ASC;\n`;\nmsg.params = [deviceId];\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 640,
+        "wires": [
+            [
+                "21fb44e3cd6e901f"
+            ]
+        ]
+    },
+    {
+        "id": "21fb44e3cd6e901f",
+        "type": "postgresql",
+        "z": "f30bcbc17b591f22",
+        "name": "Get Telemetry History",
+        "query": "db",
+        "postgreSQLConfig": "f7f72ff7bfaa5606",
+        "split": false,
+        "rowsPerMsg": 1,
+        "outputs": 1,
+        "x": 670,
+        "y": 640,
+        "wires": [
+            [
+                "dcf888a13551931a"
+            ]
+        ]
+    },
+    {
+        "id": "dcf888a13551931a",
+        "type": "function",
+        "z": "f30bcbc17b591f22",
+        "name": "Format Chart.js Structure",
+        "func": "let rows = msg.payload || [];\n\nlet result = {\n    labels: [],\n    volt: [],\n    current: [],\n    power: []\n};\n\nrows.forEach(row => {\n    result.labels.push(row.time_label);\n    result.volt.push(parseFloat(row.volt) || 0);\n    result.current.push(parseFloat(row.ampere) || 0);\n    result.power.push(parseFloat(row.watt) || 0);\n});\n\nmsg.payload = result;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 930,
+        "y": 640,
+        "wires": [
+            [
+                "8dd65249da020943"
+            ]
+        ]
+    },
+    {
+        "id": "8dd65249da020943",
+        "type": "change",
+        "z": "f30bcbc17b591f22",
+        "name": "Set CORS & Headers",
+        "rules": [
+            {
+                "t": "set",
+                "p": "headers",
+                "pt": "msg",
+                "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS\",\"Access-Control-Allow-Headers\":\"Content-Type\"}",
+                "tot": "json"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1170,
+        "y": 640,
+        "wires": [
+            [
+                "09e817160a76104b"
+            ]
+        ]
+    },
+    {
+        "id": "09e817160a76104b",
+        "type": "http response",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "statusCode": "200",
+        "headers": {},
+        "x": 1370,
+        "y": 640,
+        "wires": []
+    },
+    {
+        "id": "3c2ae71b406a7474",
+        "type": "inject",
+        "z": "f30bcbc17b591f22",
+        "name": "Tes lampu Baru",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "iot/lights/L-108/telemetry",
+        "payload": "{\"id\":\"L-108\",\"volt\":280.2,\"current\":0.85}",
+        "payloadType": "json",
+        "x": 410,
+        "y": 40,
+        "wires": [
+            [
+                "172245d468e0a128"
+            ]
+        ]
+    },
+    {
+        "id": "6a11b6f9dd3cfe32",
+        "type": "function",
+        "z": "f30bcbc17b591f22",
+        "name": "Evaluasi & Build Query Alert",
+        "func": "let d = msg.payload;\n\nif (!d) return [null, null];\n\nif (typeof d === \"string\") {\n    try { d = JSON.parse(d); } catch (e) { return [null, null]; }\n}\n\nconst deviceId = d.id || d.device_id || \"UNKNOWN\";\nconst volt = parseFloat(d.volt) || 0;\nconst current = parseFloat(d.current) || 0;\nconst power = parseFloat(d.power) || parseFloat((volt * current).toFixed(2));\n\nlet alertData = null;\n\n// Evaluasi Threshold Alert\nif (volt > 240) {\n    alertData = {\n        level: 'Critical',\n        title: 'Lonjakan Tegangan',\n        alertType: 'voltage_spike',\n        message: `Node ${deviceId} terdeteksi lonjakan tegangan sebesar ${volt}V, melebihi batas aman 240V.`,\n        threshold_info: 'V: 240V'\n    };\n} else if (volt > 0 && volt < 200) {\n    alertData = {\n        level: 'Critical',\n        title: 'Perangkat Offline / Tegangan Low',\n        alertType: 'offline',\n        message: `Node ${deviceId} terdeteksi tegangan jauh di bawah batas operasional (${volt}V).`,\n        threshold_info: 'V: 200V'\n    };\n} else if (current > 1.5) {\n    alertData = {\n        level: 'Critical',\n        title: 'Lonjakan Arus',\n        alertType: 'current_spike',\n        message: `Node ${deviceId} mendeteksi lonjakan arus listrik sebesar ${current}A.`,\n        threshold_info: 'I: 1.5A'\n    };\n}\n\nif (alertData) {\n    const sql = `INSERT INTO alerts (device_id, level, title, message, volt, current, power, threshold_info, is_read, created_at) VALUES ('${deviceId}', '${alertData.level}', '${alertData.title}', '${alertData.message}', ${volt}, ${current}, ${power}, '${alertData.threshold_info}', FALSE, NOW()) RETURNING *;`;\n\n    // Output 1: Khusus PostgreSQL (Mengarahkan msg.payload & msg.query)\n    const dbMsg = {\n        payload: sql,\n        query: sql\n    };\n\n    // Output 2: Khusus WebSocket Dashboard\n    const wsMsg = {\n        payload: {\n            id: deviceId,\n            alert: true,\n            alertType: alertData.alertType,\n            level: alertData.level,\n            title: alertData.title,\n            message: alertData.message,\n            volt: volt,\n            current: current,\n            power: power,\n            threshold_info: alertData.threshold_info\n        }\n    };\n\n    return [dbMsg, wsMsg];\n}\n\nreturn [null, null];",
+        "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 320,
+        "wires": [
+            [
+                "ae807cdc6832aa7f"
+            ],
+            [
+                "406c6023626f91d0"
+            ]
+        ]
+    },
+    {
+        "id": "ae807cdc6832aa7f",
+        "type": "postgresql",
+        "z": "f30bcbc17b591f22",
+        "name": "Save ALERT Only",
+        "query": "",
+        "postgreSQLConfig": "f7f72ff7bfaa5606",
+        "split": false,
+        "rowsPerMsg": 1,
+        "outputs": 1,
+        "x": 970,
+        "y": 380,
+        "wires": [
+            [
+                "cbe5b0914ab5b702"
+            ]
+        ]
+    },
+    {
+        "id": "cbe5b0914ab5b702",
+        "type": "debug",
+        "z": "f30bcbc17b591f22",
+        "name": "Log DB Alert Insert Status",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1230,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "4f67a96518f4ad7b",
+        "type": "inject",
+        "z": "f30bcbc17b591f22",
+        "name": "Tes lampu Baru",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "iot/lights/L-108/telemetry",
+        "payload": "{\"id\":\"L-108\",\"volt\":280.2,\"current\":0.85}",
+        "payloadType": "json",
+        "x": 380,
+        "y": 420,
+        "wires": [
+            [
+                "6a11b6f9dd3cfe32"
+            ]
+        ]
+    },
+    {
+        "id": "c779812d223d17af",
+        "type": "http in",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "url": "/api/alerts-history",
+        "method": "get",
+        "upload": false,
+        "skipBodyParsing": false,
+        "swaggerDoc": "",
+        "x": 170,
+        "y": 720,
+        "wires": [
+            [
+                "703349884460db26"
+            ]
+        ]
+    },
+    {
+        "id": "703349884460db26",
+        "type": "function",
+        "z": "f30bcbc17b591f22",
+        "name": "Prepare Alert SQL",
+        "func": "let limit = parseInt(msg.req.query.limit) || 50;\n\nmsg.query = `\n    SELECT \n        id, \n        device_id, \n        level, \n        title, \n        message, \n        volt, \n        current, \n        power, \n        threshold_info, \n        is_read, \n        created_at \n    FROM alerts \n    ORDER BY created_at DESC \n    LIMIT $1;\n`;\nmsg.params = [limit];\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 720,
+        "wires": [
+            [
+                "6f793cd35371e73d"
+            ]
+        ]
+    },
+    {
+        "id": "6f793cd35371e73d",
+        "type": "postgresql",
+        "z": "f30bcbc17b591f22",
+        "name": "Get Alerts History DB",
+        "query": "db",
+        "postgreSQLConfig": "f7f72ff7bfaa5606",
+        "split": false,
+        "rowsPerMsg": 1,
+        "outputs": 1,
+        "x": 670,
+        "y": 720,
+        "wires": [
+            [
+                "31c3352bcea37efa"
+            ]
+        ]
+    },
+    {
+        "id": "31c3352bcea37efa",
+        "type": "change",
+        "z": "f30bcbc17b591f22",
+        "name": "Set CORS & Headers",
+        "rules": [
+            {
+                "t": "set",
+                "p": "headers",
+                "pt": "msg",
+                "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS\",\"Access-Control-Allow-Headers\":\"Content-Type\"}",
+                "tot": "json"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 930,
+        "y": 720,
+        "wires": [
+            [
+                "0d4f6ac6a7eb402b"
+            ]
+        ]
+    },
+    {
+        "id": "0d4f6ac6a7eb402b",
+        "type": "http response",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "statusCode": "200",
+        "headers": {},
+        "x": 1150,
+        "y": 720,
+        "wires": []
+    },
+    {
+        "id": "docker_mosquitto_broker",
+        "type": "mqtt-broker",
+        "name": "Docker Mosquitto",
+        "broker": "broker.emqx.io",
+        "port": "1883",
+        "clientid": "nodered_backend",
+        "autoConnect": true,
+        "usetls": false,
+        "compatmode": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "iot/backend/status",
+        "birthQos": "1",
+        "birthRetain": "true",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "iot/backend/status",
+        "closeQos": "1",
+        "closeRetain": "true",
+        "closePayload": "offline",
+        "closeMsg": {},
+        "willTopic": "iot/backend/status",
+        "willQos": "1",
+        "willRetain": "true",
+        "willPayload": "offline",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "f7f72ff7bfaa5606",
+        "type": "postgreSQLConfig",
+        "name": "",
+        "host": "postgres_db",
+        "hostFieldType": "str",
+        "port": 5432,
+        "portFieldType": "num",
+        "database": "smart_lights",
+        "databaseFieldType": "str",
+        "ssl": "false",
+        "sslFieldType": "bool",
+        "applicationName": "",
+        "applicationNameType": "str",
+        "max": 10,
+        "maxFieldType": "num",
+        "idle": 1000,
+        "idleFieldType": "num",
+        "connectionTimeout": 10000,
+        "connectionTimeoutFieldType": "num",
+        "user": "admin",
+        "userFieldType": "str",
+        "password": "ACW123",
+        "passwordFieldType": "str"
+    },
+    {
+        "id": "7c28fc3256852ad3",
+        "type": "websocket-listener",
+        "path": "/ws/telemetry",
+        "wholemsg": "false"
+    },
+    {
+        "id": "a0ed4c2210e84f17",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-postgresql": "0.15.4"
+        }
+    },
+    {
+        "id": "alert_patch_read_in",
+        "type": "http in",
+        "z": "f30bcbc17b591f22",
+        "name": "PATCH /api/alerts/:id/read",
+        "url": "/api/alerts/:id/read",
+        "method": "patch",
+        "upload": false,
+        "skipBodyParsing": false,
+        "swaggerDoc": "",
+        "x": 170,
+        "y": 800,
+        "wires": [["alert_patch_read_fn"]]
+    },
+    {
+        "id": "alert_patch_read_fn",
+        "type": "function",
+        "z": "f30bcbc17b591f22",
+        "name": "Build Mark-Read SQL",
+        "func": "const id = parseInt(msg.req.params.id);\nif (!id || isNaN(id)) {\n    msg.statusCode = 400;\n    msg.payload = { error: 'Invalid alert ID' };\n    return [null, msg];\n}\nmsg.query = 'UPDATE alerts SET is_read = TRUE WHERE id = $1 RETURNING id, is_read;';\nmsg.params = [id];\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 800,
+        "wires": [["alert_patch_read_pg"], ["alert_cors_res_800"]]
+    },
+    {
+        "id": "alert_patch_read_pg",
+        "type": "postgresql",
+        "z": "f30bcbc17b591f22",
+        "name": "Update Alert is_read",
+        "query": "db",
+        "postgreSQLConfig": "f7f72ff7bfaa5606",
+        "split": false,
+        "rowsPerMsg": 1,
+        "outputs": 1,
+        "x": 680,
+        "y": 800,
+        "wires": [["alert_cors_res_800"]]
+    },
+    {
+        "id": "alert_cors_res_800",
+        "type": "change",
+        "z": "f30bcbc17b591f22",
+        "name": "Set CORS & Headers",
+        "rules": [
+            {
+                "t": "set",
+                "p": "headers",
+                "pt": "msg",
+                "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS,PATCH\",\"Access-Control-Allow-Headers\":\"Content-Type\"}",
+                "tot": "json"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 930,
+        "y": 800,
+        "wires": [["alert_http_res_800"]]
+    },
+    {
+        "id": "alert_http_res_800",
+        "type": "http response",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "statusCode": "200",
+        "headers": {},
+        "x": 1150,
+        "y": 800,
+        "wires": []
+    },
+    {
+        "id": "alert_delete_one_in",
+        "type": "http in",
+        "z": "f30bcbc17b591f22",
+        "name": "DELETE /api/alerts/:id",
+        "url": "/api/alerts/:id",
+        "method": "delete",
+        "upload": false,
+        "skipBodyParsing": false,
+        "swaggerDoc": "",
+        "x": 170,
+        "y": 860,
+        "wires": [["alert_delete_one_fn"]]
+    },
+    {
+        "id": "alert_delete_one_fn",
+        "type": "function",
+        "z": "f30bcbc17b591f22",
+        "name": "Build Delete-One SQL",
+        "func": "const id = parseInt(msg.req.params.id);\nif (!id || isNaN(id)) {\n    msg.statusCode = 400;\n    msg.payload = { error: 'Invalid alert ID' };\n    return [null, msg];\n}\nmsg.query = 'DELETE FROM alerts WHERE id = $1 RETURNING id;';\nmsg.params = [id];\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 860,
+        "wires": [["alert_delete_one_pg"], ["alert_cors_res_860"]]
+    },
+    {
+        "id": "alert_delete_one_pg",
+        "type": "postgresql",
+        "z": "f30bcbc17b591f22",
+        "name": "Delete One Alert",
+        "query": "db",
+        "postgreSQLConfig": "f7f72ff7bfaa5606",
+        "split": false,
+        "rowsPerMsg": 1,
+        "outputs": 1,
+        "x": 680,
+        "y": 860,
+        "wires": [["alert_cors_res_860"]]
+    },
+    {
+        "id": "alert_cors_res_860",
+        "type": "change",
+        "z": "f30bcbc17b591f22",
+        "name": "Set CORS & Headers",
+        "rules": [
+            {
+                "t": "set",
+                "p": "headers",
+                "pt": "msg",
+                "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS,PATCH\",\"Access-Control-Allow-Headers\":\"Content-Type\"}",
+                "tot": "json"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 930,
+        "y": 860,
+        "wires": [["alert_http_res_860"]]
+    },
+    {
+        "id": "alert_http_res_860",
+        "type": "http response",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "statusCode": "200",
+        "headers": {},
+        "x": 1150,
+        "y": 860,
+        "wires": []
+    },
+    {
+        "id": "alert_mark_all_in",
+        "type": "http in",
+        "z": "f30bcbc17b591f22",
+        "name": "POST /api/alerts/mark-all-read",
+        "url": "/api/alerts/mark-all-read",
+        "method": "post",
+        "upload": false,
+        "skipBodyParsing": false,
+        "swaggerDoc": "",
+        "x": 170,
+        "y": 920,
+        "wires": [["alert_mark_all_fn"]]
+    },
+    {
+        "id": "alert_mark_all_fn",
+        "type": "function",
+        "z": "f30bcbc17b591f22",
+        "name": "Build Mark-All-Read SQL",
+        "func": "msg.query = 'UPDATE alerts SET is_read = TRUE WHERE is_read = FALSE RETURNING id;';\nmsg.params = [];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 920,
+        "wires": [["alert_mark_all_pg"]]
+    },
+    {
+        "id": "alert_mark_all_pg",
+        "type": "postgresql",
+        "z": "f30bcbc17b591f22",
+        "name": "Mark All Alerts Read",
+        "query": "db",
+        "postgreSQLConfig": "f7f72ff7bfaa5606",
+        "split": false,
+        "rowsPerMsg": 1,
+        "outputs": 1,
+        "x": 680,
+        "y": 920,
+        "wires": [["alert_cors_res_920"]]
+    },
+    {
+        "id": "alert_cors_res_920",
+        "type": "change",
+        "z": "f30bcbc17b591f22",
+        "name": "Set CORS & Headers",
+        "rules": [
+            {
+                "t": "set",
+                "p": "headers",
+                "pt": "msg",
+                "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS,PATCH\",\"Access-Control-Allow-Headers\":\"Content-Type\"}",
+                "tot": "json"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 930,
+        "y": 920,
+        "wires": [["alert_http_res_920"]]
+    },
+    {
+        "id": "alert_http_res_920",
+        "type": "http response",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "statusCode": "200",
+        "headers": {},
+        "x": 1150,
+        "y": 920,
+        "wires": []
+    },
+    {
+        "id": "alert_delete_all_in",
+        "type": "http in",
+        "z": "f30bcbc17b591f22",
+        "name": "DELETE /api/alerts",
+        "url": "/api/alerts",
+        "method": "delete",
+        "upload": false,
+        "skipBodyParsing": false,
+        "swaggerDoc": "",
+        "x": 170,
+        "y": 980,
+        "wires": [["alert_delete_all_fn"]]
+    },
+    {
+        "id": "alert_delete_all_fn",
+        "type": "function",
+        "z": "f30bcbc17b591f22",
+        "name": "Build Delete-All SQL",
+        "func": "msg.query = 'DELETE FROM alerts RETURNING id;';\nmsg.params = [];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 980,
+        "wires": [["alert_delete_all_pg"]]
+    },
+    {
+        "id": "alert_delete_all_pg",
+        "type": "postgresql",
+        "z": "f30bcbc17b591f22",
+        "name": "Delete All Alerts",
+        "query": "db",
+        "postgreSQLConfig": "f7f72ff7bfaa5606",
+        "split": false,
+        "rowsPerMsg": 1,
+        "outputs": 1,
+        "x": 680,
+        "y": 980,
+        "wires": [["alert_cors_res_980"]]
+    },
+    {
+        "id": "alert_cors_res_980",
+        "type": "change",
+        "z": "f30bcbc17b591f22",
+        "name": "Set CORS & Headers",
+        "rules": [
+            {
+                "t": "set",
+                "p": "headers",
+                "pt": "msg",
+                "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS,PATCH\",\"Access-Control-Allow-Headers\":\"Content-Type\"}",
+                "tot": "json"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 930,
+        "y": 980,
+        "wires": [["alert_http_res_980"]]
+    },
+    {
+        "id": "alert_http_res_980",
+        "type": "http response",
+        "z": "f30bcbc17b591f22",
+        "name": "",
+        "statusCode": "200",
+        "headers": {},
+        "x": 1150,
+        "y": 980,
+        "wires": []
     }
-  }
 ]

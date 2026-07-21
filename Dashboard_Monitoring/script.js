@@ -48,9 +48,9 @@ function connectWebSocket() {
                     if (!telemetryHistory[deviceId]) {
                         telemetryHistory[deviceId] = {
                             labels: ["02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00"],
-                            volt: [220, 220, 220, 220, 220, 220, 220],
-                            ampere: [0, 0, 0, 0, 0, 0, 0],
-                            watt: [0, 0, 0, 0, 0, 0, 0]
+                            volt: Array(7).fill(incomingData.volt || 0),
+                            ampere: Array(7).fill(incomingData.current || 0),
+                            watt: Array(7).fill(incomingData.power || 0)
                         };
                     }
 
@@ -67,10 +67,91 @@ function connectWebSocket() {
                     };
                 }
 
+                // PERBAIKAN (di dalam socket.onmessage)
+                const activeSector = incomingData.sector || "Sektor Tidak Diketahui";
+                if (!sectorSettings[activeSector]) {
+                    sectorSettings[activeSector] = {
+                        schedules: incomingData.schedules || [
+                            { time: "17:30", dim: 6, cct: 30 },
+                            { time: "23:00", dim: 4, cct: 80 },
+                            { time: "03:30", dim: 8, cct: 100 }
+                        ]
+                    };
+                }
+
+                // === UPDATE REAL-TIME TELEMETRY HISTORY & CHART ===
+                if (telemetryHistory[deviceId]) {
+                    const timeNow = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+                    // Pastikan array-array target ada untuk mencegah crash
+                    if (!telemetryHistory[deviceId].labels) telemetryHistory[deviceId].labels = [];
+                    if (!telemetryHistory[deviceId].volt) telemetryHistory[deviceId].volt = [];
+
+                    // Buat alias ke key data telemetryHistory untuk kompatibilitas PZEM
+                    if (!telemetryHistory[deviceId].ampere) {
+                        telemetryHistory[deviceId].ampere = [...(telemetryHistory[deviceId].current || [])];
+                    }
+                    if (!telemetryHistory[deviceId].watt) {
+                        telemetryHistory[deviceId].watt = [...(telemetryHistory[deviceId].power || [])];
+                    }
+
+                    // Tambahkan titik data telemetry terbaru
+                    telemetryHistory[deviceId].labels.push(timeNow);
+                    telemetryHistory[deviceId].volt.push(incomingData.volt !== undefined ? incomingData.volt : (devicesData[deviceId].volt || 0));
+                    telemetryHistory[deviceId].ampere.push(incomingData.current !== undefined ? incomingData.current : (devicesData[deviceId].current || 0));
+                    telemetryHistory[deviceId].watt.push(incomingData.power !== undefined ? incomingData.power : (devicesData[deviceId].power || 0));
+
+                    // Jika objek juga menggunakan key .current dan .power, amankan agar ukurannya tetap sejajar
+                    if (telemetryHistory[deviceId].current) telemetryHistory[deviceId].current.push(incomingData.current || 0);
+                    if (telemetryHistory[deviceId].power) telemetryHistory[deviceId].power.push(incomingData.power || 0);
+
+                    // === BATASI MAKSIMAL 20 DATA POIN PADA GRAFIK ===
+                    const MAX_POINTS = 100; // Sesuaikan dengan LIMIT di query Node-RED kamu
+                    if (telemetryHistory[deviceId].labels.length > MAX_POINTS) {
+                        telemetryHistory[deviceId].labels.shift();
+                        telemetryHistory[deviceId].volt.shift();
+                        telemetryHistory[deviceId].ampere.shift();
+                        telemetryHistory[deviceId].watt.shift();
+                        if (telemetryHistory[deviceId].current) telemetryHistory[deviceId].current.shift();
+                        if (telemetryHistory[deviceId].power) telemetryHistory[deviceId].power.shift();
+                    }
+
+                    // Jika user sedang melihat tab Telemetry untuk lampu ini, perbarui grafik secara instant
+                    const activeTelDevice = document.getElementById("telemetry-device-selector")?.value;
+                    if (activeTelDevice === deviceId) {
+                        drawChart(deviceId);
+                        updateTelemetrySummary(deviceId);
+                    }
+                }
+
                 // Jalankan sinkronisasi halaman jika perangkat ini sedang aktif dibuka
                 const currentActiveDevice = document.getElementById("current-device-id")?.innerText;
                 if (currentActiveDevice === deviceId) {
                     switchDevice(deviceId); // Fungsi sinkronisasi multidimensi kita
+                }
+
+                // === DETEKSI ANOMALI & TRIGGER ALERT ===
+                // Jika pesan dari Node-RED membawa flag alert eksplisit, proses langsung
+                if (incomingData.alert === true) {
+                    const alertSeverity = incomingData.severity ||
+                        (incomingData.alertType === 'voltage_spike' || incomingData.alertType === 'current_spike' || incomingData.alertType === 'offline'
+                            ? 'critical' : 'warning');
+                    addAlert({
+                        nodeId: deviceId,
+                        severity: alertSeverity,
+                        type: incomingData.alertType || 'unknown',
+                        message: generateAlertMessage(incomingData.alertType || 'unknown', deviceId, incomingData.volt || 0, incomingData.current || 0),
+                        volt: parseFloat(incomingData.volt) || 0,
+                        current: parseFloat(incomingData.current) || 0,
+                        power: parseFloat(incomingData.power) || 0,
+                        threshold: {},
+                        timestamp: new Date(),
+                        isRead: false,
+                        isDismissed: false
+                    });
+                } else {
+                    // Deteksi otomatis berdasarkan nilai telemetri
+                    _checkAndTriggerAlert(deviceId, devicesData[deviceId]);
                 }
             }
         } catch (error) {
@@ -103,17 +184,17 @@ function addDeviceToDropdowns(deviceId, sector) {
         const opt = document.createElement("option");
         opt.value = deviceId;
         // Hapus teks ' (Healthy)' di bawah ini
-        opt.textContent = `Tiang ${deviceId}`; 
+        opt.textContent = `Tiang ${deviceId}`;
         devSelector.appendChild(opt);
     }
 
     if (manageSelector && !optionExists(manageSelector, deviceId)) {
         const opt = document.createElement("option");
         opt.value = deviceId;
-        
+
         // Ambil hanya bagian sebelum tanda kurung jika ada (misal: "Sektor 2")
         const shortSector = sector.includes("(") ? sector.split("(")[0].trim() : sector;
-        
+
         opt.textContent = `${deviceId} (${shortSector})`;
         manageSelector.appendChild(opt);
     }
@@ -143,6 +224,18 @@ function addDeviceToDropdowns(deviceId, sector) {
     }
 }
 
+function onMarkerClick(device) {
+    if (!device) return;
+    const deviceId = device.id;
+
+    // Sinkronisasi dropdown pemilih lampu
+    const selector = document.getElementById("device-selector");
+    if (selector) selector.value = deviceId;
+
+    // Update data perangkat, tampilkan panel detail, dan terbangkan peta secara smooth
+    switchDevice(deviceId);
+}
+
 function addNewMapMarker(data) {
     if (!map) return;
     const key = data.id;
@@ -167,9 +260,7 @@ function addNewMapMarker(data) {
         .addTo(map);
 
     marker.getElement().addEventListener('click', () => {
-        const selector = document.getElementById("device-selector");
-        if (selector) selector.value = key;
-        switchDevice(key);
+        onMarkerClick(data);
     });
 
     markers[key] = marker;
@@ -177,24 +268,21 @@ function addNewMapMarker(data) {
 
 // Jalankan inisialisasi aplikasi saat halaman web selesai dimuat (DOM Ready)
 document.addEventListener("DOMContentLoaded", () => {
-    initMap(); // Menginisialisasi objek peta terlebih dahulu
-    
-    // Ambil data terbaru dari database PostgreSQL melalui API Node-RED yang baru dibuat
+    initMap();
+
     fetch('http://localhost:1880/api/devices-latest')
         .then(response => response.json())
         .then(dbData => {
             console.log("Memuat data node dari PostgreSQL:", dbData);
-            
-            // Masukkan data dari database ke memory frontend secara dinamis
+
             dbData.forEach(node => {
                 const deviceId = node.id;
-                
-                // Masukkan data log terbaru ke struktur frontend
+
                 devicesData[deviceId] = {
                     id: deviceId,
                     sector: node.sector,
                     health: node.health || "Healthy",
-                    uptime: parseInt(node.uptime) || 0,
+                    uptime: parseFloat(node.uptime) || 0,
                     volt: parseFloat(node.volt) || 0,
                     current: parseFloat(node.current) || 0,
                     power: parseFloat(node.power) || 0,
@@ -203,7 +291,16 @@ document.addEventListener("DOMContentLoaded", () => {
                     alerts: node.health === "Healthy" ? 0 : 1
                 };
 
-                // Daftarkan ke pengaturan default jika belum ada
+                // === PERBAIKAN DI SINI: Inisialisasi telemetryHistory dinamis jika belum ada ===
+                if (!telemetryHistory[deviceId]) {
+                    telemetryHistory[deviceId] = {
+                        labels: ["02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00"],
+                        volt: [node.volt, node.volt, node.volt, node.volt, node.volt, node.volt, node.volt],
+                        ampere: [node.current, node.current, node.current, node.current, node.current, node.current, node.current],
+                        watt: [node.power, node.power, node.power, node.power, node.power, node.power, node.power]
+                    };
+                }
+
                 if (!nodeSettings[deviceId]) {
                     nodeSettings[deviceId] = {
                         schedules: [
@@ -214,28 +311,20 @@ document.addEventListener("DOMContentLoaded", () => {
                     };
                 }
 
-                // Masukkan opsi dropdown dinamis (Termasuk L-107)
                 addDeviceToDropdowns(deviceId, node.sector);
-
-                // Gambar pinpoint di peta secara otomatis
                 addNewMapMarker(devicesData[deviceId]);
             });
 
-            // Set default device setelah data terisi (misal L-102 atau node pertama yang ada)
-            const defaultDevice = devicesData["L-102"] ? "L-102" : Object.keys(devicesData)[0];
+            const defaultDevice = devicesData["L-107"] ? "L-107" : Object.keys(devicesData)[0];
             if (defaultDevice) {
                 switchDevice(defaultDevice);
             }
-            
-            // Setelah data awal dari database masuk, baru ambil state sektor dari backend
-            fetchSectorSettings();
 
-            // Setelah data awal dari database masuk, baru buka koneksi real-time WebSocket
+            fetchSectorSettings();
             connectWebSocket();
         })
         .catch(err => {
-            console.error("Gagal memuat data awal dari database, menjalankan mode lokal standalone:", err);
-            // Fallback jika API backend mati agar web tidak crash
+            console.error("Gagal memuat data awal dari database:", err);
             switchDevice("L-102");
             fetchSectorSettings();
             connectWebSocket();
@@ -413,9 +502,7 @@ function initMap() {
 
         // PERBAIKAN DI SINI: Menggunakan "device-selector" sesuai ID di HTML
         marker.getElement().addEventListener('click', () => {
-            const selector = document.getElementById("device-selector");
-            if (selector) selector.value = key;
-            switchDevice(key);
+            onMarkerClick(data);
         });
 
         markers[key] = marker;
@@ -511,8 +598,8 @@ function switchDevice(deviceId) {
     const lngEl = document.getElementById("lng-value");
     if (lngEl) lngEl.innerText = data.lng.toFixed(4);
 
-    const alertBadgeEl = document.getElementById("alert-badge");
-    if (alertBadgeEl) alertBadgeEl.innerText = data.alerts;
+    // Badge count dikelola oleh updateAlertBadge() dari sistem alert terpusat
+    updateAlertBadge();
 
     // Sinkronisasi dropdown pemilih lampu di Dashboard
     const deviceSelector = document.getElementById("device-selector");
@@ -531,7 +618,7 @@ function switchDevice(deviceId) {
     const statusText = document.getElementById("status-text");
     if (statusText) {
         statusText.className = "status-indicator";
-        
+
         // Logika Threshold Batas Umur Waktu (Uptime)
         if (data.uptime >= 10000) {
             statusText.innerText = "Need Maintenance"; // Teks disesuaikan logika umur
@@ -543,7 +630,7 @@ function switchDevice(deviceId) {
             statusText.innerText = "Healthy";          // Teks disesuaikan logika umur
             statusText.classList.add("status-healthy");
         }
-        
+
         // Perbarui data database lokal agar teks statusnya tetap tersimpan sinkron
         data.health = statusText.innerText;
     }
@@ -593,6 +680,7 @@ function switchDevice(deviceId) {
 
         map.flyTo({
             center: [data.lng, data.lat],
+            zoom: 18.5,
             essential: true,
             speed: 0.6
         });
@@ -640,6 +728,7 @@ function navigateTo(pageId, element) {
     document.getElementById("page-dashboard").style.display = "none";
     document.getElementById("page-manage").style.display = "none";
     document.getElementById("page-telemetry").style.display = "none";
+    document.getElementById("page-alerts").style.display = "none";
 
     // Hapus kelas aktif dari semua li di menu sidebar
     const menuItems = document.querySelectorAll("#sidebar-menu li");
@@ -666,12 +755,17 @@ function navigateTo(pageId, element) {
     } else if (pageId === 'telemetry') {
         document.getElementById("page-telemetry").style.display = "block";
 
-        // Ambil ID perangkat yang aktif saat ini untuk tampilan default grafik
-        const activeId = document.getElementById("current-device-id").innerText || "L-102";
-        document.getElementById("telemetry-device-selector").value = activeId;
+        const activeId = document.getElementById("current-device-id").innerText || "L-107";
+        const telSelector = document.getElementById("telemetry-device-selector");
+        if (telSelector) telSelector.value = activeId;
 
-        // Render grafik seketika
-        renderTelemetryChart(activeId);
+        // Beri setTimeout agar browser menyelesaikan render display: block terlebih dahulu
+        setTimeout(() => {
+            renderTelemetryChart(activeId);
+        }, 50);
+    } else if (pageId === 'alerts') {
+        document.getElementById("page-alerts").style.display = "block";
+        fetchAlertsFromDB();
     }
 
     element.classList.add("active");
@@ -756,18 +850,52 @@ const telemetryHistory = {
 
 let telemetryChartInstance = null;
 
-// INISIALISASI / UPDATE GRAFIK CHART.JS
-function renderTelemetryChart(deviceId) {
+// INISIALISASI / UPDATE CARD RATA-RATA TELEMETRY
+function updateTelemetrySummary(deviceId) {
+    const data = telemetryHistory[deviceId];
+
+    // Jika data belum ada/belum selesai di-fetch, set tampilan default ke 0
+    if (!data) {
+        if (document.getElementById("avg-volt"))
+            document.getElementById("avg-volt").innerText = "0 V";
+        if (document.getElementById("avg-current"))
+            document.getElementById("avg-current").innerText = "0 A";
+        if (document.getElementById("avg-power"))
+            document.getElementById("avg-power").innerText = "0 W";
+        return;
+    }
+
+    // Ambil array dengan toleransi nama key (volt, current/ampere, power/watt)
+    const voltArr = data.volt || [];
+    const currentArr = data.current || data.ampere || [];
+    const powerArr = data.power || data.watt || [];
+
+    // Helper kalkulasi rata-rata yang tahan NaN
+    const calcAvg = (arr) => {
+        if (!arr || !Array.isArray(arr) || arr.length === 0) return "0.0";
+        const sum = arr.reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
+        return (sum / arr.length).toFixed(1);
+    };
+
+    // Update elemen HTML
+    if (document.getElementById("avg-volt"))
+        document.getElementById("avg-volt").innerText = `${calcAvg(voltArr)} V`;
+    if (document.getElementById("avg-current"))
+        document.getElementById("avg-current").innerText = `${calcAvg(currentArr)} A`;
+    if (document.getElementById("avg-power"))
+        document.getElementById("avg-power").innerText = `${calcAvg(powerArr)} W`;
+}
+
+// FUNGSI MENGGAMBAR/DRAW CHART.JS
+function drawChart(deviceId) {
     const dataSet = telemetryHistory[deviceId];
     if (!dataSet) return;
 
-    const avgVoltVal = (dataSet.volt.reduce((a, b) => a + b, 0) / dataSet.volt.length).toFixed(1);
-    const avgAmpVal = (dataSet.ampere.reduce((a, b) => a + b, 0) / dataSet.ampere.length).toFixed(2);
-    const avgWattVal = (dataSet.watt.reduce((a, b) => a + b, 0) / dataSet.watt.length).toFixed(1);
-
-    document.getElementById("avg-volt").innerText = `${avgVoltVal} V`;
-    document.getElementById("avg-amp").innerText = `${avgAmpVal} A`;
-    document.getElementById("avg-watt").innerText = `${avgWattVal} W`;
+    // Ambil array dengan toleransi nama key
+    const labels = dataSet.labels || [];
+    const voltArr = dataSet.volt || [];
+    const currentArr = dataSet.current || dataSet.ampere || [];
+    const powerArr = dataSet.power || dataSet.watt || [];
 
     const ctx = document.getElementById('telemetryChart').getContext('2d');
 
@@ -778,11 +906,11 @@ function renderTelemetryChart(deviceId) {
     telemetryChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: dataSet.labels,
+            labels: labels,
             datasets: [
                 {
                     label: 'Tegangan (Volt)',
-                    data: dataSet.volt,
+                    data: voltArr,
                     borderColor: '#3b82f6',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
                     yAxisID: 'y-volt',
@@ -791,7 +919,7 @@ function renderTelemetryChart(deviceId) {
                 },
                 {
                     label: 'Arus (Ampere)',
-                    data: dataSet.ampere,
+                    data: currentArr,
                     borderColor: '#10b981',
                     backgroundColor: 'transparent',
                     yAxisID: 'y-ampere',
@@ -799,7 +927,7 @@ function renderTelemetryChart(deviceId) {
                 },
                 {
                     label: 'Daya Aktif (Watt)',
-                    data: dataSet.watt,
+                    data: powerArr,
                     borderColor: '#f59e0b',
                     backgroundColor: 'rgba(245, 158, 11, 0.05)',
                     yAxisID: 'y-watt',
@@ -828,7 +956,7 @@ function renderTelemetryChart(deviceId) {
                     ticks: { color: '#3b82f6' },
                     title: { display: true, text: 'Volt (V)', color: '#3b82f6' },
                     min: 200,
-                    max: 240
+                    max: 250
                 },
                 'y-ampere': {
                     type: 'linear',
@@ -837,7 +965,7 @@ function renderTelemetryChart(deviceId) {
                     ticks: { color: '#10b981' },
                     title: { display: true, text: 'Arus (A)', color: '#10b981' },
                     min: 0,
-                    max: 1.5
+                    max: 2
                 },
                 'y-watt': {
                     type: 'linear',
@@ -846,11 +974,62 @@ function renderTelemetryChart(deviceId) {
                     ticks: { color: '#f59e0b' },
                     title: { display: true, text: 'Daya (W)', color: '#f59e0b' },
                     min: 0,
-                    max: 250
+                    max: 280
                 }
             }
         }
     });
+}
+
+function renderTelemetryChart(deviceId) {
+    if (!deviceId) return;
+
+    // Fetch data historis dari backend
+    fetch(`http://localhost:1880/api/telemetry-history?device_id=${deviceId}`)
+        .then(response => response.json())
+        .then(data => {
+            // Jika backend mengembalikan format array rows (karena query SELECT di PostgreSQL),
+            // konversikan ke objek berisi array yang sesuai dengan kebutuhan Chart.js
+            if (Array.isArray(data)) {
+                const transformed = {
+                    labels: [],
+                    volt: [],
+                    ampere: [],
+                    watt: [],
+                    current: [],
+                    power: []
+                };
+                data.forEach(row => {
+                    transformed.labels.push(row.time_label || "");
+                    transformed.volt.push(row.volt !== undefined ? parseFloat(row.volt) : 0);
+                    
+                    const ampVal = row.ampere !== undefined ? parseFloat(row.ampere) : (row.current !== undefined ? parseFloat(row.current) : 0);
+                    transformed.ampere.push(ampVal);
+                    transformed.current.push(ampVal);
+                    
+                    const wattVal = row.watt !== undefined ? parseFloat(row.watt) : (row.power !== undefined ? parseFloat(row.power) : 0);
+                    transformed.watt.push(wattVal);
+                    transformed.power.push(wattVal);
+                });
+                telemetryHistory[deviceId] = transformed;
+            } else {
+                telemetryHistory[deviceId] = data;
+
+                // Normalisasi key untuk kompatibilitas data
+                if (data) {
+                    if (!data.ampere && data.current) data.ampere = data.current;
+                    if (!data.watt && data.power) data.watt = data.power;
+                }
+            }
+
+            // Render Chart & Update Card Rata-Rata setelah data dipastikan ADA
+            drawChart(deviceId);
+            updateTelemetrySummary(deviceId);
+        })
+        .catch(err => {
+            console.error("Gagal memuat history telemetry saat refresh:", err);
+            updateTelemetrySummary(deviceId); // fallback ke 0 jika error
+        });
 }
 
 function changeTelemetryDevice(deviceId) {
@@ -885,3 +1064,522 @@ function fetchSectorSettings() {
         switchDevice(document.getElementById("current-device-id").innerText);
     }
 }
+
+
+// ============================================================
+//  ALERT INBOX — Data Store & State
+// ============================================================
+
+// Array utama penyimpanan semua objek alert
+let alertsData = [];
+
+// State filter aktif
+let alertFilters = { severity: 'all', node: 'all', search: '' };
+
+// Cooldown tracker: { "nodeId_type": timestamp_ms }
+let alertCooldowns = {};
+
+// Konstanta cooldown 60 detik
+const ALERT_COOLDOWN_MS = 60000;
+
+// ============================================================
+//  ALERT INBOX — Fungsi Utama
+// ============================================================
+
+/**
+ * Tambahkan alert baru ke alertsData.
+ * Setelah ditambahkan, perbarui badge & re-render list (hanya jika halaman alerts aktif).
+ */
+function addAlert(alertObj) {
+    // Cek cooldown: jika alert untuk nodeId+type yang sama sudah ada < 60 detik lalu, lewati
+    const cooldownKey = `${alertObj.nodeId}_${alertObj.type}`;
+    const lastTime = alertCooldowns[cooldownKey];
+    const now = Date.now();
+    if (lastTime && (now - lastTime) < ALERT_COOLDOWN_MS) {
+        return; // Masih dalam periode cooldown, abaikan
+    }
+    alertCooldowns[cooldownKey] = now;
+
+    // Pastikan objek memiliki ID unik
+    if (!alertObj.id) {
+        alertObj.id = 'alert_ws_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    }
+    if (!alertObj.timestamp) {
+        alertObj.timestamp = new Date();
+    }
+    if (alertObj.isRead === undefined) alertObj.isRead = false;
+    if (alertObj.isDismissed === undefined) alertObj.isDismissed = false;
+
+    // Tambahkan ke awal array agar alert terbaru muncul di atas
+    alertsData.unshift(alertObj);
+
+    // Tambahkan node ke dropdown filter jika belum ada
+    _addNodeToAlertFilter(alertObj.nodeId);
+
+    // Perbarui badge unread
+    updateAlertBadge();
+
+    // Re-render hanya jika halaman alerts sedang ditampilkan
+    const alertPage = document.getElementById('page-alerts');
+    if (alertPage && alertPage.style.display !== 'none') {
+        renderAlertList();
+    }
+}
+
+/**
+ * Render daftar alert ke #alert-list berdasarkan filter aktif.
+ */
+function renderAlertList() {
+    const listEl = document.getElementById('alert-list');
+    const emptyEl = document.getElementById('alert-empty-state');
+    if (!listEl) return;
+
+    // Ambil alert yang belum di-dismiss
+    let filtered = alertsData.filter(a => !a.isDismissed);
+
+    // Filter severity
+    if (alertFilters.severity !== 'all') {
+        filtered = filtered.filter(a => a.severity === alertFilters.severity);
+    }
+
+    // Filter node
+    if (alertFilters.node !== 'all') {
+        filtered = filtered.filter(a => a.nodeId === alertFilters.node);
+    }
+
+    // Filter pencarian teks
+    if (alertFilters.search.trim() !== '') {
+        const q = alertFilters.search.trim().toLowerCase();
+        filtered = filtered.filter(a =>
+            a.message.toLowerCase().includes(q) ||
+            a.nodeId.toLowerCase().includes(q) ||
+            a.type.toLowerCase().includes(q)
+        );
+    }
+
+    // Update stats
+    _updateAlertStats();
+
+    // Tampilkan empty state jika kosong
+    if (filtered.length === 0) {
+        listEl.innerHTML = '';
+        if (emptyEl) emptyEl.style.display = 'flex';
+        return;
+    }
+
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    // Render setiap alert card
+    listEl.innerHTML = filtered.map(alert => _buildAlertCardHTML(alert)).join('');
+}
+
+/**
+ * Tandai satu alert sebagai sudah dibaca — update ke DB lalu re-fetch.
+ */
+function markAlertRead(alertId) {
+    // Optimistic UI update
+    const alert = alertsData.find(a => a.id === alertId);
+    if (alert) {
+        alert.isRead = true;
+        updateAlertBadge();
+        renderAlertList();
+    }
+
+    // Persist ke DB
+    fetch(`http://localhost:1880/api/alerts/${alertId}/read`, { method: 'PATCH' })
+        .catch(err => console.error('Gagal mark-read alert ke DB:', err));
+}
+
+/**
+ * Tandai semua alert sebagai sudah dibaca — update ke DB.
+ */
+function markAllRead() {
+    alertsData.forEach(a => { a.isRead = true; });
+    updateAlertBadge();
+    renderAlertList();
+
+    fetch('http://localhost:1880/api/alerts/mark-all-read', { method: 'POST' })
+        .catch(err => console.error('Gagal mark-all-read ke DB:', err));
+}
+
+/**
+ * Hapus satu alert dari tampilan dan DB.
+ */
+function dismissAlert(alertId) {
+    // Optimistic UI update
+    const alert = alertsData.find(a => a.id === alertId);
+    if (alert) {
+        alert.isDismissed = true;
+        updateAlertBadge();
+        renderAlertList();
+    }
+
+    // Hapus dari DB
+    fetch(`http://localhost:1880/api/alerts/${alertId}`, { method: 'DELETE' })
+        .catch(err => console.error('Gagal hapus alert dari DB:', err));
+}
+
+/**
+ * Hapus semua alert dari tampilan dan DB.
+ */
+function clearAllAlerts() {
+    alertsData = [];
+    alertCooldowns = {};
+    updateAlertBadge();
+    renderAlertList();
+
+    fetch('http://localhost:1880/api/alerts', { method: 'DELETE' })
+        .catch(err => console.error('Gagal hapus semua alert dari DB:', err));
+}
+
+/**
+ * Perbarui badge angka unread di sidebar.
+ */
+function updateAlertBadge() {
+    const unreadCount = alertsData.filter(a => !a.isRead && !a.isDismissed).length;
+    const badgeEl = document.getElementById('alert-badge');
+    if (badgeEl) {
+        badgeEl.textContent = unreadCount > 0 ? unreadCount : '0';
+        badgeEl.style.display = unreadCount > 0 ? 'inline-block' : 'inline-block';
+    }
+}
+
+/**
+ * Set filter (severity atau node) dan re-render.
+ * @param {string} type    - 'severity' atau 'node'
+ * @param {string} value   - nilai filter
+ * @param {Element|null} pillEl - elemen tombol pill (untuk update kelas aktif)
+ */
+function setAlertFilter(type, value, pillEl) {
+    alertFilters[type] = value;
+
+    // Jika filter severity, update kelas aktif pada pill buttons
+    if (type === 'severity' && pillEl) {
+        const pills = document.querySelectorAll('#severity-filter-pills .filter-pill');
+        pills.forEach(p => p.classList.remove('active'));
+        pillEl.classList.add('active');
+    }
+
+    renderAlertList();
+}
+
+/**
+ * Update filter pencarian teks dan re-render.
+ */
+function handleAlertSearch(value) {
+    alertFilters.search = value;
+    renderAlertList();
+}
+
+/**
+ * Hasilkan pesan deskriptif Bahasa Indonesia berdasarkan tipe alert.
+ */
+function generateAlertMessage(type, nodeId, volt, current) {
+    switch (type) {
+        case 'voltage_spike':
+            return `Node ${nodeId} terdeteksi lonjakan tegangan sebesar ${volt}V, melebihi batas aman 240V. Segera periksa kondisi jaringan listrik.`;
+        case 'voltage_drop':
+            return `Node ${nodeId} mengalami penurunan tegangan ke ${volt}V (di bawah 200V). Kemungkinan gangguan pasokan daya.`;
+        case 'current_spike':
+            return `Node ${nodeId} mendeteksi lonjakan arus listrik sebesar ${current}A, melampaui batas kritis 1.5A. Periksa kemungkinan korsleting.`;
+        case 'current_high':
+            return `Node ${nodeId} mencatat arus tinggi sebesar ${current}A (di atas 1.0A). Pantau secara berkala untuk mencegah kerusakan komponen.`;
+        case 'offline':
+            return `Node ${nodeId} terdeteksi offline atau tidak bertenaga. Tegangan terbaca ${volt}V, jauh di bawah batas operasional minimum.`;
+        case 'power_high':
+            const pow = (volt * current).toFixed(1);
+            return `Node ${nodeId} mengonsumsi daya melebihi batas normal (${pow}W > 350W). Periksa beban listrik yang terhubung.`;
+        default:
+            return `Node ${nodeId} mengirimkan sinyal anomali. Mohon lakukan pengecekan langsung di lapangan.`;
+    }
+}
+
+// ============================================================
+//  ALERT INBOX — Helper Internal
+// ============================================================
+
+/**
+ * Bangun HTML string untuk satu alert card.
+ */
+function _buildAlertCardHTML(alert) {
+    const isUnread = !alert.isRead;
+    const severityLabel = { critical: 'KRITIS', warning: 'PERINGATAN', info: 'INFO' }[alert.severity] || 'INFO';
+    const severityBadgeClass = { critical: 'badge-critical', warning: 'badge-warning', info: 'badge-info' }[alert.severity] || 'badge-info';
+    const typeIcon = _getAlertTypeIcon(alert.type);
+    const timestamp = alert.timestamp instanceof Date
+        ? alert.timestamp.toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : String(alert.timestamp);
+
+    // Tentukan apakah nilai metrik anomali
+    const voltAnomalous = alert.volt > 240 || alert.volt < 100;
+    const voltWarn = alert.volt < 200 && alert.volt >= 100;
+    const currentAnomalous = alert.current > 1.5;
+    const currentWarn = alert.current > 1.0 && alert.current <= 1.5;
+    const powerWarn = alert.power > 350;
+
+    const voltClass = voltAnomalous ? 'anomalous' : (voltWarn ? 'warn-value' : '');
+    const currentClass = currentAnomalous ? 'anomalous' : (currentWarn ? 'warn-value' : '');
+    const powerClass = powerWarn ? 'warn-value' : '';
+
+    const unreadDot = isUnread ? '<span class="unread-dot"></span>' : '';
+    const cardClass = `alert-card severity-${alert.severity}${isUnread ? ' unread' : ''}`;
+
+    // Tombol "Tandai Dibaca" hanya tampil jika belum dibaca
+    const readBtn = !alert.isRead
+        ? `<button class="btn-read" onclick="markAlertRead('${alert.id}')">✓ Tandai Dibaca</button>`
+        : '';
+
+    return `
+    <div class="${cardClass}" id="card-${alert.id}">
+        <div class="alert-card-header">
+            <div class="alert-card-header-left">
+                ${unreadDot}
+                <span class="alert-severity-badge ${severityBadgeClass}">${severityLabel}</span>
+                <span class="alert-node-id">${alert.nodeId}</span>
+                <span style="font-size: 16px;">${typeIcon}</span>
+            </div>
+            <span class="alert-timestamp">${timestamp}</span>
+        </div>
+        <p class="alert-message">${alert.message}</p>
+        <div class="alert-metrics">
+            <div class="alert-metric-item">
+                <span class="alert-metric-label">⚡ Tegangan:</span>
+                <span class="alert-metric-value ${voltClass}">${alert.volt !== undefined ? alert.volt.toFixed(1) : '–'} V</span>
+            </div>
+            <div class="alert-metric-item">
+                <span class="alert-metric-label">🔌 Arus:</span>
+                <span class="alert-metric-value ${currentClass}">${alert.current !== undefined ? alert.current.toFixed(3) : '–'} A</span>
+            </div>
+            <div class="alert-metric-item">
+                <span class="alert-metric-label">💡 Daya:</span>
+                <span class="alert-metric-value ${powerClass}">${alert.power !== undefined ? alert.power.toFixed(1) : '–'} W</span>
+            </div>
+            ${alert.threshold && Object.keys(alert.threshold).length > 0 ? `
+            <div class="alert-metric-item">
+                <span class="alert-metric-label">📊 Threshold:</span>
+                <span class="alert-metric-value">${_formatThreshold(alert.threshold)}</span>
+            </div>` : ''}
+        </div>
+        <div class="alert-footer">
+            <span class="alert-type-label">${_formatAlertType(alert.type)}</span>
+            <div class="alert-actions">
+                ${readBtn}
+                <button class="btn-dismiss" onclick="dismissAlert('${alert.id}')">🗑 Hapus</button>
+            </div>
+        </div>
+    </div>`;
+}
+
+/** Kembalikan emoji icon berdasarkan tipe alert */
+function _getAlertTypeIcon(type) {
+    const icons = {
+        voltage_spike: '⚡',
+        voltage_drop: '📉',
+        current_spike: '🔌',
+        current_high: '⚠️',
+        offline: '📵',
+        power_high: '💡'
+    };
+    return icons[type] || '🔔';
+}
+
+/** Format label tipe alert yang lebih mudah dibaca */
+function _formatAlertType(type) {
+    const labels = {
+        voltage_spike: 'Lonjakan Tegangan',
+        voltage_drop: 'Penurunan Tegangan',
+        current_spike: 'Lonjakan Arus',
+        current_high: 'Arus Tinggi',
+        offline: 'Perangkat Offline',
+        power_high: 'Konsumsi Daya Tinggi'
+    };
+    return labels[type] || type;
+}
+
+/** Format nilai threshold ke string */
+function _formatThreshold(threshold) {
+    const parts = [];
+    if (threshold.volt !== undefined) parts.push(`V: ${threshold.volt}V`);
+    if (threshold.current !== undefined) parts.push(`I: ${threshold.current}A`);
+    return parts.join(', ') || '–';
+}
+
+/** Tambahkan node ke dropdown filter alert jika belum ada */
+function _addNodeToAlertFilter(nodeId) {
+    const select = document.getElementById('alert-node-filter');
+    if (!select) return;
+    const exists = Array.from(select.options).some(opt => opt.value === nodeId);
+    if (!exists) {
+        const opt = document.createElement('option');
+        opt.value = nodeId;
+        opt.textContent = `Node ${nodeId}`;
+        select.appendChild(opt);
+    }
+}
+
+/** Update kartu statistik di bagian atas halaman alert */
+function _updateAlertStats() {
+    const active = alertsData.filter(a => !a.isDismissed);
+    const unread = active.filter(a => !a.isRead).length;
+    const critical = active.filter(a => a.severity === 'critical').length;
+
+    const totalEl = document.getElementById('stat-total');
+    const unreadEl = document.getElementById('stat-unread');
+    const criticalEl = document.getElementById('stat-critical');
+
+    if (totalEl) totalEl.textContent = active.length;
+    if (unreadEl) unreadEl.textContent = unread;
+    if (criticalEl) criticalEl.textContent = critical;
+}
+
+// ============================================================
+//  ALERT INBOX — Inisialisasi: Fetch Data dari DB
+// ============================================================
+
+/**
+ * Ambil history alerts dari database via Node-RED API.
+ * Dipanggil saat navigasi ke halaman Inbox Alerts.
+ */
+function fetchAlertsFromDB() {
+    const listEl = document.getElementById('alert-list');
+    const emptyEl = document.getElementById('alert-empty-state');
+
+    // Tampilkan loading state
+    if (listEl) listEl.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px;">Memuat data alerts...</p>';
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    fetch('http://localhost:1880/api/alerts-history?limit=100')
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        })
+        .then(rows => {
+            // Reset alertsData — hanya isi dari DB, bukan seed
+            // Pertahankan alerts dari WebSocket real-time yang mungkin sudah masuk
+            // (filter: hanya hapus yang punya id numerik dari DB, biarkan 'alert_ws_*')
+            alertsData = alertsData.filter(a => typeof a.id === 'string' && a.id.startsWith('alert_ws_'));
+
+            // Mapping kolom DB ke format alertsData internal
+            const levelToSeverity = {
+                'critical': 'critical',
+                'Critical': 'critical',
+                'warning': 'warning',
+                'Warning': 'warning',
+                'info': 'info',
+                'Info': 'info'
+            };
+
+            const titleToType = {
+                'Lonjakan Tegangan': 'voltage_spike',
+                'Penurunan Tegangan': 'voltage_drop',
+                'Lonjakan Arus': 'current_spike',
+                'Arus Tinggi': 'current_high',
+                'Perangkat Offline / Tegangan Low': 'offline',
+                'Perangkat Offline': 'offline',
+                'Konsumsi Daya Tinggi': 'power_high',
+                'Tes Manual': 'manual'
+            };
+
+            // Parse threshold_info (e.g. "V: 240V" atau "I: 1.5A") ke object
+            function parseThreshold(thresholdInfo) {
+                if (!thresholdInfo) return {};
+                const result = {};
+                const vMatch = thresholdInfo.match(/V:\s*([\d.]+)V/i);
+                const iMatch = thresholdInfo.match(/I:\s*([\d.]+)A/i);
+                if (vMatch) result.volt = parseFloat(vMatch[1]);
+                if (iMatch) result.current = parseFloat(iMatch[1]);
+                return result;
+            }
+
+            rows.forEach(row => {
+                const alertObj = {
+                    id: row.id,           // integer dari DB
+                    nodeId: row.device_id,
+                    severity: levelToSeverity[row.level] || 'info',
+                    type: titleToType[row.title] || 'unknown',
+                    message: row.message || '',
+                    volt: parseFloat(row.volt) || 0,
+                    current: parseFloat(row.current) || 0,
+                    power: parseFloat(row.power) || 0,
+                    threshold: parseThreshold(row.threshold_info),
+                    timestamp: new Date(row.created_at),
+                    isRead: row.is_read === true || row.is_read === 't' || row.is_read === 'true',
+                    isDismissed: false
+                };
+
+                alertsData.push(alertObj);
+                _addNodeToAlertFilter(alertObj.nodeId);
+            });
+
+            updateAlertBadge();
+            renderAlertList();
+        })
+        .catch(err => {
+            console.error('Gagal memuat alerts dari DB:', err);
+            if (listEl) listEl.innerHTML = '<p style="color: var(--danger); text-align: center; padding: 40px;">⚠ Gagal memuat data alerts. Periksa koneksi ke Node-RED.</p>';
+        });
+}
+
+// ============================================================
+//  ALERT INBOX — Deteksi Anomali dari WebSocket
+//  (Dipasang pada socket.onmessage yang sudah ada di atas,
+//   logika ini dipanggil via _checkAndTriggerAlert)
+// ============================================================
+
+/**
+ * Periksa data perangkat untuk anomali dan buat alert jika perlu.
+ * Dipanggil setiap kali data perangkat diperbarui dari WebSocket.
+ */
+function _checkAndTriggerAlert(deviceId, data) {
+    const volt = parseFloat(data.volt) || 0;
+    const current = parseFloat(data.current) || 0;
+    const power = parseFloat(data.power) || (volt * current);
+
+    // Definisi aturan anomali: [kondisi, severity, type, threshold]
+    const rules = [
+        { check: volt > 240,                severity: 'critical', type: 'voltage_spike',  threshold: { volt: 240 } },
+        { check: volt < 100 && volt > 0,    severity: 'critical', type: 'offline',        threshold: { volt: 100 } },
+        { check: current > 1.5,             severity: 'critical', type: 'current_spike',  threshold: { current: 1.5 } },
+        { check: volt >= 100 && volt < 200, severity: 'warning',  type: 'voltage_drop',   threshold: { volt: 200 } },
+        { check: current > 1.0 && current <= 1.5, severity: 'warning', type: 'current_high', threshold: { current: 1.0 } },
+        { check: power > 350,               severity: 'warning',  type: 'power_high',     threshold: {} }
+    ];
+
+    rules.forEach(rule => {
+        if (rule.check) {
+            const message = generateAlertMessage(rule.type, deviceId, volt, current);
+            addAlert({
+                nodeId: deviceId,
+                severity: rule.severity,
+                type: rule.type,
+                message: message,
+                volt: volt,
+                current: current,
+                power: parseFloat(power.toFixed(2)),
+                threshold: rule.threshold,
+                timestamp: new Date(),
+                isRead: false,
+                isDismissed: false
+            });
+        }
+    });
+}
+
+// ============================================================
+//  NODE-RED ALERT FORMAT INTEGRATION
+// ============================================================
+//
+// Node-RED Alert Format (via ws/alerts atau ws/telemetry dengan field alert):
+// {
+//   "id": "L-107",           ← node ID
+//   "alert": true,           ← flag untuk memicu pemrosesan alert
+//   "alertType": "voltage_spike",
+//   "volt": 245.2,
+//   "current": 0.85,
+//   "power": 208.4,
+//   "severity": "critical"   ← opsional, auto-detected jika tidak ada
+// }
+//
+// Pesan WebSocket dengan field alert === true akan langsung memanggil addAlert()
+// tanpa melalui logika deteksi otomatis.
+// ============================================================
