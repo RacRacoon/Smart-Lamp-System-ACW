@@ -63,6 +63,37 @@ static uint8_t dec_to_bcd(uint8_t val) {
     return ((val / 10 * 16) + (val % 10));
 }
 
+void ds1307_set_time(uint8_t date, uint8_t month, uint8_t year, uint8_t hours, uint8_t minutes, uint8_t seconds) {
+    uint8_t data[8];
+    
+    // Byte pertama selalu alamat register awal tujuan (0x00 = Register Detik)
+    data[0] = 0x00; 
+    
+    // DS1307 menerima format BCD, kita konversi dari desimal
+    // Catatan: Bit ke-7 dari detik adalah Clock Halt (CH). Memasukkan detik (0-59) 
+    // dengan bit ke-7 bernilai 0 akan otomatis memastikan osilator RTC menyala.
+    data[1] = dec_to_bcd(seconds);
+    data[2] = dec_to_bcd(minutes);
+    data[3] = dec_to_bcd(hours);
+    
+    // data[4] adalah register Hari/Day of week (1-7). 
+    data[4] = 0x00; 
+    
+    data[5] = dec_to_bcd(date);
+    data[6] = dec_to_bcd(month);
+    data[7] = dec_to_bcd(year);
+
+    // Kirim 8 byte sekaligus ke I2C
+    esp_err_t err = i2c_master_write_to_device(I2C_MASTER_NUM, DS1307_ADDR, data, 8, pdMS_TO_TICKS(1000));
+    
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Waktu RTC berhasil di-set/dikalibrasi!");
+    } else {
+        ESP_LOGE(TAG, "Gagal meng-set waktu RTC! Cek koneksi kabel I2C.");
+    }
+}
+
+
 // Membaca akumulasi Uptime Lampu dari NV-RAM RTC
 uint32_t ds1307_read_uptime(void) {
     uint8_t start_reg = 0x08; // Alamat awal NV-RAM DS1307

@@ -6,7 +6,7 @@
 #include "freertos/task.h"
 
 static const char *TAG = "GPS_DRIVER";
-
+extern SemaphoreHandle_t uart1_mutex;
 // Dari Datasheet LilyGo T-SIM7670G-S3:
 #define MODEM_PWKEY_PIN  46 
 
@@ -61,23 +61,29 @@ void gps_init(void) {
 }
 
 void gps_read_info(char *buffer, size_t max_len) {
-    const char* gps_get_info = "AT+CGPSINFO\r\n";
-    
-    uart_flush_input(MODEM_UART_NUM); 
-    uart_write_bytes(MODEM_UART_NUM, gps_get_info, strlen(gps_get_info));
-    vTaskDelay(pdMS_TO_TICKS(200)); // Tunggu modem merespons
-    
-    int len = uart_read_bytes(MODEM_UART_NUM, buffer, max_len - 1, pdMS_TO_TICKS(100));
-    if (len > 0) {
-        buffer[len] = '\0'; // Jadikan string valid
+    if(xSemaphoreTake(uart1_mutex,pdMS_TO_TICKS(3500))){
+        const char* gps_get_info = "AT+CGPSINFO\r\n";
         
-        // Membersihkan karakter newline/carriage return berlebih dari balasan AT Command
-        char *newline = strchr(buffer, '\n');
-        if (newline) *newline = '\0';
-        char *cr = strchr(buffer, '\r');
-        if (cr) *cr = '\0';
+        uart_flush_input(MODEM_UART_NUM); 
+        uart_write_bytes(MODEM_UART_NUM, gps_get_info, strlen(gps_get_info));
+        vTaskDelay(pdMS_TO_TICKS(200)); // Tunggu modem merespons
         
-    } else {
-        buffer[0] = '\0';   // Buffer kosong jika gagal
+        int len = uart_read_bytes(MODEM_UART_NUM, buffer, max_len - 1, pdMS_TO_TICKS(100));
+        if (len > 0) {
+            buffer[len] = '\0'; // Jadikan string valid
+            
+            // Membersihkan karakter newline/carriage return berlebih dari balasan AT Command
+            char *newline = strchr(buffer, '\n');
+            if (newline) *newline = '\0';
+            char *cr = strchr(buffer, '\r');
+            if (cr) *cr = '\0';
+            
+        } else {
+            buffer[0] = '\0';   // Buffer kosong jika gagal
+        }
+        xSemaphoreGive(uart1_mutex);
+    }
+    else{
+        ESP_LOGW(TAG, "Jalur komunikasi uart1 sibuk");
     }
 }

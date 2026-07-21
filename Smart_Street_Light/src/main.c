@@ -16,14 +16,28 @@
 
 static const char *TAG = "MAIN_APP";
 
+SemaphoreHandle_t uart1_mutex = NULL;
+
+
 #define RELAY_PIN       47
 #define LDR_ADC_CHAN    ADC_CHANNEL_8 // GPIO9
 
 adc_oneshot_unit_handle_t adc1_handle;
 uint32_t total_lampu_nyala_sec;
 
-// BIKIN VARIABEL GLOBAL AGAR BISA DIBACA OLEH KEDUA TASK
 pzem_data_t global_pzem_data = {0}; 
+
+typedef enum {
+    SENSOR_STATE_READ_DATA,
+    SENSOR_STATE_EVALUATE,
+    SENSOR_STATE_IDLE
+}sensor_state_t;
+
+typedef enum {
+    TEL_STATE_INIT_MODEM,
+    TEL_STATE_PUBLISH,
+    TEL_STATE_IDLE
+} telemetry_state_t;
 
 typedef struct {
     uint16_t year;
@@ -95,8 +109,11 @@ void init_adc_ldr() {
 }
 
 void sensor_task(void *pvParameters) {
+    sensor_state_t current_state = SENSOR_STATE_READ_DATA;
+    
     char gps_buffer[512];
-    int ldr_val;
+    int ldr_val = 0;
+    bool pzem_menyala = false;
     
     total_lampu_nyala_sec = ds1307_read_uptime();
     time_t epoch_sebelumnya = 0;
@@ -107,85 +124,108 @@ void sensor_task(void *pvParameters) {
     }
 
     while (1) {
-        ESP_LOGI(TAG, "========== BACA SENSOR ==========");
-
-        if (adc_oneshot_read(adc1_handle, LDR_ADC_CHAN, &ldr_val) == ESP_OK) {
-            ESP_LOGI(TAG, "[LDR] Raw ADC: %d", ldr_val);
-            if (ldr_val < 500) { 
-                gpio_set_level(RELAY_PIN, 0); 
-                ESP_LOGI(TAG, "[RELAY] Terang - Mematikan daya AC ke Driver");
-            } else { 
-                gpio_set_level(RELAY_PIN, 1); 
-                ESP_LOGI(TAG, "[RELAY] Gelap - Menyalakan daya AC ke Driver");
-            }
-        }
-
-        // SATU-SATUNYA TEMPAT PZEM DIBACA: UPDATE KE VARIABEL GLOBAL
-        bool pzem_menyala = false;
-        global_pzem_data = pzem_read_registers(); 
-        
-        if (global_pzem_data.valid) {
-            ESP_LOGI(TAG, "[PZEM] V: %.2f | I: %.3f | P: %.2f | E: %.3f", 
-                     global_pzem_data.voltage, global_pzem_data.current, global_pzem_data.power, global_pzem_data.energy);
-            pzem_menyala = true; 
-        } else {
-            ESP_LOGW(TAG, "[PZEM] Gagal membaca data (Lampu/Driver Mati)");
-        }
-
-        rtc_time_t current_rtc = rtc_read_time();
-        if (current_rtc.valid) {
-            time_t epoch_sekarang = rtc_to_epoch(current_rtc);
-            
-            if (epoch_sebelumnya > 0 && epoch_sekarang >= epoch_sebelumnya) {
-                uint32_t selisih_detik = (uint32_t)(epoch_sekarang - epoch_sebelumnya);
+        switch (current_state) {
+            case SENSOR_STATE_READ_DATA:
+                ESP_LOGI(TAG, "========== BACA SENSOR ==========");
                 
-                if (pzem_menyala) {
-                    total_lampu_nyala_sec += selisih_detik;
-                    ds1307_write_uptime(total_lampu_nyala_sec);
+                // 1. Baca LDR
+                if (adc_oneshot_read(adc1_handle, LDR_ADC_CHAN, &ldr_val) == ESP_OK) {
+                    ESP_LOGI(TAG, "[LDR] Raw ADC: %d", ldr_val);
                 }
-            }
-            epoch_sebelumnya = epoch_sekarang;
+                
+                // 2. Baca PZEM
+                global_pzem_data = pzem_read_registers(); 
+                pzem_menyala = global_pzem_data.valid;
+                if (pzem_menyala) {
+                    ESP_LOGI(TAG, "[PZEM] V: %.2f | I: %.3f | P: %.2f", global_pzem_data.voltage, global_pzem_data.current, global_pzem_data.power);
+                } else {
+                    ESP_LOGW(TAG, "[PZEM] Gagal membaca data (Lampu Mati)");
+                }
 
-            uint32_t up_hari  = total_lampu_nyala_sec / 86400;
-            uint32_t sisa     = total_lampu_nyala_sec % 86400;
-            uint32_t up_jam   = sisa / 3600;
-            sisa              = sisa % 3600;
-            uint32_t up_menit = sisa / 60;
-            uint32_t up_detik = sisa % 60;
+                // 3. Baca GPS
+                gps_read_info(gps_buffer, sizeof(gps_buffer));
+                if (strlen(gps_buffer) > 0) {
+                    ESP_LOGI(TAG, "[GPS] Info: %s", gps_buffer);
+                }
+                
+                current_state = SENSOR_STATE_EVALUATE;
+                break;
 
-            ESP_LOGI(TAG, "[SYSTEM] UPTIME LAMPU: %lu Hari, %02lu:%02lu:%02lu", up_hari, up_jam, up_menit, up_detik);
+            case SENSOR_STATE_EVALUATE:
+                // Evaluasi Relay LDR
+                if (ldr_val < 500) { 
+                    gpio_set_level(RELAY_PIN, 0); 
+                    ESP_LOGI(TAG, "[RELAY] Terang - Mematikan AC");
+                } else { 
+                    gpio_set_level(RELAY_PIN, 1); 
+                    ESP_LOGI(TAG, "[RELAY] Gelap - Menyalakan AC");
+                }
+
+                // Kalkulasi Waktu
+                rtc_time_t current_rtc = rtc_read_time();
+                if (current_rtc.valid) {
+                    time_t epoch_sekarang = rtc_to_epoch(current_rtc);
+                    if (epoch_sebelumnya > 0 && epoch_sekarang >= epoch_sebelumnya) {
+                        if (pzem_menyala) {
+                            total_lampu_nyala_sec += (uint32_t)(epoch_sekarang - epoch_sebelumnya);
+                            ds1307_write_uptime(total_lampu_nyala_sec);
+                        }
+                    }
+                    epoch_sebelumnya = epoch_sekarang;
+                    
+                    uint32_t up_hari  = total_lampu_nyala_sec / 86400;
+                    uint32_t sisa     = total_lampu_nyala_sec % 86400;
+                    ESP_LOGI(TAG, "[SYSTEM] UPTIME: %lu Hari, %02lu:%02lu:%02lu", up_hari, (sisa/3600), ((sisa%3600)/60), (sisa%60));
+                }
+                
+                ESP_LOGI(TAG, "=================================\n");
+                current_state = SENSOR_STATE_IDLE;
+                break;
+
+            case SENSOR_STATE_IDLE:
+                vTaskDelay(pdMS_TO_TICKS(3000));
+                current_state = SENSOR_STATE_READ_DATA; // Ulangi siklus
+                break;
         }
-
-        gps_read_info(gps_buffer, sizeof(gps_buffer));
-        if (strlen(gps_buffer) > 0) {
-            ESP_LOGI(TAG, "[GPS] Info: %s", gps_buffer);
-        } else {
-            ESP_LOGI(TAG, "[GPS] Tidak ada balasan");
-        }
-
-        ESP_LOGI(TAG, "=================================\n");
-        vTaskDelay(pdMS_TO_TICKS(3000));
     }
 }
 
 void telemetry_task(void *pvParameters)
 {
+    telemetry_state_t current_state = TEL_STATE_INIT_MODEM;
+    
     const char* id = "L-107";
-    const char* sector = "Sektor 2 (Kertajaya - Depan ITS)";
+    const char* sector = "Sektor 2 (Kertajaya)";
     float lat = -7.284814;  
     float lng = 112.794833;
-    int alerts = 1;
+    int alerts = 0;
 
     while (1) {
-        // CUKUP BACA VARIABEL GLOBAL YANG SUDAH DI-UPDATE OLEH SENSOR_TASK
-        ESP_LOGI(TAG, "Mempublikasikan data MQTT...");
-        
-        send_telemetry( id, sector, 
-                       total_lampu_nyala_sec / 3600, 
-                       global_pzem_data.voltage, global_pzem_data.current, global_pzem_data.power, 
-                       lat, lng, alerts);
+        switch (current_state) {
+            case TEL_STATE_INIT_MODEM:
+                ESP_LOGI(TAG, "Menunggu 15 detik agar modem mendapat sinyal seluler...");
+                vTaskDelay(pdMS_TO_TICKS(15000)); 
+                init_cellular_mqtt();
+                
+                // Jika ingin lebih canggih, cek jika gagal init, kembalikan ke INIT.
+                // Sementara ini kita asumsikan sukses dan lanjut.
+                current_state = TEL_STATE_PUBLISH;
+                break;
 
-        vTaskDelay(pdMS_TO_TICKS(5000));
+            case TEL_STATE_PUBLISH:
+                ESP_LOGI(TAG, "Mempublikasikan data MQTT...");
+                send_telemetry_cellular(id, sector, total_lampu_nyala_sec, 
+                                        global_pzem_data.voltage, global_pzem_data.current, 
+                                        global_pzem_data.power, lat, lng, alerts);
+                
+                current_state = TEL_STATE_IDLE;
+                break;
+
+            case TEL_STATE_IDLE:
+                vTaskDelay(pdMS_TO_TICKS(5000));
+                current_state = TEL_STATE_PUBLISH; // Kembali kirim data
+                break;
+        }
     }
 }
 
@@ -200,9 +240,10 @@ void app_main(void) {
     }
     ESP_ERROR_CHECK(ret);
 
+    uart1_mutex = xSemaphoreCreateMutex();
     // 2. Inisialisasi Jaringan (Wi-Fi & MQTT)
-    init_wifi();
-    init_mqtt();
+    //init_wifi();
+    //init_mqtt();
 
     // 3. Inisialisasi Perangkat Keras
     init_relay();
@@ -227,9 +268,11 @@ void app_main(void) {
 
 //ds1307_write_uptime(0); 
 
+init_relay();
+    init_adc_ldr();
+    ds1307_init();  
     pzem_init();
     gps_init();
-
     // 4. Jalankan Multitasking
     xTaskCreate(sensor_task, "sensor_task", 8192, NULL, 5, NULL);
     xTaskCreate(telemetry_task, "telemetry_task", 8192, NULL, 6, NULL);
