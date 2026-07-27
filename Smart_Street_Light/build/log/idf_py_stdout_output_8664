@@ -1,0 +1,828 @@
+Command: /home/kamna/.espressif/python_env/idf5.5_py3.10_env/bin/python /home/kamna/esp/esp-idf/tools/idf_monitor.py -p /dev/ttyACM0 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 -m '/home/kamna/.espressif/python_env/idf5.5_py3.10_env/bin/python' '/home/kamna/esp/esp-idf/tools/idf.py'
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x29 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x40048e22
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x14f0
+load:0x403c8700,len:0xd24
+load:0x403cb700,len:0x2ef0
+entry 0x403c891c
+[0;32mI (24) boot: ESP-IDF 5.5.4 2nd stage bootloader[0m
+[0;32mI (24) boot: compile time Jul 17 2026 15:46:56[0m
+[0;32mI (25) boot: Multicore bootloader[0m
+[0;32mI (25) boot: chip revision: v0.2[0m
+[0;32mI (27) boot: efuse block revision: v1.4[0m
+[0;32mI (31) boot.esp32s3: Boot SPI Speed : 80MHz[0m
+[0;32mI (35) boot.esp32s3: SPI Mode       : DIO[0m
+[0;32mI (39) boot.esp32s3: SPI Flash Size : 16MB[0m
+[0;32mI (43) boot: Enabling RNG early entropy source...[0m
+[0;32mI (47) boot: Partition Table:[0m
+[0;32mI (50) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (62) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (69) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (76) boot: End of partition table[0m
+[0;32mI (79) esp_image: segment 0: paddr=00010020 vaddr=3c030020 size=0d8d0h ( 55504) map[0m
+[0;32mI (96) esp_image: segment 1: paddr=0001d8f8 vaddr=3fc93e00 size=02720h ( 10016) load[0m
+[0;32mI (99) esp_image: segment 2: paddr=00020020 vaddr=42000020 size=23528h (144680) map[0m
+[0;32mI (127) esp_image: segment 3: paddr=00043550 vaddr=3fc96520 size=009a8h (  2472) load[0m
+[0;32mI (128) esp_image: segment 4: paddr=00043f00 vaddr=40374000 size=0fd1ch ( 64796) load[0m
+[0;32mI (144) esp_image: segment 5: paddr=00053c24 vaddr=50000000 size=00020h (    32) load[0m
+[0;32mI (151) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (151) boot: Disabling RNG early entropy source...[0m
+[0;32mI (162) cpu_start: Multicore app[0m
+[0;32mI (171) cpu_start: GPIO 44 and 43 are used as console UART I/O pins[0m
+[0;32mI (171) cpu_start: Pro cpu start user code[0m
+[0;32mI (171) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (173) app_init: Application information:[0m
+[0;32mI (177) app_init: Project name:     Smart_Street_Light[0m
+[0;32mI (182) app_init: App version:      af30b02[0m
+[0;32mI (185) app_init: Compile time:     Jul 24 2026 10:32:02[0m
+[0;32mI (190) app_init: ELF file SHA256:  016c9bbea...[0m
+[0;32mI (195) app_init: ESP-IDF:          5.5.4[0m
+[0;32mI (199) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (202) efuse_init: Max chip rev:     v0.99 [0m
+[0;32mI (206) efuse_init: Chip rev:         v0.2[0m
+[0;32mI (210) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (217) heap_init: At 3FC97898 len 00051E78 (327 KiB): RAM[0m
+[0;32mI (222) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM[0m
+[0;32mI (227) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM[0m
+[0;32mI (232) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM[0m
+[0;32mI (238) spi_flash: detected chip: generic[0m
+[0;32mI (241) spi_flash: flash io: dio[0m
+[0;33mW (244) i2c: This driver is an old driver, please migrate your application code to adapt `driver/i2c_master.h`[0m
+[0;32mI (254) sleep_gpio: Configure to isolate all GPIO pins in sleep state[0m
+[0;32mI (260) sleep_gpio: Enable automatic switching of GPIO sleep configuration[0m
+[0;32mI (267) main_task: Started on CPU0[0m
+[0;32mI (277) main_task: Calling app_main()[0m
+[0;32mI (277) MAIN_APP: System Booting...[0m
+[0;32mI (277) MAIN_APP: Relay initialized.[0m
+[0;32mI (277) MAIN_APP: ADC LDR initialized.[0m
+[0;32mI (287) MAIN_APP: PWM Dimming initialized on Pin 17[0m
+[0;32mI (287) RTC_DRIVER: RTC I2C Initialized[0m
+[0;32mI (287) PZEM_DRIVER: PZEM UART Initialized[0m
+[0;32mI (297) GPS_DRIVER: Menekan tombol Power Modem (PWRKEY GPIO46)...[0m
+[0;32mI (1397) GPS_DRIVER: Menunggu OS Modem Booting (4 detik)...[0m
+[0;32mI (5997) GPS_DRIVER: Modem dan Antena GPS berhasil dihidupkan![0m
+[0;32mI (5997) MAIN_APP: Menunggu 15 detik agar modem mendapat sinyal seluler...[0m
+[0;33mW (5997) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (5997) main_task: Returned from app_main()[0m
+[0;32mI (5997) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (6007) MAIN_APP: [LDR] Raw ADC: 185[0m
+[0;33mW (6107) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (6407) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (6407) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (6407) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (6407) MAIN_APP: =================================[0m
+
+[0;32mI (9407) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (9407) MAIN_APP: [LDR] Raw ADC: 203[0m
+[0;33mW (9507) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (9807) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (9807) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (9807) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (9807) MAIN_APP: =================================[0m
+
+[0;32mI (12807) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (12807) MAIN_APP: [LDR] Raw ADC: 1271[0m
+[0;33mW (12907) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (13207) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (13207) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (13207) MAIN_APP: [PWM] Dimming diatur ke 0%[0m
+[0;32mI (13207) MAIN_APP: Dim Level (Duty Cycle) : 10[0m
+[0;33mW (13207) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (13207) MAIN_APP: =================================[0m
+
+[0;32mI (16217) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (16217) MAIN_APP: [LDR] Raw ADC: 463[0m
+[0;33mW (16317) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (16617) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (16617) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (16617) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (16617) MAIN_APP: =================================[0m
+
+[0;32mI (19617) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (19617) MAIN_APP: [LDR] Raw ADC: 1299[0m
+[0;33mW (19717) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (20017) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (20017) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (20017) MAIN_APP: [PWM] Dimming diatur ke 10%[0m
+[0;32mI (20017) MAIN_APP: Dim Level (Duty Cycle) : 20[0m
+[0;33mW (20017) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (20017) MAIN_APP: =================================[0m
+
+[0;32mI (20997) CELLULAR_MQTT: Menghidupkan layanan MQTT pada Modem...[0m
+[0;32mI (23027) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (23027) MAIN_APP: [LDR] Raw ADC: 786[0m
+[0;33mW (23127) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (23427) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (23427) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (23427) MAIN_APP: [PWM] Dimming diatur ke 20%[0m
+[0;32mI (23427) MAIN_APP: Dim Level (Duty Cycle) : 30[0m
+[0;33mW (23427) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (23427) MAIN_APP: =================================[0m
+
+[0;32mI (26437) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (26437) MAIN_APP: [LDR] Raw ADC: 265[0m
+[0;33mW (26537) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (26837) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (26837) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (26837) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (26837) MAIN_APP: =================================[0m
+
+[0;32mI (28997) CELLULAR_MQTT: Koneksi MQTT Seluler Selesai Dieksekusi.[0m
+[0;32mI (28997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (28997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (29837) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (29837) MAIN_APP: [LDR] Raw ADC: 4095[0m
+[0;33mW (29937) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (32997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (32997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0m
+>iot/lights/L-107/telemetry
+OK
+AT+CMQTTPA�
+[0;32mI (33297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (33297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (33297) MAIN_APP: [PWM] Dimming diatur ke 30%[0m
+[0;32mI (33297) MAIN_APP: Dim Level (Duty Cycle) : 40[0m
+[0;33mW (33297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (33297) MAIN_APP: =================================[0m
+
+[0;32mI (36307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (36307) MAIN_APP: [LDR] Raw ADC: 4095[0m
+[0;33mW (36407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (36707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (36707) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (36707) MAIN_APP: [PWM] Dimming diatur ke 40%[0m
+[0;32mI (36707) MAIN_APP: Dim Level (Duty Cycle) : 50[0m
+[0;33mW (36707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (36707) MAIN_APP: =================================[0m
+
+[0;32mI (37997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (37997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (39717) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (39717) MAIN_APP: [LDR] Raw ADC: 2169[0m
+[0;33mW (39817) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (41997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (41997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0m
+>iot/lights/L-107/telemetry
+OK
+AT+CMQTTPA�
+[0;32mI (42297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (42297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (42297) MAIN_APP: [PWM] Dimming diatur ke 50%[0m
+[0;32mI (42297) MAIN_APP: Dim Level (Duty Cycle) : 60[0m
+[0;33mW (42297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (42297) MAIN_APP: =================================[0m
+
+[0;32mI (45307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (45307) MAIN_APP: [LDR] Raw ADC: 4095[0m
+[0;33mW (45407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (45707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (45707) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (45707) MAIN_APP: [PWM] Dimming diatur ke 60%[0m
+[0;32mI (45707) MAIN_APP: Dim Level (Duty Cycle) : 70[0m
+[0;33mW (45707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (45707) MAIN_APP: =================================[0m
+
+[0;32mI (46997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (46997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (48717) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (48717) MAIN_APP: [LDR] Raw ADC: 566[0m
+[0;33mW (48817) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (50997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (50997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0m
+>iot/lights/L-107/telemetry
+OK
+AT+CMQTTPA�
+[0;32mI (51297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (51297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (51297) MAIN_APP: [PWM] Dimming diatur ke 70%[0m
+[0;32mI (51297) MAIN_APP: Dim Level (Duty Cycle) : 80[0m
+[0;33mW (51297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (51297) MAIN_APP: =================================[0m
+
+[0;32mI (54307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (54307) MAIN_APP: [LDR] Raw ADC: 2579[0m
+[0;33mW (54407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (54707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (54707) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (54707) MAIN_APP: [PWM] Dimming diatur ke 80%[0m
+[0;32mI (54707) MAIN_APP: Dim Level (Duty Cycle) : 90[0m
+[0;33mW (54707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (54707) MAIN_APP: =================================[0m
+
+[0;32mI (55997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (55997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (57717) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (57717) MAIN_APP: [LDR] Raw ADC: 717[0m
+[0;33mW (57817) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (59997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (59997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0m
+>iot/lights/L-107/telemetry
+OK
+AT+CMQTTPA�
+[0;32mI (60297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (60297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (60297) MAIN_APP: [PWM] Dimming diatur ke 90%[0m
+[0;32mI (60297) MAIN_APP: Dim Level (Duty Cycle) : 100[0m
+[0;33mW (60297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (60297) MAIN_APP: =================================[0m
+
+[0;32mI (63307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (63307) MAIN_APP: [LDR] Raw ADC: 787[0m
+[0;33mW (63407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (63707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (63707) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (63707) MAIN_APP: [PWM] Dimming diatur ke 100%[0m
+[0;32mI (63707) MAIN_APP: Dim Level (Duty Cycle) : 110[0m
+[0;33mW (63707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (63707) MAIN_APP: =================================[0m
+
+[0;32mI (64997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (64997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (66717) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (66717) MAIN_APP: [LDR] Raw ADC: 329[0m
+[0;33mW (66817) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (68997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (68997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (69297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (69297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (69297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (69297) MAIN_APP: =================================[0m
+
+[0;32mI (72297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (72297) MAIN_APP: [LDR] Raw ADC: 3835[0m
+[0;33mW (72397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (72697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (72697) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (72697) MAIN_APP: [PWM] Dimming diatur ke 0%[0m
+[0;32mI (72697) MAIN_APP: Dim Level (Duty Cycle) : 10[0m
+[0;33mW (72697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (72697) MAIN_APP: =================================[0m
+
+[0;32mI (73997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (73997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (75707) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (75707) MAIN_APP: [LDR] Raw ADC: 4095[0m
+[0;33mW (75807) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (77997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (77997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (78297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (78297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (78297) MAIN_APP: [PWM] Dimming diatur ke 10%[0m
+[0;32mI (78297) MAIN_APP: Dim Level (Duty Cycle) : 20[0m
+[0;33mW (78297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (78297) MAIN_APP: =================================[0m
+
+[0;32mI (81307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (81307) MAIN_APP: [LDR] Raw ADC: 220[0m
+[0;33mW (81407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (81707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (81707) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (81707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (81707) MAIN_APP: =================================[0m
+
+[0;32mI (82997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (82997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (84707) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (84707) MAIN_APP: [LDR] Raw ADC: 2769[0m
+[0;33mW (84807) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (86997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (86997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (87297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (87297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (87297) MAIN_APP: [PWM] Dimming diatur ke 20%[0m
+[0;32mI (87297) MAIN_APP: Dim Level (Duty Cycle) : 30[0m
+[0;33mW (87297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (87297) MAIN_APP: =================================[0m
+
+[0;32mI (90307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (90307) MAIN_APP: [LDR] Raw ADC: 0[0m
+[0;33mW (90407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (90707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (90707) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (90707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (90707) MAIN_APP: =================================[0m
+
+[0;32mI (91997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (91997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (93707) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (93707) MAIN_APP: [LDR] Raw ADC: 825[0m
+[0;33mW (93807) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (95997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (95997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (96297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (96297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (96297) MAIN_APP: [PWM] Dimming diatur ke 30%[0m
+[0;32mI (96297) MAIN_APP: Dim Level (Duty Cycle) : 40[0m
+[0;33mW (96297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (96297) MAIN_APP: =================================[0m
+
+[0;32mI (99307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (99307) MAIN_APP: [LDR] Raw ADC: 930[0m
+[0;33mW (99407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (99707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (99707) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (99707) MAIN_APP: [PWM] Dimming diatur ke 40%[0m
+[0;32mI (99707) MAIN_APP: Dim Level (Duty Cycle) : 50[0m
+[0;33mW (99707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (99707) MAIN_APP: =================================[0m
+
+[0;32mI (100997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (100997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (102717) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (102717) MAIN_APP: [LDR] Raw ADC: 4095[0m
+[0;33mW (102817) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (104997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (104997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (105297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (105297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (105297) MAIN_APP: [PWM] Dimming diatur ke 50%[0m
+[0;32mI (105297) MAIN_APP: Dim Level (Duty Cycle) : 60[0m
+[0;33mW (105297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (105307) MAIN_APP: =================================[0m
+
+[0;32mI (108307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (108307) MAIN_APP: [LDR] Raw ADC: 4095[0m
+[0;33mW (108407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (108707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (108707) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (108707) MAIN_APP: [PWM] Dimming diatur ke 60%[0m
+[0;32mI (108707) MAIN_APP: Dim Level (Duty Cycle) : 70[0m
+[0;33mW (108707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (108717) MAIN_APP: =================================[0m
+
+[0;32mI (109997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (109997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (111717) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (111717) MAIN_APP: [LDR] Raw ADC: 1661[0m
+[0;33mW (111817) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (113997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (113997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (114297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (114297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (114297) MAIN_APP: [PWM] Dimming diatur ke 70%[0m
+[0;32mI (114297) MAIN_APP: Dim Level (Duty Cycle) : 80[0m
+[0;33mW (114297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (114307) MAIN_APP: =================================[0m
+
+[0;32mI (117307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (117307) MAIN_APP: [LDR] Raw ADC: 787[0m
+[0;33mW (117407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (117707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (117707) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (117707) MAIN_APP: [PWM] Dimming diatur ke 80%[0m
+[0;32mI (117707) MAIN_APP: Dim Level (Duty Cycle) : 90[0m
+[0;33mW (117707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (117717) MAIN_APP: =================================[0m
+
+[0;32mI (118997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (118997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (120717) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (120717) MAIN_APP: [LDR] Raw ADC: 191[0m
+[0;33mW (120817) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (122997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (122997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (123297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (123297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (123297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (123297) MAIN_APP: =================================[0m
+
+[0;32mI (126297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (126297) MAIN_APP: [LDR] Raw ADC: 4095[0m
+[0;33mW (126397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (126697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (126697) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (126697) MAIN_APP: [PWM] Dimming diatur ke 90%[0m
+[0;32mI (126697) MAIN_APP: Dim Level (Duty Cycle) : 100[0m
+[0;33mW (126697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (126707) MAIN_APP: =================================[0m
+
+[0;32mI (127997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (127997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (129707) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (129707) MAIN_APP: [LDR] Raw ADC: 1214[0m
+[0;33mW (129807) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (131997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (131997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (132297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (132297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (132297) MAIN_APP: [PWM] Dimming diatur ke 100%[0m
+[0;32mI (132297) MAIN_APP: Dim Level (Duty Cycle) : 110[0m
+[0;33mW (132297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (132307) MAIN_APP: =================================[0m
+
+[0;32mI (135307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (135307) MAIN_APP: [LDR] Raw ADC: 1973[0m
+[0;33mW (135407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (135707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (135707) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (135707) MAIN_APP: [PWM] Dimming diatur ke 0%[0m
+[0;32mI (135707) MAIN_APP: Dim Level (Duty Cycle) : 10[0m
+[0;33mW (135707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (135717) MAIN_APP: =================================[0m
+
+[0;32mI (136997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (136997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (138717) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (138717) MAIN_APP: [LDR] Raw ADC: 3163[0m
+[0;33mW (138817) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (140997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (140997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (141297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (141297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (141297) MAIN_APP: [PWM] Dimming diatur ke 10%[0m
+[0;32mI (141297) MAIN_APP: Dim Level (Duty Cycle) : 20[0m
+[0;33mW (141297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (141307) MAIN_APP: =================================[0m
+
+[0;32mI (144307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (144307) MAIN_APP: [LDR] Raw ADC: 1908[0m
+[0;33mW (144407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (144707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (144707) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (144707) MAIN_APP: [PWM] Dimming diatur ke 20%[0m
+[0;32mI (144707) MAIN_APP: Dim Level (Duty Cycle) : 30[0m
+[0;33mW (144707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (144717) MAIN_APP: =================================[0m
+
+[0;32mI (145997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (145997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (147717) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (147717) MAIN_APP: [LDR] Raw ADC: 207[0m
+[0;33mW (147817) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (149997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (149997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (150297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (150297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (150297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (150297) MAIN_APP: =================================[0m
+
+[0;32mI (153297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (153297) MAIN_APP: [LDR] Raw ADC: 4095[0m
+[0;33mW (153397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (153697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (153697) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (153697) MAIN_APP: [PWM] Dimming diatur ke 30%[0m
+[0;32mI (153697) MAIN_APP: Dim Level (Duty Cycle) : 40[0m
+[0;33mW (153697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (153707) MAIN_APP: =================================[0m
+
+[0;32mI (154997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (154997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (156707) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (156707) MAIN_APP: [LDR] Raw ADC: 604[0m
+[0;33mW (156807) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (158997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (158997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (159297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (159297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (159297) MAIN_APP: [PWM] Dimming diatur ke 40%[0m
+[0;32mI (159297) MAIN_APP: Dim Level (Duty Cycle) : 50[0m
+[0;33mW (159297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (159307) MAIN_APP: =================================[0m
+
+[0;32mI (162307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (162307) MAIN_APP: [LDR] Raw ADC: 4095[0m
+[0;33mW (162407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (162707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (162707) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (162707) MAIN_APP: [PWM] Dimming diatur ke 50%[0m
+[0;32mI (162707) MAIN_APP: Dim Level (Duty Cycle) : 60[0m
+[0;33mW (162707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (162717) MAIN_APP: =================================[0m
+
+[0;32mI (163997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (163997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (165717) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (165717) MAIN_APP: [LDR] Raw ADC: 827[0m
+[0;33mW (165817) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (167997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (167997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (168297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (168297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (168297) MAIN_APP: [PWM] Dimming diatur ke 60%[0m
+[0;32mI (168297) MAIN_APP: Dim Level (Duty Cycle) : 70[0m
+[0;33mW (168297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (168307) MAIN_APP: =================================[0m
+
+[0;32mI (171307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (171307) MAIN_APP: [LDR] Raw ADC: 169[0m
+[0;33mW (171407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (171707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (171707) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (171707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (171707) MAIN_APP: =================================[0m
+
+[0;32mI (172997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (172997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (174707) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (174707) MAIN_APP: [LDR] Raw ADC: 1081[0m
+[0;33mW (174807) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (176997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (176997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (177297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (177297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (177297) MAIN_APP: [PWM] Dimming diatur ke 70%[0m
+[0;32mI (177297) MAIN_APP: Dim Level (Duty Cycle) : 80[0m
+[0;33mW (177297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (177307) MAIN_APP: =================================[0m
+
+[0;32mI (180307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (180307) MAIN_APP: [LDR] Raw ADC: 4095[0m
+[0;33mW (180407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (180707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (180707) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (180707) MAIN_APP: [PWM] Dimming diatur ke 80%[0m
+[0;32mI (180707) MAIN_APP: Dim Level (Duty Cycle) : 90[0m
+[0;33mW (180707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (180717) MAIN_APP: =================================[0m
+
+[0;32mI (181997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (181997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (183717) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (183717) MAIN_APP: [LDR] Raw ADC: 917[0m
+[0;33mW (183817) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (185997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (185997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (186297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (186297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (186297) MAIN_APP: [PWM] Dimming diatur ke 90%[0m
+[0;32mI (186297) MAIN_APP: Dim Level (Duty Cycle) : 100[0m
+[0;33mW (186297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (186307) MAIN_APP: =================================[0m
+
+[0;32mI (189307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (189307) MAIN_APP: [LDR] Raw ADC: 24[0m
+[0;33mW (189407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (189707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (189707) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (189707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (189707) MAIN_APP: =================================[0m
+
+[0;32mI (190997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (190997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (192707) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (192707) MAIN_APP: [LDR] Raw ADC: 269[0m
+[0;33mW (192807) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (194997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (194997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (195297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (195297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (195297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (195297) MAIN_APP: =================================[0m
+
+[0;32mI (198297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (198297) MAIN_APP: [LDR] Raw ADC: 0[0m
+[0;33mW (198397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (198697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (198697) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (198697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (198697) MAIN_APP: =================================[0m
+
+[0;32mI (199997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (199997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (201697) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (201697) MAIN_APP: [LDR] Raw ADC: 103[0m
+[0;33mW (201797) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (203997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (203997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (204297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (204297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (204297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (204297) MAIN_APP: =================================[0m
+
+[0;32mI (207297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (207297) MAIN_APP: [LDR] Raw ADC: 743[0m
+[0;33mW (207397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (207697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (207697) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (207697) MAIN_APP: [PWM] Dimming diatur ke 100%[0m
+[0;32mI (207697) MAIN_APP: Dim Level (Duty Cycle) : 110[0m
+[0;33mW (207697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (207707) MAIN_APP: =================================[0m
+
+[0;32mI (208997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (208997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (210707) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (210707) MAIN_APP: [LDR] Raw ADC: 0[0m
+[0;33mW (210807) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (212997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (212997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (213297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (213297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (213297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (213297) MAIN_APP: =================================[0m
+
+[0;32mI (216297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (216297) MAIN_APP: [LDR] Raw ADC: 4095[0m
+[0;33mW (216397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (216697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (216697) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (216697) MAIN_APP: [PWM] Dimming diatur ke 0%[0m
+[0;32mI (216697) MAIN_APP: Dim Level (Duty Cycle) : 10[0m
+[0;33mW (216697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (216707) MAIN_APP: =================================[0m
+
+[0;32mI (217997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (217997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (219707) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (219707) MAIN_APP: [LDR] Raw ADC: 351[0m
+[0;33mW (219807) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (221997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (221997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (222297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (222297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (222297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (222297) MAIN_APP: =================================[0m
+
+[0;32mI (225297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (225297) MAIN_APP: [LDR] Raw ADC: 0[0m
+[0;33mW (225397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (225697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (225697) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (225697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (225697) MAIN_APP: =================================[0m
+
+[0;32mI (226997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (226997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (228697) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (228697) MAIN_APP: [LDR] Raw ADC: 0[0m
+[0;33mW (228797) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (230997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (230997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (231297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (231297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (231297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (231297) MAIN_APP: =================================[0m
+
+[0;32mI (234297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (234297) MAIN_APP: [LDR] Raw ADC: 107[0m
+[0;33mW (234397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (234697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (234697) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (234697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (234697) MAIN_APP: =================================[0m
+
+[0;32mI (235997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (235997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (237697) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (237697) MAIN_APP: [LDR] Raw ADC: 233[0m
+[0;33mW (237797) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (239997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (239997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (240297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (240297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (240297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (240297) MAIN_APP: =================================[0m
+
+[0;32mI (243297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (243297) MAIN_APP: [LDR] Raw ADC: 265[0m
+[0;33mW (243397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (243697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (243697) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (243697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (243697) MAIN_APP: =================================[0m
+
+[0;32mI (244997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (244997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (246697) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (246697) MAIN_APP: [LDR] Raw ADC: 279[0m
+[0;33mW (246797) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (248997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (248997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (249297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (249297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (249297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (249297) MAIN_APP: =================================[0m
+
+[0;32mI (252297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (252297) MAIN_APP: [LDR] Raw ADC: 255[0m
+[0;33mW (252397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (252697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (252697) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (252697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (252697) MAIN_APP: =================================[0m
+
+[0;32mI (253997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (253997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (255697) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (255697) MAIN_APP: [LDR] Raw ADC: 280[0m
+[0;33mW (255797) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (257997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (257997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (258297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (258297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (258297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (258297) MAIN_APP: =================================[0m
+
+[0;32mI (261297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (261297) MAIN_APP: [LDR] Raw ADC: 405[0m
+[0;33mW (261397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (261697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (261697) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (261697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (261697) MAIN_APP: =================================[0m
+
+[0;32mI (262997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (262997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (264697) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (264697) MAIN_APP: [LDR] Raw ADC: 299[0m
+[0;33mW (264797) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (266997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (266997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (267297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (267297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (267297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (267297) MAIN_APP: =================================[0m
+
+[0;32mI (270297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (270297) MAIN_APP: [LDR] Raw ADC: 140[0m
+[0;33mW (270397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (270697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (270697) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (270697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (270697) MAIN_APP: =================================[0m
+
+[0;32mI (271997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (271997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (273697) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (273697) MAIN_APP: [LDR] Raw ADC: 0[0m
+[0;33mW (273797) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (275997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (275997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (276297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (276297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (276297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (276297) MAIN_APP: =================================[0m
+
+[0;32mI (279297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (279297) MAIN_APP: [LDR] Raw ADC: 0[0m
+[0;33mW (279397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (279697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (279697) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (279697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (279697) MAIN_APP: =================================[0m
+
+[0;32mI (280997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (280997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (282697) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (282697) MAIN_APP: [LDR] Raw ADC: 2250[0m
+[0;33mW (282797) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (284997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (284997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (285297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (285297) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (285297) MAIN_APP: [PWM] Dimming diatur ke 10%[0m
+[0;32mI (285297) MAIN_APP: Dim Level (Duty Cycle) : 20[0m
+[0;33mW (285297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (285307) MAIN_APP: =================================[0m
+
+[0;32mI (288307) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (288307) MAIN_APP: [LDR] Raw ADC: 93[0m
+[0;33mW (288407) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (288707) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (288707) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (288707) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (288707) MAIN_APP: =================================[0m
+
+[0;32mI (289997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (289997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (291707) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (291707) MAIN_APP: [LDR] Raw ADC: 0[0m
+[0;33mW (291807) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (293997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (293997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (294297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (294297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (294297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (294297) MAIN_APP: =================================[0m
+
+[0;32mI (297297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (297297) MAIN_APP: [LDR] Raw ADC: 2937[0m
+[0;33mW (297397) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (297697) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (297697) MAIN_APP: [RELAY] Gelap - Menyalakan AC[0m
+[0;32mI (297697) MAIN_APP: [PWM] Dimming diatur ke 20%[0m
+[0;32mI (297697) MAIN_APP: Dim Level (Duty Cycle) : 30[0m
+[0;33mW (297697) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (297707) MAIN_APP: =================================[0m
+
+[0;32mI (298997) MAIN_APP: Mempublikasikan data MQTT...[0m
+[0;32mI (298997) CELLULAR_MQTT: Mempersiapkan pengiriman Payload...[0m
+[0;32mI (300707) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (300707) MAIN_APP: [LDR] Raw ADC: 0[0m
+[0;33mW (300807) MAIN_APP: [PZEM] Gagal membaca data (Lampu Mati)[0m
+[0;32mI (302997) CELLULAR_MQTT: Data berhasil dilempar ke menara seluler![0m
+[0;32mI (302997) CELLULAR_MQTT: Modem replied: AT+CMQTTTOPIC=0,26[0miot/lights/L-107/telemetryAT+CMQTTPAYLOAD=0,1�
+[0;32mI (303297) MAIN_APP: [GPS] Info: AT+CGPSINFO[0m
+[0;32mI (303297) MAIN_APP: [RELAY] Terang - Mematikan AC[0m
+[0;33mW (303297) RTC_DRIVER: I2C Read Time Failed[0m
+[0;32mI (303297) MAIN_APP: =================================[0m
+
+[0;32mI (306297) MAIN_APP: ========== BACA SENSOR ==========[0m
+[0;32mI (306297) MAIN_APP: [LDR] Raw ADC: 1791[0m
+[0;33mW (306397) MAIN_APP: 

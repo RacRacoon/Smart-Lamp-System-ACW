@@ -119,6 +119,12 @@ static const char *TAG = "CELLULAR_MQTT";
 static void send_at_command(const char* cmd, int delay_ms) {
     uart_write_bytes(MODEM_UART_NUM, cmd, strlen(cmd));
     vTaskDelay(pdMS_TO_TICKS(delay_ms));
+    char response[64];
+    int len = uart_read_bytes(MODEM_UART_NUM, response, sizeof(response), pdMS_TO_TICKS(1000));
+    if (len > 0) {
+        response[len] = '\0';
+        ESP_LOGI(TAG, "Modem replied: %s", response);
+    }
 }
 
 void init_cellular_mqtt(void) {
@@ -138,12 +144,12 @@ void init_cellular_mqtt(void) {
     ESP_LOGI(TAG, "Koneksi MQTT Seluler Selesai Dieksekusi.");
 }
 
-void send_telemetry_cellular(const char* id, const char* sector, uint32_t uptime, float volt, float current, float power, float lat, float lng, int alerts) {
+void send_telemetry_cellular(const char* id, const char* sector, uint32_t uptime, float volt, float current, float power, float lat, float lng, int alerts, uint8_t dimming_value) {
     if(xSemaphoreTake(uart1_mutex,pdMS_TO_TICKS(1000))){
         char json_payload[512];
         snprintf(json_payload, sizeof(json_payload), 
-                "{\"id\":\"%s\",\"sector\":\"%s\",\"uptime\":%lu,\"volt\":%.1f,\"current\":%.2f,\"power\":%.0f,\"lat\":%f,\"lng\":%f,\"alerts\":%d}", 
-                id, sector, uptime, volt, current, power, lat, lng, alerts);
+                "{\"id\":\"%s\",\"sector\":\"%s\",\"uptime\":%lu,\"volt\":%.1f,\"current\":%.2f,\"power\":%.0f,\"lat\":%f,\"lng\":%f,\"alerts\":%d,\"dim\":%d}", 
+                id, sector, uptime, volt, current, power, lat, lng, alerts, dimming_value);
 
         int payload_len = strlen(json_payload);
         int topic_len = strlen(MQTT_TOPIC_PUB);
@@ -166,15 +172,38 @@ void send_telemetry_cellular(const char* id, const char* sector, uint32_t uptime
 
         ESP_LOGI(TAG, "Data berhasil dilempar ke menara seluler!");
 
-        char response[64];
-        int len = uart_read_bytes(MODEM_UART_NUM, response, sizeof(response), pdMS_TO_TICKS(1000));
-        if (len > 0) {
-            response[len] = '\0';
-            ESP_LOGI(TAG, "Modem replied: %s", response);
-        }
         xSemaphoreGive(uart1_mutex);
     }
     else{
         ESP_LOGW(TAG, "Jalur komunikasi uart1 sibuk");
     }
+}
+
+
+// 4. FUNGSI BARU: TERIMA TELEMETRI
+bool receive_telemetry(uint8_t *new_dim_level) {
+    bool command_received = false; 
+
+    if(xSemaphoreTake(uart1_mutex, pdMS_TO_TICKS(100))) {
+        char rx_buf[256];
+        int len = uart_read_bytes(MODEM_UART_NUM, rx_buf, sizeof(rx_buf) - 1, pdMS_TO_TICKS(500));
+        
+        if (len > 0) {
+            rx_buf[len] = '\0';
+            
+            // Cari Format JSON {"dim": 75}
+            char *dim_ptr = strstr(rx_buf, "\"dim\":");
+            if (dim_ptr) {
+                int parsed_dim = 0;
+                if (sscanf(dim_ptr, "\"dim\":%d", &parsed_dim) == 1) {
+                    if (parsed_dim >= 0 && parsed_dim <= 100) {
+                        *new_dim_level = (uint8_t)parsed_dim; // Titipkan nilai ke pointer
+                        command_received = true; \
+                    }
+                }
+            }
+        }
+        xSemaphoreGive(uart1_mutex);
+    }
+    return command_received;
 }

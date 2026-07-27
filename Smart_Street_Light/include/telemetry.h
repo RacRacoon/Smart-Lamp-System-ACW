@@ -10,10 +10,12 @@
 #define WIFI_PASS           "xxxxx"
 #define MQTT_BROKER_URL     "tcp://broker.emqx.io:1883"
 #define MQTT_TOPIC_PUB      "iot/lights/L-107/telemetry"
+#define MQTT_TOPIC_SUB      "xxxxxxxs"
 
-void send_telemetry_cellular(const char* id, const char* sector, uint32_t uptime, float volt, float current, float power, float lat, float lng, int alerts);
+void send_telemetry_cellular(const char* id, const char* sector, uint32_t uptime, float volt, float current, float power, float lat, float lng, int alerts, uint8_t dimming_value);
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 void send_telemetry(const char* id, const char* sector, uint32_t uptime, float volt, float current, float power, float lat, float lng, int alerts);
+bool receive_telemetry(uint8_t *new_dim_level);
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 void init_wifi(void);
 void init_cellular_mqtt(void);

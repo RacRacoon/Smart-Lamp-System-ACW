@@ -5,7 +5,7 @@
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "esp_adc/adc_oneshot.h"
-#include "nvs_flash.h" // WAJIB UNTUK WI-FI
+#include "driver/ledc.h"
 
 // Include custom drivers
 #include "pzem_driver.h"
@@ -21,9 +21,13 @@ SemaphoreHandle_t uart1_mutex = NULL;
 
 #define RELAY_PIN       47
 #define LDR_ADC_CHAN    ADC_CHANNEL_8 // GPIO9
+#define PWM_PIN         17
+
+
 
 adc_oneshot_unit_handle_t adc1_handle;
 uint32_t total_lampu_nyala_sec;
+static uint8_t dim_level = 0;
 
 pzem_data_t global_pzem_data = {0}; 
 
@@ -108,6 +112,44 @@ void init_adc_ldr() {
     ESP_LOGI(TAG, "ADC LDR initialized.");
 }
 
+void init_pwm() {
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode       = LEDC_LOW_SPEED_MODE,
+        .duty_resolution  = LEDC_TIMER_14_BIT,
+        .timer_num        = LEDC_TIMER_0,
+        .freq_hz          = 1000,  
+        .clk_cfg          = LEDC_AUTO_CLK 
+    };
+    ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
+
+    ledc_channel_config_t ledc_channel = {
+        .gpio_num       = PWM_PIN,
+        .speed_mode     = LEDC_LOW_SPEED_MODE,
+        .channel        = LEDC_CHANNEL_0,
+        .timer_sel      = LEDC_TIMER_0,
+        .intr_type      = LEDC_INTR_DISABLE,
+        .duty           = 0, 
+        .hpoint         = 0
+    };
+    ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+
+    ESP_LOGI(TAG, "PWM Dimming initialized on Pin %d", PWM_PIN);
+}
+
+void set_dimming_level(uint8_t percentage) {
+    if (percentage > 100) {
+        percentage = 100;
+    }
+    
+    // Konversi 0-100% menjadi nilai 14-bit (0 - 16383)
+    uint32_t duty_value = (percentage * 16383) / 100;
+    
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty_value);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+    
+    ESP_LOGI(TAG, "[PWM] Dimming diatur ke %d%%", percentage);
+}
+
 void sensor_task(void *pvParameters) {
     sensor_state_t current_state = SENSOR_STATE_READ_DATA;
     
@@ -159,6 +201,13 @@ void sensor_task(void *pvParameters) {
                 } else { 
                     gpio_set_level(RELAY_PIN, 1); 
                     ESP_LOGI(TAG, "[RELAY] Gelap - Menyalakan AC");
+                    set_dimming_level(dim_level);
+                    
+                    dim_level += 10; // Tambah 10% untuk putaran berikutnya
+                    ESP_LOGI(TAG, "Dim Level (Duty Cycle) : %d", dim_level);
+                    if(dim_level > 100) {
+                        dim_level = 0; // Ulangi dari 0% jika sudah mentok
+                    }
                 }
 
                 // Kalkulasi Waktu
@@ -183,6 +232,15 @@ void sensor_task(void *pvParameters) {
                 break;
 
             case SENSOR_STATE_IDLE:
+
+                uint8_t new_dim;
+                // Fungsi akan me-return TRUE jika ada perintah masuk
+                if (receive_telemetry(&new_dim)) {
+                    ESP_LOGW(TAG, "🔥 PERINTAH DARI SERVER MASUK: Ubah Dimming ke %d%% 🔥", new_dim);
+                    
+                    dim_level = new_dim;           // Update variabel global
+                    set_dimming_level(dim_level);  // Eksekusi hardware PWM!
+                }
                 vTaskDelay(pdMS_TO_TICKS(3000));
                 current_state = SENSOR_STATE_READ_DATA; // Ulangi siklus
                 break;
@@ -216,7 +274,7 @@ void telemetry_task(void *pvParameters)
                 ESP_LOGI(TAG, "Mempublikasikan data MQTT...");
                 send_telemetry_cellular(id, sector, total_lampu_nyala_sec, 
                                         global_pzem_data.voltage, global_pzem_data.current, 
-                                        global_pzem_data.power, lat, lng, alerts);
+                                        global_pzem_data.power, lat, lng, alerts, dim_level);
                 
                 current_state = TEL_STATE_IDLE;
                 break;
@@ -232,23 +290,13 @@ void telemetry_task(void *pvParameters)
 void app_main(void) {
     ESP_LOGI(TAG, "System Booting...");
     
-    // 1. Inisialisasi Memori NVS (Wajib untuk Wi-Fi)
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
 
     uart1_mutex = xSemaphoreCreateMutex();
     // 2. Inisialisasi Jaringan (Wi-Fi & MQTT)
     //init_wifi();
     //init_mqtt();
 
-    // 3. Inisialisasi Perangkat Keras
-    init_relay();
-    init_adc_ldr();
-    ds1307_init();  
+
 
      //ds1307_set_time(
 
@@ -268,8 +316,9 @@ void app_main(void) {
 
 //ds1307_write_uptime(0); 
 
-init_relay();
+    init_relay();
     init_adc_ldr();
+    init_pwm();
     ds1307_init();  
     pzem_init();
     gps_init();
