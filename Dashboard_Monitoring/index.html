@@ -32,24 +32,47 @@
 
     <!-- Sidebar Navigation -->
     <div class="sidebar">
-        <h2>Manajemen Lampu</h2>
+        <div class="sidebar-brand">
+            <h2>Manajemen Lampu</h2>
+            <p class="sidebar-tagline">Sistem Pemantauan Real-Time</p>
+        </div>
+        <span class="sidebar-eyebrow">Menu Utama</span>
         <ul id="sidebar-menu">
             <li class="active" data-page="dashboard" onclick="navigateTo('dashboard', this)">
-                <a href="javascript:void(0)">Beranda</a>
+                <a href="javascript:void(0)">
+                    <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg></span>
+                    <span class="nav-label">Beranda</span>
+                </a>
             </li>
             <li data-page="manage" id="menu-item-manage" onclick="navigateTo('manage', this)">
-                <a href="javascript:void(0)">Kelola Lampu</a>
+                <a href="javascript:void(0)">
+                    <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></span>
+                    <span class="nav-label">Kelola Lampu</span>
+                </a>
             </li>
             <li data-page="telemetry" onclick="navigateTo('telemetry', this)">
-                <a href="javascript:void(0)">Riwayat Data</a>
+                <a href="javascript:void(0)">
+                    <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                    <span class="nav-label">Riwayat Data</span>
+                </a>
             </li>
             <li data-page="alerts" onclick="navigateTo('alerts', this)">
-                <a href="javascript:void(0)">Kotak Peringatan <span class="badge" id="alert-badge">0</span></a>
+                <a href="javascript:void(0)">
+                    <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+                    <span class="nav-label">Kotak Peringatan</span>
+                    <span class="badge" id="alert-badge">0</span>
+                </a>
             </li>
         </ul>
         <div class="sidebar-footer">
-            <span id="role-badge" class="role-badge">-</span>
-            <button class="btn-logout" onclick="logout()">Keluar</button>
+            <div class="connection-status" id="connection-status">
+                <span class="connection-dot"></span>
+                <span id="connection-status-text">Menghubungkan...</span>
+            </div>
+            <div class="sidebar-footer-row">
+                <span id="role-badge" class="role-badge">-</span>
+                <button class="btn-logout" onclick="logout()">Keluar</button>
+            </div>
         </div>
     </div>
 
@@ -58,11 +81,14 @@
 
         <!-- Halaman 1: Dashboard View (Eksisting) -->
         <div id="page-dashboard">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">
-                    Ringkasan Perangkat: <span id="current-device-id">-</span>
-                </h1>
-                
+            <div class="page-header">
+                <div>
+                    <span class="page-eyebrow">Beranda</span>
+                    <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">
+                        Ringkasan Perangkat: <span id="current-device-id">-</span>
+                    </h1>
+                </div>
+
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="color: var(--text-muted); font-size: 14px;">Pilih Lampu:</span>
                     <select id="device-selector" onchange="switchDevice(this.value)" style="background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 8px 15px; border-radius: 5px; cursor: pointer;">
@@ -73,12 +99,18 @@
             <!-- Stats Cards Grid -->
             <div class="cards-grid">
                 <div class="card">
-                    <h3>Status Perangkat</h3>
+                    <div class="card-header-row">
+                        <span class="card-icon-badge badge-blue"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+                        <h3>Status Perangkat</h3>
+                    </div>
                     <div class="status-indicator status-healthy" id="status-text">Baik</div>
                 </div>
 
                 <div class="card lifespan-card" id="lifespan-container">
-                    <h3>Usia Pakai Perangkat</h3>
+                    <div class="card-header-row">
+                        <span class="card-icon-badge badge-amber"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="18" height="12" rx="2" ry="2"/><line x1="23" y1="13" x2="23" y2="11"/></svg></span>
+                        <h3>Usia Pakai Perangkat</h3>
+                    </div>
                     <div class="big-value"><span id="uptime-value">4,500</span> / 10,000 jam</div>
                     <div class="progress-bar-container">
                         <div class="progress-bar" id="lifespan-bar"></div>
@@ -87,7 +119,10 @@
                 </div>
 
                 <div class="card">
-                    <h3>Daya Aktif</h3>
+                    <div class="card-header-row">
+                        <span class="card-icon-badge badge-green"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+                        <h3>Daya Aktif</h3>
+                    </div>
                     <div class="big-value"><span id="power-value">99.5</span> W</div>
                     <div class="sub-stats">
                         <span>Tegangan: <strong id="volt-value">221.2</strong>V</span>
@@ -96,7 +131,10 @@
                 </div>
 
                 <div class="card">
-                    <h3>Lokasi (GPS)</h3>
+                    <div class="card-header-row">
+                        <span class="card-icon-badge badge-purple"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+                        <h3>Lokasi (GPS)</h3>
+                    </div>
                     <div class="gps-text-layout">
                         <div class="gps-item">
                             <span class="gps-label">Lintang:</span>

@@ -7,7 +7,8 @@ function connectWebSocket() {
     socket = new WebSocket(TELEMETRY_WS_URL);
 
     socket.onopen = function (event) {
-        console.log("Terhubung ke Node-RED secara Real-Time!");
+        console.log("Terhubung ke backend secara Real-Time!");
+        setConnectionStatus(true);
     };
 
     socket.onmessage = function (event) {
@@ -157,18 +158,30 @@ function connectWebSocket() {
                 }
             }
         } catch (error) {
-            console.error("Gagal memproses data dinamis dari Node-RED:", error);
+            console.error("Gagal memproses data dinamis dari backend:", error);
         }
     };
 
     socket.onclose = function (event) {
-        console.log("Koneksi ke Node-RED terputus. Mencoba menghubungkan kembali dalam 5 detik...");
+        console.log("Koneksi ke backend terputus. Mencoba menghubungkan kembali dalam 5 detik...");
+        setConnectionStatus(false);
         setTimeout(connectWebSocket, 5000);
     };
 
     socket.onerror = function (error) {
         console.error("WebSocket Error: ", error);
     };
+}
+
+// Perbarui indikator titik hijau/merah + teks status koneksi di footer sidebar
+function setConnectionStatus(isOnline) {
+    const statusEl = document.getElementById("connection-status");
+    const textEl = document.getElementById("connection-status-text");
+    if (!statusEl || !textEl) return;
+
+    statusEl.classList.remove("is-online", "is-offline");
+    statusEl.classList.add(isOnline ? "is-online" : "is-offline");
+    textEl.textContent = isOnline ? "Terhubung Real-Time" : "Terputus, menyambung ulang...";
 }
 
 function addDeviceToDropdowns(deviceId, sector) {
