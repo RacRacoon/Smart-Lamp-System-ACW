@@ -16,11 +16,19 @@
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* Kunci tinggi dokumen persis 1 viewport - tanpa ini, kalau konten .main-content
+   lebih tinggi dari layar, seluruh HALAMAN ikut scroll (termasuk sidebar), padahal
+   yang seharusnya scroll cuma area kontennya saja (lihat .main-content overflow-y). */
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+
 body {
     background-color: var(--bg-dark);
     color: var(--text-main);
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
     font-size: 16px;
     line-height: 1.5;
 }
@@ -143,11 +151,13 @@ select:focus-visible,
 /* Sidebar Layout */
 .sidebar {
     width: 260px;
+    flex-shrink: 0;
     background-color: var(--bg-card);
     padding: 20px;
     border-right: 1px solid #2e3a50;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
 }
 
 .sidebar-footer {
