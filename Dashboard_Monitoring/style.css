@@ -21,6 +21,123 @@ body {
     color: var(--text-main);
     display: flex;
     min-height: 100vh;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+/* Pembungkus sidebar+main-content (tampil setelah login). display:flex diatur lewat
+   JS saat login berhasil, tapi flex:1 harus di sini supaya melebar penuh mengisi body -
+   tanpa ini kontennya cuma sebesar isinya (kolom sempit), bukan selebar viewport. */
+#app-shell {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Focus terlihat jelas untuk navigasi keyboard (aksesibilitas) */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* Hormati preferensi pengguna yang mengurangi animasi (motion sensitivity) */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* ============================================================
+   LOGIN SCREEN
+   ============================================================ */
+#login-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-dark);
+    padding: 20px;
+    z-index: 100;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 360px;
+    background-color: var(--bg-card);
+    border: 1px solid #2e3a50;
+    border-radius: 10px;
+    padding: 32px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.login-card h1 {
+    font-size: 20px;
+    text-align: center;
+    margin-bottom: 4px;
+}
+
+.login-subtitle {
+    color: var(--text-muted);
+    font-size: 13px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.login-card label {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.login-card input {
+    background-color: #1e293b;
+    color: var(--text-main);
+    border: 1px solid #2e3a50;
+    padding: 10px 14px;
+    min-height: 44px;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 8px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.login-card input:focus {
+    border-color: var(--primary);
+}
+
+.login-error {
+    color: var(--danger);
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.btn-login {
+    background-color: var(--primary);
+    color: #fff;
+    border: none;
+    padding: 12px;
+    min-height: 44px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: filter 0.2s;
+}
+
+.btn-login:hover {
+    filter: brightness(1.1);
 }
 
 /* Sidebar Layout */
@@ -29,6 +146,44 @@ body {
     background-color: var(--bg-card);
     padding: 20px;
     border-right: 1px solid #2e3a50;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid #2e3a50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.role-badge {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn-logout {
+    background: transparent;
+    border: 1px solid #2e3a50;
+    color: var(--text-muted);
+    padding: 8px 14px;
+    min-height: 36px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+}
+
+.btn-logout:hover {
+    border-color: var(--danger);
+    color: var(--danger);
 }
 
 .sidebar h2 {
@@ -229,17 +384,21 @@ header h1 {
 
 .slider {
     -webkit-appearance: none;
+    appearance: none;
     width: 100%;
     height: 6px;
     border-radius: 3px;
     background: #2e3a50;
     outline: none;
+    /* Perbesar area sentuh vertikal tanpa mengubah tampilan track (aksesibilitas touch) */
+    padding: 12px 0;
+    background-clip: content-box;
 }
 
 .slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     background: var(--primary);
     cursor: pointer;
@@ -368,8 +527,15 @@ header h1 {
     font-size: 24px;
     cursor: pointer;
     line-height: 1;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: color 0.2s, background-color 0.2s;
 }
-.close-panel-btn:hover { color: var(--danger); }
+.close-panel-btn:hover { color: var(--danger); background-color: rgba(242, 61, 61, 0.1); }
 
 .info-group {
     margin-bottom: 20px;
@@ -502,7 +668,10 @@ input:checked + .slider-round:before {
     background: transparent;
     color: var(--text-muted);
     border: 1px solid #2e3a50;
-    padding: 6px 16px;
+    padding: 8px 16px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
     border-radius: 20px;
     font-size: 13px;
     font-weight: 500;
@@ -544,7 +713,8 @@ input:checked + .slider-round:before {
     background-color: #1e293b;
     color: var(--text-main);
     border: 1px solid #2e3a50;
-    padding: 7px 14px;
+    padding: 10px 14px;
+    min-height: 40px;
     border-radius: 6px;
     font-size: 13px;
     outline: none;
@@ -565,7 +735,8 @@ input:checked + .slider-round:before {
     background-color: #1e293b;
     color: var(--text-main);
     border: 1px solid #2e3a50;
-    padding: 7px 14px;
+    padding: 10px 14px;
+    min-height: 40px;
     border-radius: 6px;
     font-size: 13px;
     outline: none;
@@ -586,6 +757,13 @@ input:checked + .slider-round:before {
     grid-template-columns: repeat(3, 1fr);
     gap: 16px;
     margin-bottom: 24px;
+}
+
+.telemetry-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 25px;
 }
 
 .alert-stat-card {
@@ -756,6 +934,9 @@ input:checked + .slider-round:before {
 
 .alert-metric-label {
     color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .alert-metric-value {
@@ -795,7 +976,11 @@ input:checked + .slider-round:before {
 /* --- Alert Action Buttons --- */
 .btn-read,
 .btn-dismiss {
-    padding: 5px 14px;
+    padding: 8px 16px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     border-radius: 5px;
     font-size: 12px;
     font-weight: 600;
@@ -807,7 +992,8 @@ input:checked + .slider-round:before {
 .btn-read {
     background: transparent;
     border-color: var(--primary);
-    color: var(--primary);
+    /* #3c50e0 langsung di atas background gelap gagal kontras (2.5:1); pakai varian lebih terang */
+    color: #7b8ff5;
 }
 
 .btn-read:hover {
@@ -828,6 +1014,10 @@ input:checked + .slider-round:before {
 /* --- Page Header Action Buttons --- */
 .btn-alert-action {
     padding: 8px 16px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     border-radius: 6px;
     font-size: 13px;
     font-weight: 600;
@@ -881,6 +1071,80 @@ input:checked + .slider-round:before {
 
 .alert-empty-sub {
     font-size: 13px;
-    color: #4a5568;
+    /* #4a5568 di atas bg-dark cuma 2.36:1, gagal WCAG AA; pakai var(--text-muted) yang sudah teruji 6:1+ */
+    color: var(--text-muted);
     margin: 0;
+}
+
+/* ============================================================
+   RESPONSIVE — Layar sempit (tablet & mobile)
+   ============================================================ */
+@media (max-width: 768px) {
+    body {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #2e3a50;
+        padding: 14px 16px;
+    }
+
+    .sidebar h2 {
+        margin-bottom: 12px;
+        font-size: 18px;
+    }
+
+    .sidebar ul {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .sidebar ul li {
+        margin-bottom: 0;
+        white-space: nowrap;
+    }
+
+    .main-content {
+        padding: 16px;
+    }
+
+    .map-split-container {
+        flex-direction: column;
+    }
+
+    .map-split-container.panel-open #map-wrapper {
+        flex: none !important;
+        height: 280px;
+    }
+
+    .map-split-container.panel-open #map-info-panel {
+        flex: none !important;
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid #2e3a50;
+    }
+
+    #map {
+        height: 280px;
+    }
+}
+
+@media (max-width: 640px) {
+    .alert-stats-grid,
+    .telemetry-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .alert-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .alert-search-input {
+        min-width: 0;
+    }
 }

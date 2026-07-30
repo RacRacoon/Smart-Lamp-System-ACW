@@ -1,9 +1,9 @@
-// 1. Sesuaikan URL dengan IP dan port Node-RED Anda
-const NODE_RED_WS_URL = "ws://localhost:1880/ws/telemetry";
+// Sesuaikan IP/port kalau service Python (python-backend/) jalan di host lain
+const TELEMETRY_WS_URL = "ws://localhost:8765";
 let socket;
 
 function connectWebSocket() {
-    socket = new WebSocket(NODE_RED_WS_URL);
+    socket = new WebSocket(TELEMETRY_WS_URL);
 
     socket.onopen = function (event) {
         console.log("Terhubung ke Node-RED secara Real-Time!");
@@ -30,7 +30,8 @@ function connectWebSocket() {
                         lat: incomingData.lat || -7.25000, // Koordinat default jika dari backend kosong
                         lng: incomingData.lng || 112.75000,
                         alerts: incomingData.alerts || 0,
-                        uptime: incomingData.uptime || 0
+                        uptime: incomingData.uptime || 0,
+                        dim: incomingData.dim !== undefined ? parseInt(incomingData.dim) : 8
                     };
 
                     // Inisialisasi nodeSettings default untuk node baru ini
@@ -267,7 +268,91 @@ function addNewMapMarker(data) {
 }
 
 // Jalankan inisialisasi aplikasi saat halaman web selesai dimuat (DOM Ready)
-document.addEventListener("DOMContentLoaded", () => {
+// ============================================================
+//  AUTENTIKASI — Login, Peran (Role), Proteksi Halaman Admin
+// ============================================================
+
+let currentRole = null;
+let authToken = null;
+let dashboardInitialized = false;
+
+function handleLogin(event) {
+    event.preventDefault();
+    const usernameInput = document.getElementById("login-username");
+    const passwordInput = document.getElementById("login-password");
+    const errorEl = document.getElementById("login-error");
+    const submitBtn = event.target.querySelector(".btn-login");
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+
+    submitBtn.disabled = true;
+    errorEl.style.display = "none";
+
+    fetch('http://localhost:1880/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('unauthorized');
+        return res.json();
+    })
+    .then(data => {
+        sessionStorage.setItem("acw_role", data.role);
+        sessionStorage.setItem("acw_token", data.token);
+        enterDashboard(data.role, data.token);
+    })
+    .catch(() => {
+        errorEl.textContent = "Username atau kata sandi salah. Silakan coba lagi.";
+        errorEl.style.display = "block";
+        passwordInput.value = "";
+        passwordInput.focus();
+    })
+    .finally(() => {
+        submitBtn.disabled = false;
+    });
+}
+
+function logout() {
+    sessionStorage.removeItem("acw_role");
+    sessionStorage.removeItem("acw_token");
+    location.href = location.pathname; // reload bersih, hapus hash halaman terakhir
+}
+
+function enterDashboard(role, token) {
+    currentRole = role;
+    authToken = token;
+
+    document.getElementById("login-overlay").style.display = "none";
+    document.getElementById("app-shell").style.display = "flex";
+
+    const roleBadge = document.getElementById("role-badge");
+    if (roleBadge) roleBadge.textContent = role === "admin" ? "Admin" : "Petugas Monitoring";
+
+    applyRoleRestrictions(role);
+
+    if (!dashboardInitialized) {
+        dashboardInitialized = true;
+        initDashboardData();
+    }
+}
+
+// User (non-admin) hanya bisa memantau: halaman Kelola Lampu & Kendali Cepat disembunyikan
+function applyRoleRestrictions(role) {
+    const isAdmin = role === "admin";
+    const menuManage = document.getElementById("menu-item-manage");
+    const quickControl = document.getElementById("quick-control-section");
+
+    if (menuManage) menuManage.style.display = isAdmin ? "" : "none";
+    if (quickControl) quickControl.style.display = isAdmin ? "" : "none";
+
+    // Kalau user non-admin nyasar ke halaman Kelola Lampu lewat URL/hash, tendang balik ke Beranda
+    if (!isAdmin && location.hash.replace("#", "") === "manage") {
+        navigateToHash("dashboard");
+    }
+}
+
+function initDashboardData() {
     initMap();
 
     fetch('http://localhost:1880/api/devices-latest')
@@ -288,7 +373,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     power: parseFloat(node.power) || 0,
                     lat: parseFloat(node.lat),
                     lng: parseFloat(node.lng),
-                    alerts: node.health === "Healthy" ? 0 : 1
+                    alerts: node.health === "Healthy" ? 0 : 1,
+                    dim: node.dim !== undefined ? parseInt(node.dim) : 8
                 };
 
                 // === PERBAIKAN DI SINI: Inisialisasi telemetryHistory dinamis jika belum ada ===
@@ -328,7 +414,23 @@ document.addEventListener("DOMContentLoaded", () => {
             switchDevice("L-102");
             fetchSectorSettings();
             connectWebSocket();
+        })
+        .finally(() => {
+            // Buka halaman sesuai URL saat pertama kali dimuat (deep link / refresh)
+            const initialPage = (location.hash || "#dashboard").replace("#", "");
+            if (initialPage !== "dashboard") {
+                navigateToHash(initialPage);
+            }
         });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    // Kalau sesi login sebelumnya masih tersimpan, langsung masuk tanpa login ulang
+    const savedRole = sessionStorage.getItem("acw_role");
+    const savedToken = sessionStorage.getItem("acw_token");
+    if (savedRole && savedToken) {
+        enterDashboard(savedRole, savedToken);
+    }
 });
 
 // 1. Data Koordinat Lampu dengan Atribut Sektor Baru (Sektor 1 & Sektor 2)
@@ -343,7 +445,8 @@ let devicesData = {
         power: 99.5,
         lat: -7.25782,
         lng: 112.73797,
-        alerts: 0
+        alerts: 0,
+        dim: 80
     },
     "L-102": {
         id: "L-102",
@@ -354,7 +457,8 @@ let devicesData = {
         power: 99.2,
         lat: -7.25828,
         lng: 112.73823,
-        alerts: 1
+        alerts: 1,
+        dim: 80
     },
     "L-103": {
         id: "L-103",
@@ -365,7 +469,8 @@ let devicesData = {
         power: 102.1,
         lat: -7.25870,
         lng: 112.73850,
-        alerts: 0
+        alerts: 0,
+        dim: 80
     },
 
     // === SEKTOR 2: KERTAJAYA (DEPAN ITS) ===
@@ -378,7 +483,8 @@ let devicesData = {
         power: 0.0,
         lat: -7.279236,
         lng: 112.78966,
-        alerts: 2
+        alerts: 2,
+        dim: 80
     },
     "L-105": {
         id: "L-105",
@@ -389,7 +495,8 @@ let devicesData = {
         power: 96.1,
         lat: -7.27936,
         lng: 112.78868,
-        alerts: 0
+        alerts: 0,
+        dim: 80
     },
     "L-106": {
         id: "L-106",
@@ -400,7 +507,8 @@ let devicesData = {
         power: 86.0,
         lat: -7.27945,
         lng: 112.78804,
-        alerts: 1
+        alerts: 1,
+        dim: 80
     }
 };
 
@@ -420,7 +528,7 @@ function changeConfigTarget(mode) {
     if (mode === "sector") {
         nodeSelectorContainer.style.display = "none";
         sectorSelectorContainer.style.display = "block";
-        globalApplyLabel.innerText = "Terapkan konfigurasi ini ke SEMUA node di dalam Sektor terpilih";
+        globalApplyLabel.innerText = "Terapkan konfigurasi ini ke SEMUA lampu di dalam Sektor terpilih";
 
         // Ambil sektor dari perangkat yang saat ini aktif
         const activeSector = devicesData[currentDeviceId].sector;
@@ -429,7 +537,7 @@ function changeConfigTarget(mode) {
     } else {
         nodeSelectorContainer.style.display = "block";
         sectorSelectorContainer.style.display = "none";
-        globalApplyLabel.innerText = "Terapkan konfigurasi ini ke semua lampu secara menyeluruh (Global Apply)";
+        globalApplyLabel.innerText = "Terapkan konfigurasi ini ke semua lampu secara menyeluruh (Secara Global)";
 
         loadNodeSettingsToUI(currentDeviceId);
     }
@@ -527,11 +635,11 @@ function updateLifespanUI(uptimeHours) {
     if (uptimeHours >= 10000) {
         container.classList.add("danger-state");
         bar.style.backgroundColor = "var(--danger)";
-        note.innerText = "CRITICAL: Perangkat melampaui batas usia kerja. (Need Maintenance)";
+        note.innerText = "KRITIS: Perangkat melampaui batas usia kerja. (Perlu Perawatan)";
     } else if (uptimeHours >= 8000) {
         container.classList.add("warning-state");
         bar.style.backgroundColor = "var(--warning)";
-        note.innerText = "WARNING: Memasuki batas usia pakai optimal.";
+        note.innerText = "PERINGATAN: Memasuki batas usia pakai optimal.";
     } else {
         bar.style.backgroundColor = "var(--primary)";
         note.innerText = "Kondisi Operasional Normal";
@@ -598,6 +706,15 @@ function switchDevice(deviceId) {
     const lngEl = document.getElementById("lng-value");
     if (lngEl) lngEl.innerText = data.lng.toFixed(4);
 
+    // Sinkronisasi Tingkat Dimming di Kendali Cepat Dashboard
+    if (data.dim !== undefined) {
+        const dimLabel = document.getElementById("dim-label");
+        if (dimLabel) dimLabel.innerText = data.dim;
+
+        const dimSlider = document.getElementById("dim-slider");
+        if (dimSlider) dimSlider.value = data.dim;
+    }
+
     // Badge count dikelola oleh updateAlertBadge() dari sistem alert terpusat
     updateAlertBadge();
 
@@ -621,13 +738,13 @@ function switchDevice(deviceId) {
 
         // Logika Threshold Batas Umur Waktu (Uptime)
         if (data.uptime >= 10000) {
-            statusText.innerText = "Need Maintenance"; // Teks disesuaikan logika umur
+            statusText.innerText = "Perlu Perawatan"; // Teks disesuaikan logika umur
             statusText.classList.add("status-critical");
         } else if (data.uptime >= 8000) {
-            statusText.innerText = "Warning";          // Teks disesuaikan logika umur
+            statusText.innerText = "Peringatan";          // Teks disesuaikan logika umur
             statusText.classList.add("status-warning");
         } else {
-            statusText.innerText = "Healthy";          // Teks disesuaikan logika umur
+            statusText.innerText = "Baik";          // Teks disesuaikan logika umur
             statusText.classList.add("status-healthy");
         }
 
@@ -649,8 +766,13 @@ function switchDevice(deviceId) {
     const activeSector = data.sector;
     const settings = sectorSettings[activeSector] || null;
     if (settings) {
-        const panelNodeId = document.getElementById("panel-node-id");
-        if (panelNodeId) panelNodeId.innerText = deviceId;
+    const panelNodeId = document.getElementById("panel-node-id");
+    if (panelNodeId) panelNodeId.innerText = deviceId;
+
+    const panelCurrentDim = document.getElementById("panel-current-dim");
+    if (panelCurrentDim && data.dim !== undefined) {
+        panelCurrentDim.innerText = data.dim;
+    }
 
         // Update jadwal fase rtc di panel peta jika elemennya ada
         if (Array.isArray(settings.schedules)) {
@@ -710,6 +832,65 @@ function closeMapPanel() {
 function updateDimLabel(val) { document.getElementById("dim-label").innerText = val; }
 function updateCctLabel(val) { document.getElementById("cct-label").innerText = val; }
 
+let dimControlDebounceTimer = null;
+
+function sendDimControl(val) {
+    const currentDeviceId = document.getElementById("current-device-id")?.innerText;
+    if (!currentDeviceId || currentDeviceId === "-") return;
+
+    const dimVal = parseInt(val);
+    if (isNaN(dimVal) || dimVal < 0 || dimVal > 100) {
+        console.error('Nilai kecerahan tidak valid:', val);
+        return;
+    }
+
+    // Hapus timer sebelumnya untuk mencegah spam request saat slider digeser cepat
+    if (dimControlDebounceTimer) {
+        clearTimeout(dimControlDebounceTimer);
+    }
+
+    dimControlDebounceTimer = setTimeout(() => {
+        // Endpoint ini sesuai dengan route "POST /api/lights/:id/command" di Node-RED
+        // (endpoint lama "/api/control/dim" tidak pernah ada di flow, jadi command tidak pernah sampai ke ESP32)
+        fetch(`http://localhost:1880/api/lights/${currentDeviceId}/command`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                // Backend menolak perintah ini kalau token bukan milik sesi admin (lihat light_command_fn di Node-RED)
+                'X-ACW-Token': authToken || ''
+            },
+            body: JSON.stringify({ id: currentDeviceId, dim: dimVal })
+        })
+        .then(res => {
+            if (res.status === 403) throw new Error('forbidden');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
+            console.log(`[HTTP] Perintah kecerahan (${dimVal}%) berhasil dikirim ke ${currentDeviceId}:`, data);
+        })
+        .catch(err => {
+            const isForbidden = err.message === 'forbidden';
+            console.error("[HTTP] Gagal mengirim perintah kecerahan ke perangkat:", err);
+            addAlert({
+                nodeId: currentDeviceId,
+                severity: 'warning',
+                type: 'command_failed',
+                message: isForbidden
+                    ? `Perintah kecerahan ke Lampu ${currentDeviceId} ditolak server: hanya admin yang bisa mengubah kecerahan.`
+                    : `Perintah kecerahan ke Lampu ${currentDeviceId} gagal terkirim. Periksa koneksi ke server.`,
+                volt: 0,
+                current: 0,
+                power: 0,
+                threshold: {},
+                timestamp: new Date(),
+                isRead: false,
+                isDismissed: false
+            });
+        });
+    }, 150);
+}
+
 // Catatan: Inisialisasi awal dipindahkan ke DOMContentLoaded listener
 
 // Struktur Penyimpanan Pengaturan Konfigurasi Tiap Lampu (State Management)
@@ -724,6 +905,12 @@ let nodeSettings = {
 
 // FUNGSI NAVIGASI TAB HALAMAN (Sudah disatukan & dibersihkan dari duplikasi)
 function navigateTo(pageId, element) {
+    // Halaman Kelola Lampu khusus admin — tolak akses role lain walau dibuka lewat hash URL langsung
+    if (pageId === 'manage' && currentRole !== 'admin') {
+        pageId = 'dashboard';
+        element = document.querySelector('#sidebar-menu li[data-page="dashboard"]');
+    }
+
     // Sembunyikan semua halaman
     document.getElementById("page-dashboard").style.display = "none";
     document.getElementById("page-manage").style.display = "none";
@@ -769,7 +956,23 @@ function navigateTo(pageId, element) {
     }
 
     element.classList.add("active");
+
+    // Simpan halaman aktif ke URL supaya tombol back browser & refresh/berbagi tautan tetap berfungsi
+    if (location.hash !== "#" + pageId) {
+        history.pushState({ page: pageId }, "", "#" + pageId);
+    }
 }
+
+// Buka halaman sesuai hash URL (dipakai saat load awal & tombol back/forward browser)
+function navigateToHash(pageId) {
+    const li = document.querySelector(`#sidebar-menu li[data-page="${pageId}"]`);
+    if (li) navigateTo(pageId, li);
+}
+
+window.addEventListener("popstate", () => {
+    const pageId = (location.hash || "#dashboard").replace("#", "");
+    navigateToHash(pageId);
+});
 
 // Mengisi Form Input Manage Node dengan data sektor aktif sebagai sumber kebenaran tunggal
 function loadNodeSettingsToUI(deviceId) {
@@ -1177,17 +1380,24 @@ function renderAlertList() {
  * Tandai satu alert sebagai sudah dibaca — update ke DB lalu re-fetch.
  */
 function markAlertRead(alertId) {
+    // Normalkan tipe: ID dari DB adalah integer, tapi onclick HTML selalu kirim string
+    const normalizedId = typeof alertId === 'string' && !alertId.startsWith('alert_ws_')
+        ? parseInt(alertId, 10)
+        : alertId;
+
     // Optimistic UI update
-    const alert = alertsData.find(a => a.id === alertId);
+    const alert = alertsData.find(a => a.id === normalizedId || String(a.id) === String(alertId));
     if (alert) {
         alert.isRead = true;
         updateAlertBadge();
         renderAlertList();
     }
 
-    // Persist ke DB
-    fetch(`http://localhost:1880/api/alerts/${alertId}/read`, { method: 'PATCH' })
-        .catch(err => console.error('Gagal mark-read alert ke DB:', err));
+    // Persist ke DB — hanya untuk alert dengan ID integer (dari DB)
+    if (!String(alertId).startsWith('alert_ws_')) {
+        fetch(`http://localhost:1880/api/alerts/${normalizedId}/read`, { method: 'PATCH' })
+            .catch(err => console.error('Gagal mark-read alert ke DB:', err));
+    }
 }
 
 /**
@@ -1206,17 +1416,24 @@ function markAllRead() {
  * Hapus satu alert dari tampilan dan DB.
  */
 function dismissAlert(alertId) {
+    // Normalkan tipe: ID dari DB adalah integer, tapi onclick HTML selalu kirim string
+    const normalizedId = typeof alertId === 'string' && !alertId.startsWith('alert_ws_')
+        ? parseInt(alertId, 10)
+        : alertId;
+
     // Optimistic UI update
-    const alert = alertsData.find(a => a.id === alertId);
+    const alert = alertsData.find(a => a.id === normalizedId || String(a.id) === String(alertId));
     if (alert) {
         alert.isDismissed = true;
         updateAlertBadge();
         renderAlertList();
     }
 
-    // Hapus dari DB
-    fetch(`http://localhost:1880/api/alerts/${alertId}`, { method: 'DELETE' })
-        .catch(err => console.error('Gagal hapus alert dari DB:', err));
+    // Hapus dari DB — hanya untuk alert dengan ID integer (dari DB), bukan alert_ws_*
+    if (!String(alertId).startsWith('alert_ws_')) {
+        fetch(`http://localhost:1880/api/alerts/${normalizedId}`, { method: 'DELETE' })
+            .catch(err => console.error('Gagal hapus alert dari DB:', err));
+    }
 }
 
 /**
@@ -1277,20 +1494,20 @@ function handleAlertSearch(value) {
 function generateAlertMessage(type, nodeId, volt, current) {
     switch (type) {
         case 'voltage_spike':
-            return `Node ${nodeId} terdeteksi lonjakan tegangan sebesar ${volt}V, melebihi batas aman 240V. Segera periksa kondisi jaringan listrik.`;
+            return `Lampu ${nodeId} terdeteksi lonjakan tegangan sebesar ${volt}V, melebihi batas aman 240V. Segera periksa kondisi jaringan listrik.`;
         case 'voltage_drop':
-            return `Node ${nodeId} mengalami penurunan tegangan ke ${volt}V (di bawah 200V). Kemungkinan gangguan pasokan daya.`;
+            return `Lampu ${nodeId} mengalami penurunan tegangan ke ${volt}V (di bawah 200V). Kemungkinan gangguan pasokan daya.`;
         case 'current_spike':
-            return `Node ${nodeId} mendeteksi lonjakan arus listrik sebesar ${current}A, melampaui batas kritis 1.5A. Periksa kemungkinan korsleting.`;
+            return `Lampu ${nodeId} mendeteksi lonjakan arus listrik sebesar ${current}A, melampaui batas kritis 1.5A. Periksa kemungkinan korsleting.`;
         case 'current_high':
-            return `Node ${nodeId} mencatat arus tinggi sebesar ${current}A (di atas 1.0A). Pantau secara berkala untuk mencegah kerusakan komponen.`;
+            return `Lampu ${nodeId} mencatat arus tinggi sebesar ${current}A (di atas 1.0A). Pantau secara berkala untuk mencegah kerusakan komponen.`;
         case 'offline':
-            return `Node ${nodeId} terdeteksi offline atau tidak bertenaga. Tegangan terbaca ${volt}V, jauh di bawah batas operasional minimum.`;
+            return `Lampu ${nodeId} terdeteksi tidak menyala atau tidak bertenaga. Tegangan terbaca ${volt}V, jauh di bawah batas operasional minimum.`;
         case 'power_high':
             const pow = (volt * current).toFixed(1);
-            return `Node ${nodeId} mengonsumsi daya melebihi batas normal (${pow}W > 350W). Periksa beban listrik yang terhubung.`;
+            return `Lampu ${nodeId} mengonsumsi daya melebihi batas normal (${pow}W > 350W). Periksa beban listrik yang terhubung.`;
         default:
-            return `Node ${nodeId} mengirimkan sinyal anomali. Mohon lakukan pengecekan langsung di lapangan.`;
+            return `Lampu ${nodeId} mengirimkan sinyal tidak normal. Mohon lakukan pengecekan langsung di lapangan.`;
     }
 }
 
@@ -1301,6 +1518,16 @@ function generateAlertMessage(type, nodeId, volt, current) {
 /**
  * Bangun HTML string untuk satu alert card.
  */
+/** Bungkus path SVG jadi ikon outline kecil (gaya konsisten, bukan emoji) */
+function _svgIcon(innerPaths, size = 16) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">${innerPaths}</svg>`;
+}
+
+const _METRIC_ICON_VOLT = _svgIcon('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>', 14);
+const _METRIC_ICON_CURRENT = _svgIcon('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>', 14);
+const _METRIC_ICON_POWER = _svgIcon('<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>', 14);
+const _METRIC_ICON_THRESHOLD = _svgIcon('<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>', 14);
+
 function _buildAlertCardHTML(alert) {
     const isUnread = !alert.isRead;
     const severityLabel = { critical: 'KRITIS', warning: 'PERINGATAN', info: 'INFO' }[alert.severity] || 'INFO';
@@ -1326,7 +1553,7 @@ function _buildAlertCardHTML(alert) {
 
     // Tombol "Tandai Dibaca" hanya tampil jika belum dibaca
     const readBtn = !alert.isRead
-        ? `<button class="btn-read" onclick="markAlertRead('${alert.id}')">✓ Tandai Dibaca</button>`
+        ? `<button class="btn-read" onclick="markAlertRead('${alert.id}')">${_svgIcon('<path d="M20 6 9 17l-5-5"/>')} Tandai Dibaca</button>`
         : '';
 
     return `
@@ -1336,27 +1563,27 @@ function _buildAlertCardHTML(alert) {
                 ${unreadDot}
                 <span class="alert-severity-badge ${severityBadgeClass}">${severityLabel}</span>
                 <span class="alert-node-id">${alert.nodeId}</span>
-                <span style="font-size: 16px;">${typeIcon}</span>
+                <span style="display:inline-flex; color: var(--text-muted);">${typeIcon}</span>
             </div>
             <span class="alert-timestamp">${timestamp}</span>
         </div>
         <p class="alert-message">${alert.message}</p>
         <div class="alert-metrics">
             <div class="alert-metric-item">
-                <span class="alert-metric-label">⚡ Tegangan:</span>
+                <span class="alert-metric-label">${_METRIC_ICON_VOLT} Tegangan:</span>
                 <span class="alert-metric-value ${voltClass}">${alert.volt !== undefined ? alert.volt.toFixed(1) : '–'} V</span>
             </div>
             <div class="alert-metric-item">
-                <span class="alert-metric-label">🔌 Arus:</span>
+                <span class="alert-metric-label">${_METRIC_ICON_CURRENT} Arus:</span>
                 <span class="alert-metric-value ${currentClass}">${alert.current !== undefined ? alert.current.toFixed(3) : '–'} A</span>
             </div>
             <div class="alert-metric-item">
-                <span class="alert-metric-label">💡 Daya:</span>
+                <span class="alert-metric-label">${_METRIC_ICON_POWER} Daya:</span>
                 <span class="alert-metric-value ${powerClass}">${alert.power !== undefined ? alert.power.toFixed(1) : '–'} W</span>
             </div>
             ${alert.threshold && Object.keys(alert.threshold).length > 0 ? `
             <div class="alert-metric-item">
-                <span class="alert-metric-label">📊 Threshold:</span>
+                <span class="alert-metric-label">${_METRIC_ICON_THRESHOLD} Ambang Batas:</span>
                 <span class="alert-metric-value">${_formatThreshold(alert.threshold)}</span>
             </div>` : ''}
         </div>
@@ -1364,23 +1591,24 @@ function _buildAlertCardHTML(alert) {
             <span class="alert-type-label">${_formatAlertType(alert.type)}</span>
             <div class="alert-actions">
                 ${readBtn}
-                <button class="btn-dismiss" onclick="dismissAlert('${alert.id}')">🗑 Hapus</button>
+                <button class="btn-dismiss" onclick="dismissAlert('${alert.id}')">${_svgIcon('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>')} Hapus</button>
             </div>
         </div>
     </div>`;
 }
 
-/** Kembalikan emoji icon berdasarkan tipe alert */
+/** Kembalikan ikon SVG outline berdasarkan tipe alert (bukan emoji, konsisten dengan gaya desain lain) */
 function _getAlertTypeIcon(type) {
     const icons = {
-        voltage_spike: '⚡',
-        voltage_drop: '📉',
-        current_spike: '🔌',
-        current_high: '⚠️',
-        offline: '📵',
-        power_high: '💡'
+        voltage_spike: '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
+        voltage_drop: '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>',
+        current_spike: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+        current_high: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+        offline: '<circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>',
+        power_high: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>',
+        command_failed: '<line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>'
     };
-    return icons[type] || '🔔';
+    return _svgIcon(icons[type] || '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>', 16);
 }
 
 /** Format label tipe alert yang lebih mudah dibaca */
@@ -1390,8 +1618,9 @@ function _formatAlertType(type) {
         voltage_drop: 'Penurunan Tegangan',
         current_spike: 'Lonjakan Arus',
         current_high: 'Arus Tinggi',
-        offline: 'Perangkat Offline',
-        power_high: 'Konsumsi Daya Tinggi'
+        offline: 'Perangkat Padam',
+        power_high: 'Konsumsi Daya Tinggi',
+        command_failed: 'Perintah Gagal Terkirim'
     };
     return labels[type] || type;
 }
@@ -1399,8 +1628,8 @@ function _formatAlertType(type) {
 /** Format nilai threshold ke string */
 function _formatThreshold(threshold) {
     const parts = [];
-    if (threshold.volt !== undefined) parts.push(`V: ${threshold.volt}V`);
-    if (threshold.current !== undefined) parts.push(`I: ${threshold.current}A`);
+    if (threshold.volt !== undefined) parts.push(`Tegangan: ${threshold.volt}V`);
+    if (threshold.current !== undefined) parts.push(`Arus: ${threshold.current}A`);
     return parts.join(', ') || '–';
 }
 
@@ -1412,7 +1641,7 @@ function _addNodeToAlertFilter(nodeId) {
     if (!exists) {
         const opt = document.createElement('option');
         opt.value = nodeId;
-        opt.textContent = `Node ${nodeId}`;
+        opt.textContent = `Lampu ${nodeId}`;
         select.appendChild(opt);
     }
 }
@@ -1445,7 +1674,7 @@ function fetchAlertsFromDB() {
     const emptyEl = document.getElementById('alert-empty-state');
 
     // Tampilkan loading state
-    if (listEl) listEl.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px;">Memuat data alerts...</p>';
+    if (listEl) listEl.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px;">Memuat data peringatan...</p>';
     if (emptyEl) emptyEl.style.display = 'none';
 
     fetch('http://localhost:1880/api/alerts-history?limit=100')
@@ -1516,7 +1745,7 @@ function fetchAlertsFromDB() {
         })
         .catch(err => {
             console.error('Gagal memuat alerts dari DB:', err);
-            if (listEl) listEl.innerHTML = '<p style="color: var(--danger); text-align: center; padding: 40px;">⚠ Gagal memuat data alerts. Periksa koneksi ke Node-RED.</p>';
+            if (listEl) listEl.innerHTML = '<p style="color: var(--danger); text-align: center; padding: 40px;">⚠ Gagal memuat data peringatan. Periksa koneksi jaringan Anda.</p>';
         });
 }
 

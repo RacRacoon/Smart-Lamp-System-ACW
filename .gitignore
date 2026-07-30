@@ -1,2 +1,4 @@
 node-red-flow-acw.json
 *.bundle
+python-backend/__pycache__/
+python-backend/.venv/

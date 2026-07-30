@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>City Manager - Smart Lighting Dashboard</title>
+    <meta name="theme-color" content="#121824">
+    <title>Manajemen Lampu Kota - Dasbor Lampu Pintar</title>
     <!-- Maplibre GL untuk OpenFreeMap Vektor 3D -->
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -12,23 +13,44 @@
 </head>
 <body>
 
+    <!-- Layar Login (tampil sebelum masuk dasbor) -->
+    <div id="login-overlay">
+        <form id="login-form" class="login-card" onsubmit="handleLogin(event)">
+            <h1>Manajemen Lampu Kota</h1>
+            <p class="login-subtitle">Masuk untuk mengakses dasbor pemantauan</p>
+            <label for="login-username">Username</label>
+            <input type="text" id="login-username" placeholder="Masukkan username" autocomplete="username" required>
+            <label for="login-password">Kata Sandi</label>
+            <input type="password" id="login-password" placeholder="Masukkan kata sandi" autocomplete="current-password" required>
+            <p id="login-error" class="login-error" style="display:none;"></p>
+            <button type="submit" class="btn-login">Masuk</button>
+        </form>
+    </div>
+
+    <!-- Kerangka Dasbor (tampil setelah berhasil login) -->
+    <div id="app-shell" style="display:none;">
+
     <!-- Sidebar Navigation -->
     <div class="sidebar">
-        <h2>City Manager</h2>
+        <h2>Manajemen Lampu</h2>
         <ul id="sidebar-menu">
-            <li class="active" onclick="navigateTo('dashboard', this)">
-                <a href="javascript:void(0)">Dashboard</a>
+            <li class="active" data-page="dashboard" onclick="navigateTo('dashboard', this)">
+                <a href="javascript:void(0)">Beranda</a>
             </li>
-            <li onclick="navigateTo('manage', this)">
-                <a href="javascript:void(0)">Manage Nodes</a>
+            <li data-page="manage" id="menu-item-manage" onclick="navigateTo('manage', this)">
+                <a href="javascript:void(0)">Kelola Lampu</a>
             </li>
-            <li onclick="navigateTo('telemetry', this)">
-                <a href="javascript:void(0)">Telemetry Logs</a>
+            <li data-page="telemetry" onclick="navigateTo('telemetry', this)">
+                <a href="javascript:void(0)">Riwayat Data</a>
             </li>
-            <li onclick="navigateTo('alerts', this)">
-                <a href="javascript:void(0)">Inbox Alerts <span class="badge" id="alert-badge">0</span></a>
+            <li data-page="alerts" onclick="navigateTo('alerts', this)">
+                <a href="javascript:void(0)">Kotak Peringatan <span class="badge" id="alert-badge">0</span></a>
             </li>
         </ul>
+        <div class="sidebar-footer">
+            <span id="role-badge" class="role-badge">-</span>
+            <button class="btn-logout" onclick="logout()">Keluar</button>
+        </div>
     </div>
 
     <!-- Main Content Area -->
@@ -38,7 +60,7 @@
         <div id="page-dashboard">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
                 <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">
-                    Overview Perangkat: <span id="current-device-id">-</span>
+                    Ringkasan Perangkat: <span id="current-device-id">-</span>
                 </h1>
                 
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -52,11 +74,11 @@
             <div class="cards-grid">
                 <div class="card">
                     <h3>Status Perangkat</h3>
-                    <div class="status-indicator status-healthy" id="status-text">Healthy</div>
+                    <div class="status-indicator status-healthy" id="status-text">Baik</div>
                 </div>
 
                 <div class="card lifespan-card" id="lifespan-container">
-                    <h3>Lifespan Perangkat</h3>
+                    <h3>Usia Pakai Perangkat</h3>
                     <div class="big-value"><span id="uptime-value">4,500</span> / 10,000 jam</div>
                     <div class="progress-bar-container">
                         <div class="progress-bar" id="lifespan-bar"></div>
@@ -65,32 +87,32 @@
                 </div>
 
                 <div class="card">
-                    <h3>Daya Aktif (PZEM)</h3>
+                    <h3>Daya Aktif</h3>
                     <div class="big-value"><span id="power-value">99.5</span> W</div>
                     <div class="sub-stats">
-                        <span>Voltase: <strong id="volt-value">221.2</strong>V</span>
+                        <span>Tegangan: <strong id="volt-value">221.2</strong>V</span>
                         <span>Arus: <strong id="current-value">0.45</strong>A</span>
                     </div>
                 </div>
 
                 <div class="card">
-                    <h3>Koordinat GPS</h3>
+                    <h3>Lokasi (GPS)</h3>
                     <div class="gps-text-layout">
                         <div class="gps-item">
-                            <span class="gps-label">Lat:</span>
+                            <span class="gps-label">Lintang:</span>
                             <span class="gps-num" id="lat-value">-7.2791</span>
                         </div>
                         <div class="gps-item">
-                            <span class="gps-label">Lng:</span>
+                            <span class="gps-label">Bujur:</span>
                             <span class="gps-num" id="lng-value">112.7961</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="controls-section">
+            <div class="controls-section" id="quick-control-section">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 style="margin: 0;">Kendali Cepat (Manual Override)</h2>
+                    <h2 style="margin: 0;">Kendali Cepat (Kontrol Manual)</h2>
                     <!-- Switch Pengunci Manual Override -->
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span id="lock-status-text" style="font-size: 13px; color: var(--text-muted); font-weight: 600;">TERKUNCI</span>
@@ -102,12 +124,12 @@
                 </div>
                 <div class="controls-grid">
                     <div class="control-group">
-                        <label>Tingkat Dimming (1 - 10V): <span id="dim-label">8</span></label>
+                        <label>Tingkat Kecerahan: <span id="dim-label">80</span>%</label>
                         <!-- Tambahkan atribut disabled secara default -->
-                        <input type="range" min="1" max="10" value="8" class="slider" id="dim-slider" oninput="updateDimLabel(this.value)" disabled>
+                        <input type="range" min="0" max="100" value="80" class="slider" id="dim-slider" oninput="updateDimLabel(this.value); sendDimControl(this.value);" onchange="sendDimControl(this.value);" disabled>
                     </div>
                     <div class="control-group">
-                        <label>CCT (Warmness/Color Temp): <span id="cct-label">50</span>%</label>
+                        <label>Kehangatan Warna Cahaya: <span id="cct-label">50</span>%</label>
                         <!-- Tambahkan atribut disabled secara default -->
                         <input type="range" min="0" max="100" value="50" class="slider" id="cct-slider" oninput="updateCctLabel(this.value)" disabled>
                     </div>
@@ -116,7 +138,7 @@
 
             <!-- Section Peta dengan Layout Split Dinamis -->
             <div class="map-section">
-                <h2>Visualisasi Posisi Node Lampu (3D Real-time)</h2>
+                <h2>Peta Lokasi Lampu (Tampilan 3D)</h2>
                 <div class="map-split-container">
                     <!-- Sisi Kiri: Peta Maplibre -->
                     <div id="map-wrapper" style="flex: 1; transition: flex 0.5s cubic-bezier(0.25, 1, 0.5, 1);">
@@ -126,26 +148,47 @@
                     <!-- Sisi Kanan: Info Panel (Default Tersembunyi lebar 0) -->
                     <div id="map-info-panel">
                         <div class="panel-header">
-                            <h3>Detail Node: <span id="panel-node-id">-</span></h3>
-                            <button onclick="closeMapPanel()" class="close-panel-btn">&times;</button>
+                            <h3>Detail Lampu: <span id="panel-node-id">-</span></h3>
+                            <button onclick="closeMapPanel()" class="close-panel-btn" aria-label="Tutup panel detail">&times;</button>
                         </div>
                         
                         <div class="panel-body">
+                            <!-- Status Kecerahan Saat Ini (DB) -->
+                            <div class="info-group" style="margin-bottom: 18px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px; padding: 12px 15px; display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <span style="color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px;">Kecerahan Saat Ini</span>
+                                    <span style="color: #ffffff; font-size: 20px; font-weight: 700;"><span id="panel-current-dim">80</span>%</span>
+                                </div>
+                                <div style="background: rgba(59, 130, 246, 0.2); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #3b82f6;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="5"/>
+                                        <line x1="12" y1="1" x2="12" y2="3"/>
+                                        <line x1="12" y1="21" x2="12" y2="23"/>
+                                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                                        <line x1="1" y1="12" x2="3" y2="12"/>
+                                        <line x1="21" y1="12" x2="23" y2="12"/>
+                                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                                    </svg>
+                                </div>
+                            </div>
+
                             <!-- Mini Schedule Timeline -->
                             <div class="info-group">
-                                <h4>Jadwal Fase Aktif (RTC)</h4>
+                                <h4>Jadwal Fase Aktif</h4>
                                 <div class="timeline-mini">
                                     <div class="timeline-item">
                                         <span class="tl-time" id="panel-time-1">17:30</span>
-                                        <span class="tl-desc">Kecerahan: <strong id="panel-dim-1">6</strong>V | CCT: <strong id="panel-cct-1">30</strong>%</span>
+                                        <span class="tl-desc">Kecerahan: <strong id="panel-dim-1">6</strong>V | Kehangatan: <strong id="panel-cct-1">30</strong>%</span>
                                     </div>
                                     <div class="timeline-item">
                                         <span class="tl-time" id="panel-time-2">23:00</span>
-                                        <span class="tl-desc">Kecerahan: <strong id="panel-dim-2">4</strong>V | CCT: <strong id="panel-cct-2">80</strong>%</span>
+                                        <span class="tl-desc">Kecerahan: <strong id="panel-dim-2">4</strong>V | Kehangatan: <strong id="panel-cct-2">80</strong>%</span>
                                     </div>
                                     <div class="timeline-item">
                                         <span class="tl-time" id="panel-time-3">03:30</span>
-                                        <span class="tl-desc">Kecerahan: <strong id="panel-dim-3">8</strong>V | CCT: <strong id="panel-cct-3">100</strong>%</span>
+                                        <span class="tl-desc">Kecerahan: <strong id="panel-dim-3">8</strong>V | Kehangatan: <strong id="panel-cct-3">100</strong>%</span>
                                     </div>
                                 </div>
                             </div>
@@ -164,17 +207,17 @@
                 <div style="display: flex; gap: 20px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 6px; margin-bottom: 20px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                         <input type="radio" name="config-mode" value="node" checked onchange="changeConfigTarget(this.value)" style="width: 18px; height: 18px;">
-                        <span style="font-weight: 600;">Konfigurasi Per-Node (Individu)</span>
+                        <span style="font-weight: 600;">Konfigurasi Per Lampu (Individu)</span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                         <input type="radio" name="config-mode" value="sector" onchange="changeConfigTarget(this.value)" style="width: 18px; height: 18px;">
-                        <span style="font-weight: 600;">Konfigurasi Per-Sektor (Grup Sektor)</span>
+                        <span style="font-weight: 600;">Konfigurasi Per Sektor (Grup Sektor)</span>
                     </label>
                 </div>
 
                 <!-- Target Detil Kontrol (Dinamis Sesuai Mode Pilihan) -->
                 <div id="node-selector-container">
-                    <span style="color: var(--text-muted); font-size: 14px; display: block; margin-bottom: 8px;">Pilih Node Target:</span>
+                    <span style="color: var(--text-muted); font-size: 14px; display: block; margin-bottom: 8px;">Pilih Lampu Target:</span>
                     <select id="manage-node-selector" onchange="switchDevice(this.value)" style="background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 8px 15px; border-radius: 5px; cursor: pointer; width: 100%; max-width: 350px;">
                         <option value="">Belum ada lampu</option>
                     </select>
@@ -191,9 +234,9 @@
 
             <!-- Panel 1: Time-based Dimming Scheduler -->
             <div class="controls-section">
-                <h2>Penjadwalan Keterangan & Kelembutan Cahaya (Time-of-Day Scheduler)</h2>
+                <h2>Penjadwalan Kecerahan & Kehangatan Cahaya (Berdasarkan Waktu)</h2>
                 <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
-                    Atur konfigurasi tingkat kecerahan (1-10V) serta intensitas kehangatan warna (CCT %) yang akan dieksekusi oleh modul RTC lokal eksternal DS3231 secara otomatis berdasarkan target jam operasional.
+                    Atur tingkat kecerahan (1-10) serta intensitas kehangatan warna cahaya (%) yang akan dijalankan secara otomatis oleh sistem sesuai jam yang telah ditentukan.
                 </p>
                 
                 <div class="controls-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
@@ -207,7 +250,7 @@
                             <label>Kecerahan: <span id="sched-dim-label-1">6</span> V</label>
                             <input type="range" min="1" max="10" value="6" class="slider" id="sched-dim-1" oninput="document.getElementById('sched-dim-label-1').innerText=this.value" style="margin-bottom: 15px;">
                             
-                            <label>Kekuningan (CCT): <span id="sched-cct-label-1">30</span>%</label>
+                            <label>Kehangatan Warna: <span id="sched-cct-label-1">30</span>%</label>
                             <input type="range" min="0" max="100" value="30" class="slider" id="sched-cct-1" oninput="document.getElementById('sched-cct-label-1').innerText=this.value">
                         </div>
                     </div>
@@ -222,7 +265,7 @@
                             <label>Kecerahan: <span id="sched-dim-label-2">4</span> V</label>
                             <input type="range" min="1" max="10" value="4" class="slider" id="sched-dim-2" oninput="document.getElementById('sched-dim-label-2').innerText=this.value" style="margin-bottom: 15px;">
                             
-                            <label>Kekuningan (CCT): <span id="sched-cct-label-2">80</span>%</label>
+                            <label>Kehangatan Warna: <span id="sched-cct-label-2">80</span>%</label>
                             <input type="range" min="0" max="100" value="80" class="slider" id="sched-cct-2" oninput="document.getElementById('sched-cct-label-2').innerText=this.value">
                         </div>
                     </div>
@@ -237,7 +280,7 @@
                             <label>Kecerahan: <span id="sched-dim-label-3">8</span> V</label>
                             <input type="range" min="1" max="10" value="8" class="slider" id="sched-dim-3" oninput="document.getElementById('sched-dim-label-3').innerText=this.value" style="margin-bottom: 15px;">
                             
-                            <label>Kekuningan (CCT): <span id="sched-cct-label-3">100</span>%</label>
+                            <label>Kehangatan Warna: <span id="sched-cct-label-3">100</span>%</label>
                             <input type="range" min="0" max="100" value="100" class="slider" id="sched-cct-3" oninput="document.getElementById('sched-cct-label-3').innerText=this.value">
                         </div>
                     </div>
@@ -248,7 +291,7 @@
         <!-- Page Telemetry Logs -->
         <div id="page-telemetry" class="page-content" style="display: none; padding: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">Telemetry Logs & Historical Data</h1>
+                <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">Riwayat Data & Catatan Historis</h1>
                 
                 <!-- Dropdown Pilih Lampu -->
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -260,7 +303,7 @@
             </div>
 
             <!-- Grid Card Status Saat Ini (Quick View) -->
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 25px;">
+            <div class="telemetry-summary-grid">
                 <div style="background: #151f32; padding: 20px; border-radius: 6px; border: 1px solid #2e3a50;">
                     <p style="color: var(--text-muted); margin: 0 0 5px 0; font-size: 13px; text-transform: uppercase;">Rata-rata Tegangan</p>
                     <h3 style="color: #3b82f6; font-size: 28px; margin: 0;" id="avg-volt">220.5 V</h3>
@@ -286,13 +329,15 @@
 
             <!-- Page Header -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 12px;">
-                <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">Inbox Alerts</h1>
+                <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">Kotak Peringatan</h1>
                 <div style="display: flex; gap: 10px;">
                     <button class="btn-alert-action btn-mark-all" onclick="markAllRead()">
-                        ✓ Tandai Semua Dibaca
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                        Tandai Semua Dibaca
                     </button>
                     <button class="btn-alert-action btn-clear-all" onclick="clearAllAlerts()">
-                        🗑 Hapus Semua
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        Hapus Semua
                     </button>
                 </div>
             </div>
@@ -302,14 +347,14 @@
                 <!-- Filter by Severity Pills -->
                 <div class="filter-pills" id="severity-filter-pills">
                     <button class="filter-pill active" onclick="setAlertFilter('severity', 'all', this)">Semua</button>
-                    <button class="filter-pill filter-pill-critical" onclick="setAlertFilter('severity', 'critical', this)">Critical</button>
-                    <button class="filter-pill filter-pill-warning" onclick="setAlertFilter('severity', 'warning', this)">Warning</button>
+                    <button class="filter-pill filter-pill-critical" onclick="setAlertFilter('severity', 'critical', this)">Kritis</button>
+                    <button class="filter-pill filter-pill-warning" onclick="setAlertFilter('severity', 'warning', this)">Peringatan</button>
                     <button class="filter-pill filter-pill-info" onclick="setAlertFilter('severity', 'info', this)">Info</button>
                 </div>
 
                 <!-- Filter by Node Dropdown -->
                 <select id="alert-node-filter" class="alert-node-select" onchange="setAlertFilter('node', this.value, null)">
-                    <option value="all">Semua Node</option>
+                    <option value="all">Semua Lampu</option>
                 </select>
 
                 <!-- Search Input -->
@@ -317,7 +362,8 @@
                     type="text"
                     id="alert-search"
                     class="alert-search-input"
-                    placeholder="Cari pesan alert..."
+                    placeholder="Cari pesan peringatan..."
+                    aria-label="Cari pesan peringatan"
                     oninput="handleAlertSearch(this.value)"
                 />
             </div>
@@ -325,7 +371,7 @@
             <!-- Stats Summary Row -->
             <div class="alert-stats-grid">
                 <div class="alert-stat-card">
-                    <p class="alert-stat-label">Total Alerts</p>
+                    <p class="alert-stat-label">Total Peringatan</p>
                     <h3 class="alert-stat-value" id="stat-total">0</h3>
                 </div>
                 <div class="alert-stat-card">
@@ -333,7 +379,7 @@
                     <h3 class="alert-stat-value" id="stat-unread" style="color: var(--warning);">0</h3>
                 </div>
                 <div class="alert-stat-card">
-                    <p class="alert-stat-label">Critical</p>
+                    <p class="alert-stat-label">Kritis</p>
                     <h3 class="alert-stat-value" id="stat-critical" style="color: var(--danger);">0</h3>
                 </div>
             </div>
@@ -349,12 +395,13 @@
                         <path d="M2 8l10 7 10-7"/>
                     </svg>
                 </div>
-                <p class="alert-empty-text">Tidak ada alert saat ini</p>
-                <p class="alert-empty-sub">Sistem berjalan normal. Alert akan muncul secara otomatis.</p>
+                <p class="alert-empty-text">Tidak ada peringatan saat ini</p>
+                <p class="alert-empty-sub">Sistem berjalan normal. Peringatan akan muncul secara otomatis.</p>
             </div>
 
         </div>
 
+    </div>
     </div>
     <script src="script.js"></script>
 </body>
