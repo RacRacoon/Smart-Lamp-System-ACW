@@ -756,8 +756,8 @@
         "type": "function",
         "z": "6ec25d0a238955d6",
         "name": "Build Delete-All SQL",
-        "func": "msg.query = 'DELETE FROM alerts RETURNING id;';\nmsg.params = [];\nreturn msg;",
-        "outputs": 1,
+        "func": "\n// Verifikasi sesi admin - user (monitoring-only) tidak boleh hapus alert, cuma boleh tandai dibaca\nconst token = msg.req.headers['x-acw-token'];\nconst sessions = global.get('acwSessions') || {};\nconst session = token ? sessions[token] : null;\n\nif (!session || session.role !== 'admin' || session.expiresAt < Date.now()) {\n    msg.statusCode = 403;\n    msg.payload = { error: 'Forbidden: hanya admin yang bisa menghapus alert' };\n    return [null, msg];\n}\n\nmsg.query = 'DELETE FROM alerts RETURNING id;';\nmsg.params = [];\nreturn [msg, null];",
+        "outputs": 2,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
@@ -768,6 +768,9 @@
         "wires": [
             [
                 "8226ea59810dd4ce"
+            ],
+            [
+                "45bbf468cd882a46"
             ]
         ]
     },
@@ -799,7 +802,7 @@
                 "t": "set",
                 "p": "headers",
                 "pt": "msg",
-                "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS,PATCH\",\"Access-Control-Allow-Headers\":\"Content-Type\"}",
+                "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS,PATCH\",\"Access-Control-Allow-Headers\":\"Content-Type, X-ACW-Token\"}",
                 "tot": "json"
             }
         ],
@@ -821,7 +824,7 @@
         "type": "http response",
         "z": "6ec25d0a238955d6",
         "name": "",
-        "statusCode": "200",
+        "statusCode": "",
         "headers": {},
         "x": 1150,
         "y": 980,
@@ -850,8 +853,8 @@
         "type": "function",
         "z": "6ec25d0a238955d6",
         "name": "Build Delete-One SQL",
-        "func": "const id = parseInt(msg.req.params.id);\nmsg.query = 'DELETE FROM alerts WHERE id = $1 RETURNING id;';\nmsg.params = [id || 0];\nreturn msg;",
-        "outputs": 1,
+        "func": "const id = parseInt(msg.req.params.id);\n\n// Verifikasi sesi admin - user (monitoring-only) tidak boleh hapus alert, cuma boleh tandai dibaca\nconst token = msg.req.headers['x-acw-token'];\nconst sessions = global.get('acwSessions') || {};\nconst session = token ? sessions[token] : null;\n\nif (!session || session.role !== 'admin' || session.expiresAt < Date.now()) {\n    msg.statusCode = 403;\n    msg.payload = { error: 'Forbidden: hanya admin yang bisa menghapus alert' };\n    return [null, msg];\n}\n\nmsg.query = 'DELETE FROM alerts WHERE id = $1 RETURNING id;';\nmsg.params = [id || 0];\nreturn [msg, null];",
+        "outputs": 2,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
@@ -862,6 +865,9 @@
         "wires": [
             [
                 "c73eeaa3a8c22f5f"
+            ],
+            [
+                "ae32c73df70a4424"
             ]
         ]
     },
@@ -893,7 +899,7 @@
                 "t": "set",
                 "p": "headers",
                 "pt": "msg",
-                "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS,PATCH\",\"Access-Control-Allow-Headers\":\"Content-Type\"}",
+                "to": "{\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS,PATCH\",\"Access-Control-Allow-Headers\":\"Content-Type, X-ACW-Token\"}",
                 "tot": "json"
             }
         ],
@@ -915,7 +921,7 @@
         "type": "http response",
         "z": "6ec25d0a238955d6",
         "name": "",
-        "statusCode": "200",
+        "statusCode": "",
         "headers": {},
         "x": 1150,
         "y": 860,

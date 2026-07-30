@@ -342,13 +342,21 @@ function applyRoleRestrictions(role) {
     const isAdmin = role === "admin";
     const menuManage = document.getElementById("menu-item-manage");
     const quickControl = document.getElementById("quick-control-section");
+    const clearAllBtn = document.getElementById("btn-clear-all-alerts");
 
     if (menuManage) menuManage.style.display = isAdmin ? "" : "none";
     if (quickControl) quickControl.style.display = isAdmin ? "" : "none";
+    // User (monitoring-only) cuma boleh menandai alert dibaca, tidak boleh menghapus
+    if (clearAllBtn) clearAllBtn.style.display = isAdmin ? "" : "none";
 
     // Kalau user non-admin nyasar ke halaman Kelola Lampu lewat URL/hash, tendang balik ke Beranda
     if (!isAdmin && location.hash.replace("#", "") === "manage") {
         navigateToHash("dashboard");
+    }
+
+    // Render ulang daftar alert kalau sudah pernah dirender, supaya tombol Hapus per-card ikut disembunyikan/dimunculkan
+    if (typeof renderAlertList === "function" && document.getElementById("alert-list")) {
+        renderAlertList();
     }
 }
 
@@ -1431,7 +1439,10 @@ function dismissAlert(alertId) {
 
     // Hapus dari DB — hanya untuk alert dengan ID integer (dari DB), bukan alert_ws_*
     if (!String(alertId).startsWith('alert_ws_')) {
-        fetch(`http://localhost:1880/api/alerts/${normalizedId}`, { method: 'DELETE' })
+        fetch(`http://localhost:1880/api/alerts/${normalizedId}`, {
+            method: 'DELETE',
+            headers: { 'X-ACW-Token': authToken || '' }
+        })
             .catch(err => console.error('Gagal hapus alert dari DB:', err));
     }
 }
@@ -1445,7 +1456,10 @@ function clearAllAlerts() {
     updateAlertBadge();
     renderAlertList();
 
-    fetch('http://localhost:1880/api/alerts', { method: 'DELETE' })
+    fetch('http://localhost:1880/api/alerts', {
+        method: 'DELETE',
+        headers: { 'X-ACW-Token': authToken || '' }
+    })
         .catch(err => console.error('Gagal hapus semua alert dari DB:', err));
 }
 
@@ -1556,6 +1570,11 @@ function _buildAlertCardHTML(alert) {
         ? `<button class="btn-read" onclick="markAlertRead('${alert.id}')">${_svgIcon('<path d="M20 6 9 17l-5-5"/>')} Tandai Dibaca</button>`
         : '';
 
+    // Tombol "Hapus" cuma buat admin - user (monitoring-only) cuma boleh menandai dibaca
+    const dismissBtn = currentRole === 'admin'
+        ? `<button class="btn-dismiss" onclick="dismissAlert('${alert.id}')">${_svgIcon('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>')} Hapus</button>`
+        : '';
+
     return `
     <div class="${cardClass}" id="card-${alert.id}">
         <div class="alert-card-header">
@@ -1591,7 +1610,7 @@ function _buildAlertCardHTML(alert) {
             <span class="alert-type-label">${_formatAlertType(alert.type)}</span>
             <div class="alert-actions">
                 ${readBtn}
-                <button class="btn-dismiss" onclick="dismissAlert('${alert.id}')">${_svgIcon('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>')} Hapus</button>
+                ${dismissBtn}
             </div>
         </div>
     </div>`;
