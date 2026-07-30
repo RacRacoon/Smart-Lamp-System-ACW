@@ -181,7 +181,7 @@ function setConnectionStatus(isOnline) {
 
     statusEl.classList.remove("is-online", "is-offline");
     statusEl.classList.add(isOnline ? "is-online" : "is-offline");
-    textEl.textContent = isOnline ? "Terhubung Real-Time" : "Terputus, menyambung ulang...";
+    textEl.textContent = isOnline ? "Terhubung" : "Menyambung ulang...";
 }
 
 function addDeviceToDropdowns(deviceId, sector) {

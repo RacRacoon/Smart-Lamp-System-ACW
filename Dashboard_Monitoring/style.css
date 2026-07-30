@@ -171,22 +171,29 @@ select:focus-visible,
 }
 
 .role-badge {
+    flex: 1;
+    min-width: 0;
     font-size: 12px;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .btn-logout {
     background: transparent;
     border: 1px solid #2e3a50;
     color: var(--text-muted);
-    padding: 8px 14px;
-    min-height: 36px;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 6px;
-    font-size: 12px;
-    font-weight: 600;
     cursor: pointer;
     transition: border-color 0.2s, color 0.2s;
 }
@@ -286,6 +293,9 @@ select:focus-visible,
     font-size: 12px;
     color: var(--text-muted);
     margin-bottom: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .connection-dot {
