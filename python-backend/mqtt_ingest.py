@@ -9,13 +9,14 @@ begitu pesan MQTT diterima.
 """
 import json
 import logging
+import uuid
 
 import paho.mqtt.client as mqtt
 
 import alerts
 import config
 import db
-import ws_server
+import ws_manager
 
 logger = logging.getLogger("acw.mqtt")
 
@@ -65,7 +66,7 @@ def _handle_telemetry(data: dict) -> None:
     except Exception:
         logger.exception("Gagal simpan telemetry ke Postgres untuk %s", device_id)
 
-    ws_server.broadcast({
+    ws_manager.broadcast({
         "id": device_id,
         "device_id": device_id,
         "sector": data["sector"],
@@ -91,7 +92,7 @@ def _handle_telemetry(data: dict) -> None:
     except Exception:
         logger.exception("Gagal simpan alert ke Postgres untuk %s", device_id)
 
-    ws_server.broadcast({
+    ws_manager.broadcast({
         "id": device_id,
         "alert": True,
         "alertType": alert["alertType"],
@@ -127,11 +128,30 @@ def _on_message(client, userdata, msg):
         logger.exception("Gagal memproses pesan telemetry dari topic %s", msg.topic)
 
 
+_client: mqtt.Client | None = None
+
+
 def start() -> mqtt.Client:
     """Konek & mulai network loop di thread background (non-blocking), balikin client-nya."""
-    client = mqtt.Client(client_id=config.MQTT_CLIENT_ID, clean_session=True)
+    global _client
+    # Suffix acak per proses - client_id tetap pernah ketabrak sesama instance (restart lama
+    # belum lepas, atau dua instance jalan bareng) dan broker.emqx.io menolak terus (CONNACK
+    # rc=5, "not authorised") sampai id-nya diganti. Sudah dibuktikan langsung waktu tes.
+    client_id = f"{config.MQTT_CLIENT_ID}_{uuid.uuid4().hex[:8]}"
+    client = mqtt.Client(client_id=client_id, clean_session=True)
     client.on_connect = _on_connect
     client.on_message = _on_message
     client.connect(config.MQTT_HOST, config.MQTT_PORT, keepalive=60)
     client.loop_start()
+    _client = client
     return client
+
+
+def publish_dim_command(device_id: str, dim: int) -> None:
+    """Setara dengan node mqtt-out "Publish to MQTT" (POST /api/lights/:id/command).
+    Pakai koneksi MQTT yang sama dengan subscriber telemetry, tidak buka koneksi baru."""
+    if _client is None:
+        raise RuntimeError("MQTT belum konek, panggil start() dulu")
+    topic = config.MQTT_COMMAND_TOPIC_TEMPLATE.format(device_id=device_id)
+    payload = json.dumps({"dim": dim})
+    _client.publish(topic, payload, qos=1, retain=False)

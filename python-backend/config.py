@@ -20,9 +20,18 @@ DB_NAME = os.environ.get("DB_NAME", "smart_lights")
 DB_USER = os.environ.get("DB_USER", "admin")
 DB_PASSWORD = os.environ.get("DB_PASSWORD", "ACW123")
 
-# --- WebSocket (dipakai langsung oleh Dashboard_Monitoring/script.js) ---
-WS_HOST = os.environ.get("WS_HOST", "0.0.0.0")
-WS_PORT = int(os.environ.get("WS_PORT", "8765"))
+# --- Server HTTP+WebSocket (satu proses FastAPI, dipakai langsung oleh script.js) ---
+API_HOST = os.environ.get("API_HOST", "0.0.0.0")
+API_PORT = int(os.environ.get("API_PORT", "8000"))
+
+# --- Sesi login (disimpan di memori proses, sama seperti global context Node-RED dulu) ---
+SESSION_DURATION_HOURS = int(os.environ.get("SESSION_DURATION_HOURS", "12"))
+
+# --- MQTT command (kendali dim dari dashboard, publish ke ESP32) ---
+MQTT_COMMAND_TOPIC_TEMPLATE = "iot/lights/{device_id}/command"
+
+# --- CORS ---
+CORS_ALLOW_ORIGINS = os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",")
 
 # --- Nilai default kalau field tidak dikirim ESP32 (identik dengan fallback di flow lama) ---
 DEFAULT_SECTOR = "Sektor 2 (Kertajaya - Depan ITS)"

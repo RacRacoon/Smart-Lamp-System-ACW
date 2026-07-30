@@ -1,5 +1,6 @@
-// Sesuaikan IP/port kalau service Python (python-backend/) jalan di host lain
-const TELEMETRY_WS_URL = "ws://localhost:8765";
+// Backend Python (python-backend/) - satu proses REST+WebSocket. Sesuaikan kalau jalan di host lain.
+const API_BASE_URL = "http://localhost:8000";
+const TELEMETRY_WS_URL = "ws://localhost:8000/ws/telemetry";
 let socket;
 
 function connectWebSocket() {
@@ -288,7 +289,7 @@ function handleLogin(event) {
     submitBtn.disabled = true;
     errorEl.style.display = "none";
 
-    fetch('http://localhost:1880/api/login', {
+    fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
@@ -363,7 +364,7 @@ function applyRoleRestrictions(role) {
 function initDashboardData() {
     initMap();
 
-    fetch('http://localhost:1880/api/devices-latest')
+    fetch(`${API_BASE_URL}/api/devices-latest`)
         .then(response => response.json())
         .then(dbData => {
             console.log("Memuat data node dari PostgreSQL:", dbData);
@@ -860,7 +861,7 @@ function sendDimControl(val) {
     dimControlDebounceTimer = setTimeout(() => {
         // Endpoint ini sesuai dengan route "POST /api/lights/:id/command" di Node-RED
         // (endpoint lama "/api/control/dim" tidak pernah ada di flow, jadi command tidak pernah sampai ke ESP32)
-        fetch(`http://localhost:1880/api/lights/${currentDeviceId}/command`, {
+        fetch(`${API_BASE_URL}/api/lights/${currentDeviceId}/command`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1196,7 +1197,7 @@ function renderTelemetryChart(deviceId) {
     if (!deviceId) return;
 
     // Fetch data historis dari backend
-    fetch(`http://localhost:1880/api/telemetry-history?device_id=${deviceId}`)
+    fetch(`${API_BASE_URL}/api/telemetry-history?device_id=${deviceId}`)
         .then(response => response.json())
         .then(data => {
             // Jika backend mengembalikan format array rows (karena query SELECT di PostgreSQL),
@@ -1403,7 +1404,7 @@ function markAlertRead(alertId) {
 
     // Persist ke DB — hanya untuk alert dengan ID integer (dari DB)
     if (!String(alertId).startsWith('alert_ws_')) {
-        fetch(`http://localhost:1880/api/alerts/${normalizedId}/read`, { method: 'PATCH' })
+        fetch(`${API_BASE_URL}/api/alerts/${normalizedId}/read`, { method: 'PATCH' })
             .catch(err => console.error('Gagal mark-read alert ke DB:', err));
     }
 }
@@ -1416,7 +1417,7 @@ function markAllRead() {
     updateAlertBadge();
     renderAlertList();
 
-    fetch('http://localhost:1880/api/alerts/mark-all-read', { method: 'POST' })
+    fetch(`${API_BASE_URL}/api/alerts/mark-all-read`, { method: 'POST' })
         .catch(err => console.error('Gagal mark-all-read ke DB:', err));
 }
 
@@ -1439,7 +1440,7 @@ function dismissAlert(alertId) {
 
     // Hapus dari DB — hanya untuk alert dengan ID integer (dari DB), bukan alert_ws_*
     if (!String(alertId).startsWith('alert_ws_')) {
-        fetch(`http://localhost:1880/api/alerts/${normalizedId}`, {
+        fetch(`${API_BASE_URL}/api/alerts/${normalizedId}`, {
             method: 'DELETE',
             headers: { 'X-ACW-Token': authToken || '' }
         })
@@ -1456,7 +1457,7 @@ function clearAllAlerts() {
     updateAlertBadge();
     renderAlertList();
 
-    fetch('http://localhost:1880/api/alerts', {
+    fetch(`${API_BASE_URL}/api/alerts`, {
         method: 'DELETE',
         headers: { 'X-ACW-Token': authToken || '' }
     })
@@ -1696,7 +1697,7 @@ function fetchAlertsFromDB() {
     if (listEl) listEl.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px;">Memuat data peringatan...</p>';
     if (emptyEl) emptyEl.style.display = 'none';
 
-    fetch('http://localhost:1880/api/alerts-history?limit=100')
+    fetch(`${API_BASE_URL}/api/alerts-history?limit=100`)
         .then(res => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return res.json();
