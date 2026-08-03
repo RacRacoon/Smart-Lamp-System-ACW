@@ -35,5 +35,11 @@ def login(body: LoginRequest):
     if not user or not auth.verify_password(password, user["password_hash"]):
         raise HTTPException(status_code=401, detail={"error": "Username atau password salah"})
 
+    # Login berhasil pakai hash lama (scrypt) -> upgrade diam-diam ke argon2id.
+    # Password plaintext cuma ada sebentar di request ini, jadi ini satu-satunya
+    # kesempatan buat rehash tanpa minta user ganti password manual.
+    if auth.is_legacy_hash(user["password_hash"]):
+        db.update_password_hash(username, auth.hash_password(password))
+
     token = auth.issue_session(user["role"])
     return {"role": user["role"], "token": token}

@@ -1,20 +1,28 @@
 """
 Autentikasi & sesi. Menggantikan node "Handle Login" cs di node-red-flow-acw.json.
 
-Detail penting: password_hash yang sudah ada di tabel users (dibuat sebelumnya lewat
-Node crypto.scryptSync) menyimpan salt sebagai STRING HEX, dan Node memperlakukan string
-itu sebagai UTF-8 saat dipakai jadi salt scrypt (bukan di-decode dari hex jadi bytes
-mentah). Supaya hash lama tetap valid, verifikasi & pembuatan hash baru di sini SENGAJA
-meniru perilaku itu persis: salt.encode('utf-8'), bukan bytes.fromhex(salt).
-Sudah diverifikasi manual cocok dengan hash 'admin123' yang sudah tersimpan di DB.
+Hash baru pakai Argon2id (argon2-cffi) - pemenang Password Hashing Competition,
+rekomendasi OWASP saat ini, lebih tahan brute-force GPU/ASIC dibanding scrypt.
+Encoded string argon2 selalu mulai dengan "$argon2id$..." jadi bisa dibedakan
+dari format lama tanpa kolom baru di DB.
+
+Hash lama (dibuat sebelumnya lewat Node crypto.scryptSync, format 'salt_hex:hash_hex')
+tetap bisa diverifikasi oleh needs_legacy_rehash()/verify_password() di bawah - salt
+disimpan sebagai STRING HEX dan Node memperlakukan string itu sebagai UTF-8 saat
+dipakai jadi salt scrypt (bukan di-decode dari hex jadi bytes mentah), makanya
+_verify_legacy_scrypt() meniru itu persis: salt.encode('utf-8'), bukan bytes.fromhex(salt).
+User dengan hash lama otomatis di-upgrade ke argon2id saat login berhasil
+(lihat routes_auth.py) - tidak perlu migrasi manual.
 """
 import hashlib
 import hmac
-import os
 import secrets
 import time
 from dataclasses import dataclass
 from typing import Optional
+
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, InvalidHashError
 
 import config
 
@@ -24,19 +32,17 @@ SCRYPT_P = 1
 SCRYPT_MAXMEM = 32 * 1024 * 1024
 SCRYPT_DKLEN = 64
 
+# Parameter default argon2-cffi (time_cost=3, memory_cost=64MB, parallelism=4) sudah
+# di atas rekomendasi minimum OWASP - dipakai apa adanya, tidak perlu di-tune manual.
+_ph = PasswordHasher()
+
 
 def hash_password(password: str) -> str:
-    """Buat hash baru dengan salt acak. Format tersimpan: 'salt_hex:hash_hex'."""
-    salt = secrets.token_hex(16)
-    derived = hashlib.scrypt(
-        password.encode("utf-8"),
-        salt=salt.encode("utf-8"),
-        n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P, maxmem=SCRYPT_MAXMEM, dklen=SCRYPT_DKLEN,
-    )
-    return f"{salt}:{derived.hex()}"
+    """Buat hash baru argon2id. Dipakai untuk user baru & auto-rehash user lama."""
+    return _ph.hash(password)
 
 
-def verify_password(password: str, stored_hash: str) -> bool:
+def _verify_legacy_scrypt(password: str, stored_hash: str) -> bool:
     if not stored_hash or ":" not in stored_hash:
         return False
     salt, hash_hex = stored_hash.split(":", 1)
@@ -52,6 +58,22 @@ def verify_password(password: str, stored_hash: str) -> bool:
     if len(derived) != len(expected):
         return False
     return hmac.compare_digest(derived, expected)  # perbandingan tahan timing-attack
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    if not stored_hash:
+        return False
+    if stored_hash.startswith("$argon2"):
+        try:
+            return _ph.verify(stored_hash, password)
+        except (VerifyMismatchError, InvalidHashError):
+            return False
+    return _verify_legacy_scrypt(password, stored_hash)
+
+
+def is_legacy_hash(stored_hash: str) -> bool:
+    """True kalau hash masih format scrypt lama - dipakai routes_auth.py buat auto-rehash."""
+    return bool(stored_hash) and not stored_hash.startswith("$argon2")
 
 
 @dataclass

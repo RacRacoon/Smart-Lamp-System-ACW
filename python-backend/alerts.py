@@ -57,3 +57,19 @@ def evaluate_alert(device_id: str, volt: float, current: float):
         }
 
     return None
+
+
+def unknown_device_alert(device_id: str) -> dict:
+    """Alert saat telemetry ditolak karena device_id belum diinput manual ke tabel
+    devices - lihat mqtt_ingest.py._handle_telemetry(). Level Critical: data dari
+    ID tak terdaftar dianggap upaya perangkat asing, bukan sekadar gangguan hardware."""
+    return {
+        "level": "Critical",
+        "title": "Perangkat Tidak Terdaftar",
+        "alertType": "unregistered_device",
+        "message": (
+            f"Data telemetry dari device_id '{device_id}' ditolak - ID ini belum "
+            f"terdaftar di tabel devices. Kemungkinan perangkat asing mencoba mengirim data."
+        ),
+        "threshold_info": f"device_id: {device_id}",
+    }
