@@ -56,12 +56,43 @@ def _parse_payload(topic: str, raw: dict) -> dict:
 
 def _handle_telemetry(data: dict) -> None:
     device_id = data["device_id"]
+
+    # Whitelist: device_id harus sudah diinput manual ke tabel devices lebih dulu.
+    # Kalau belum, data ditolak sepenuhnya (tidak masuk telemetry_logs, tidak
+    # auto-register) dan dashboard diberi tahu lewat alert - bukan diam-diam dibuang,
+    # supaya percobaan kirim data dari device_id asing tetap kelihatan.
+    if not db.device_exists(device_id):
+        logger.warning("Telemetry ditolak - device_id '%s' belum terdaftar di tabel devices", device_id)
+        alert = alerts.unknown_device_alert(device_id)
+
+        try:
+            db.insert_alert(
+                None, alert["level"], alert["title"], alert["message"],
+                data["volt"], data["current"], data["power"], alert["threshold_info"],
+            )
+        except Exception:
+            logger.exception("Gagal simpan alert perangkat tak dikenal untuk %s", device_id)
+
+        # Sengaja TIDAK pakai key "id" di sini - itu trigger dashboard mendaftarkan
+        # device baru secara otomatis (lihat socket.onmessage di script.js). Device
+        # asing harus tetap muncul di Kotak Peringatan tanpa pernah jadi node yang
+        # bisa dikontrol/ditampilkan di peta.
+        ws_manager.broadcast({
+            "alert": True,
+            "device_id": device_id,
+            "severity": "critical",
+            "alertType": alert["alertType"],
+            "level": alert["level"],
+            "title": alert["title"],
+            "message": alert["message"],
+        })
+        return
+
     health = alerts.classify_health(data["uptime_hours"])
 
     try:
-        db.upsert_device_and_insert_telemetry(
-            device_id, data["sector"], data["lat"], data["lng"],
-            data["volt"], data["current"], data["power"], data["uptime_hours"], data["dim"],
+        db.insert_telemetry(
+            device_id, data["volt"], data["current"], data["power"], data["uptime_hours"], data["dim"],
         )
     except Exception:
         logger.exception("Gagal simpan telemetry ke Postgres untuk %s", device_id)
@@ -155,3 +186,20 @@ def publish_dim_command(device_id: str, dim: int) -> None:
     topic = config.MQTT_COMMAND_TOPIC_TEMPLATE.format(device_id=device_id)
     payload = json.dumps({"dim": dim})
     _client.publish(topic, payload, qos=1, retain=False)
+
+
+def publish_schedule_command(device_id: str, phases: list[dict]) -> None:
+    """Push konfigurasi jadwal RTC (3-6 fase) ke satu device lewat topic command yang
+    sama dengan publish_dim_command - firmware ESP32 (modul RTC DS3231) yang
+    mengeksekusi tiap fase secara mandiri sesuai jamnya sendiri, backend TIDAK
+    nge-trigger dim setiap jam dari sini.
+
+    retain=True (beda dari publish_dim_command yang retain=False): dim command itu
+    perintah sesaat, tapi jadwal ini konfigurasi yang harus tetap didapat device
+    walau baru nyambung/reconnect setelah broker sempat kirim pesan ini - broker
+    simpan pesan retained-nya dan langsung kirim ulang begitu device subscribe."""
+    if _client is None:
+        raise RuntimeError("MQTT belum konek, panggil start() dulu")
+    topic = config.MQTT_COMMAND_TOPIC_TEMPLATE.format(device_id=device_id)
+    payload = json.dumps({"schedule": phases})
+    _client.publish(topic, payload, qos=1, retain=True)

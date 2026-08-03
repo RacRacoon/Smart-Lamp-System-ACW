@@ -69,32 +69,30 @@ def _fetch(query: str, params: tuple) -> list[dict[str, Any]]:
         _pool.putconn(conn)
 
 
-def upsert_device_and_insert_telemetry(
+def device_exists(device_id: str) -> bool:
+    """Gerbang whitelist perangkat - lihat mqtt_ingest.py._handle_telemetry().
+    Device harus diinput manual ke tabel devices lebih dulu (lewat psql/admin tool)
+    sebelum telemetry dari device_id itu diterima. Tidak ada lagi auto-register."""
+    rows = _fetch("SELECT 1 FROM devices WHERE device_id = %s;", (device_id,))
+    return bool(rows)
+
+
+def insert_telemetry(
     device_id: str,
-    sector: str,
-    lat: float,
-    lng: float,
     volt: float,
     current: float,
     power: float,
     uptime_hours: float,
     dim: int,
 ) -> None:
-    """Setara dengan query CTE "Parse & Generate SQL Query" (ingest MQTT)."""
+    """Setara dengan bagian INSERT telemetry_logs dari query CTE "Parse & Generate
+    SQL Query" (ingest MQTT). Bagian auto-register device sudah dihapus - device_id
+    dijamin sudah ada di tabel devices oleh device_exists() sebelum fungsi ini dipanggil."""
     query = """
-        WITH auto_register_device AS (
-            INSERT INTO devices (device_id, sector_name, latitude, longitude, max_lifespan)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (device_id) DO NOTHING
-        )
         INSERT INTO telemetry_logs (device_id, volt, current, power, uptime, dim, created_at)
         VALUES (%s, %s, %s, %s, %s, %s, NOW());
     """
-    params = (
-        device_id, sector, lat, lng, config.DEFAULT_MAX_LIFESPAN,
-        device_id, volt, current, power, uptime_hours, dim,
-    )
-    _run(query, params)
+    _run(query, (device_id, volt, current, power, uptime_hours, dim))
 
 
 def insert_alert(
@@ -195,8 +193,68 @@ def delete_all_alerts() -> list[dict[str, Any]]:
     return _fetch(query, ())
 
 
+def get_sector_schedules() -> list[dict[str, Any]]:
+    """Semua fase jadwal RTC semua sektor, terurut per sektor lalu urutan operasional
+    fase-nya. Tidak ada kolom urutan fase terpisah - urutan MEMANG ditentukan
+    schedule_time, itu sebabnya UNIQUE(sector_name, schedule_time) di skema: dua fase
+    gak boleh mulai di jam yang sama persis.
+
+    BUKAN ORDER BY schedule_time polos: jadwal lampu jalan melintasi tengah malam
+    (mulai sore, lanjut sampai dini hari) - kalau diurut jam-clock biasa dari 00:00,
+    fase dini hari (mis. 03:30) akan muncul PALING AWAL karena nilainya paling kecil,
+    padahal itu operasionalnya fase TERAKHIR. Trik di bawah: anggap "hari" jadwal
+    lampu mulai jam 12 siang, bukan jam 00:00 - jadi jam >=12:00 (sore/malam) selalu
+    di depan, jam <12:00 (dini hari) selalu di belakang."""
+    query = """
+        SELECT sector_name, TO_CHAR(schedule_time, 'HH24:MI') AS time, dim_level AS dim, cct_level AS cct
+        FROM sector_schedules
+        ORDER BY sector_name, (schedule_time < TIME '12:00') ASC, schedule_time ASC;
+    """
+    return _fetch(query, ())
+
+
+def replace_sector_schedule(sector_name: str, phases: list[dict[str, Any]]) -> None:
+    """Timpa seluruh fase jadwal milik satu sektor jadi persis daftar `phases` baru -
+    hapus semua baris sektor ini lalu insert ulang, satu transaksi (bukan UPDATE per
+    baris) karena jumlah fase admin bisa berubah (nambah/hapus fase, 3-6). FK
+    sector_name -> sectors akan otomatis menolak (IntegrityError) kalau sektornya
+    tidak terdaftar - lihat penanganannya di routes_schedules.py."""
+    if _pool is None:
+        raise RuntimeError("Panggil init_pool() dulu sebelum query")
+    conn = _pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM sector_schedules WHERE sector_name = %s;", (sector_name,))
+            for phase in phases:
+                cur.execute(
+                    """
+                    INSERT INTO sector_schedules (sector_name, schedule_time, dim_level, cct_level)
+                    VALUES (%s, %s, %s, %s);
+                    """,
+                    (sector_name, phase["time"], phase["dim"], phase["cct"]),
+                )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _pool.putconn(conn)
+
+
+def get_device_ids_by_sector(sector_name: str) -> list[str]:
+    """Daftar device_id fisik dalam satu sektor - dipakai buat push konfigurasi jadwal
+    RTC ke tiap lampu lewat MQTT setelah jadwal sektornya disimpan."""
+    rows = _fetch("SELECT device_id FROM devices WHERE sector_name = %s;", (sector_name,))
+    return [r["device_id"] for r in rows]
+
+
 def get_user_by_username(username: str) -> dict[str, Any] | None:
     """Dipakai oleh /api/login. Tabel users dibuat manual (lihat migrasi sebelumnya)."""
     query = "SELECT username, password_hash, role FROM users WHERE username = %s;"
     rows = _fetch(query, (username,))
     return rows[0] if rows else None
+
+
+def update_password_hash(username: str, new_hash: str) -> None:
+    """Auto-upgrade hash lama (scrypt) ke argon2id setelah login berhasil. Lihat auth.py."""
+    _run("UPDATE users SET password_hash = %s WHERE username = %s;", (new_hash, username))

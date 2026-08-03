@@ -16,6 +16,9 @@
     <!-- Layar Login (tampil sebelum masuk dasbor) -->
     <div id="login-overlay">
         <form id="login-form" class="login-card" onsubmit="handleLogin(event)">
+            <div class="login-brand-mark" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
+            </div>
             <h1>Manajemen Lampu Kota</h1>
             <p class="login-subtitle">Masuk untuk mengakses dasbor pemantauan</p>
             <label for="login-username">Username</label>
@@ -86,14 +89,14 @@
             <div class="page-header">
                 <div>
                     <span class="page-eyebrow">Beranda</span>
-                    <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">
+                    <h1>
                         Ringkasan Perangkat: <span id="current-device-id">-</span>
                     </h1>
                 </div>
 
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="color: var(--text-muted); font-size: 14px;">Pilih Lampu:</span>
-                    <select id="device-selector" onchange="switchDevice(this.value)" style="background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 8px 15px; border-radius: 5px; cursor: pointer;">
+                <div class="field-inline">
+                    <span class="field-inline-label">Pilih Lampu:</span>
+                    <select id="device-selector" class="select-control" onchange="switchDevice(this.value)">
                         <option value="">Belum ada lampu</option>
                     </select>
                 </div>
@@ -151,11 +154,11 @@
             </div>
 
             <div class="controls-section" id="quick-control-section">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 style="margin: 0;">Kendali Cepat (Kontrol Manual)</h2>
+                <div class="section-header-row">
+                    <h2>Kendali Cepat (Kontrol Manual)</h2>
                     <!-- Switch Pengunci Manual Override -->
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span id="lock-status-text" style="font-size: 13px; color: var(--text-muted); font-weight: 600;">TERKUNCI</span>
+                    <div class="field-inline">
+                        <span id="lock-status-text" class="lock-status-text">TERKUNCI</span>
                         <label class="switch">
                             <input type="checkbox" id="override-lock-toggle" onchange="toggleManualOverride(this.checked)">
                             <span class="slider-round"></span>
@@ -194,12 +197,12 @@
                         
                         <div class="panel-body">
                             <!-- Status Kecerahan Saat Ini (DB) -->
-                            <div class="info-group" style="margin-bottom: 18px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px; padding: 12px 15px; display: flex; align-items: center; justify-content: space-between;">
+                            <div class="info-group panel-highlight">
                                 <div>
-                                    <span style="color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px;">Kecerahan Saat Ini</span>
-                                    <span style="color: #ffffff; font-size: 20px; font-weight: 700;"><span id="panel-current-dim">80</span>%</span>
+                                    <span class="panel-highlight-label">Kecerahan Saat Ini</span>
+                                    <span class="panel-highlight-value"><span id="panel-current-dim">80</span>%</span>
                                 </div>
-                                <div style="background: rgba(59, 130, 246, 0.2); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #3b82f6;">
+                                <div class="panel-highlight-icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <circle cx="12" cy="12" r="5"/>
                                         <line x1="12" y1="1" x2="12" y2="3"/>
@@ -244,95 +247,42 @@
             <div class="page-header">
                 <div>
                     <span class="page-eyebrow">Kelola Lampu</span>
-                    <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">Konfigurasi &amp; Penjadwalan Lampu</h1>
+                    <h1>Konfigurasi &amp; Penjadwalan Lampu</h1>
                 </div>
             </div>
 
-            <!-- Bagian Menu Pilihan Sektor / Node -->
+            <!-- Bagian Pilihan Sektor - jadwal SELALU berlaku per sektor (semua lampu di
+                 dalamnya sekaligus), tidak ada lagi mode per-lampu individu -->
             <div class="controls-section" style="margin-bottom: 30px;">
-                <h2>Metode Konfigurasi Manajemen</h2>
-                <div style="display: flex; gap: 20px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 6px; margin-bottom: 20px;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="radio" name="config-mode" value="node" checked onchange="changeConfigTarget(this.value)" style="width: 18px; height: 18px;">
-                        <span style="font-weight: 600;">Konfigurasi Per Lampu (Individu)</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="radio" name="config-mode" value="sector" onchange="changeConfigTarget(this.value)" style="width: 18px; height: 18px;">
-                        <span style="font-weight: 600;">Konfigurasi Per Sektor (Grup Sektor)</span>
-                    </label>
-                </div>
-
-                <!-- Target Detil Kontrol (Dinamis Sesuai Mode Pilihan) -->
-                <div id="node-selector-container">
-                    <span style="color: var(--text-muted); font-size: 14px; display: block; margin-bottom: 8px;">Pilih Lampu Target:</span>
-                    <select id="manage-node-selector" onchange="switchDevice(this.value)" style="background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 8px 15px; border-radius: 5px; cursor: pointer; width: 100%; max-width: 350px;">
-                        <option value="">Belum ada lampu</option>
-                    </select>
-                    <!-- Untuk backward-compatibility dengan JS lama -->
-                    <span style="display:none;" id="manage-node-title">-</span>
-                </div>
-                <div id="sector-selector-container" style="display: none;">
-                    <span style="color: var(--text-muted); font-size: 14px; display: block; margin-bottom: 8px;">Pilih Sektor Target:</span>
-                    <select id="sector-selector-input" onchange="loadSectorSettingsToUI(this.value)" style="background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 8px 15px; border-radius: 5px; cursor: pointer; width: 100%; max-width: 350px;">
-                        <option value="">Belum ada sektor</option>
-                    </select>
-                </div>
+                <h2>Sektor Target</h2>
+                <span style="color: var(--text-muted); font-size: 14px; display: block; margin-bottom: 8px;">Jadwal di bawah berlaku untuk SEMUA lampu di sektor terpilih:</span>
+                <select id="sector-selector-input" class="select-control" onchange="loadSectorSettingsToUI(this.value)" style="width: 100%; max-width: 350px;">
+                    <option value="">Belum ada sektor</option>
+                </select>
             </div>
 
             <!-- Panel 1: Time-based Dimming Scheduler -->
             <div class="controls-section">
                 <h2>Penjadwalan Kecerahan & Kehangatan Cahaya (Berdasarkan Waktu)</h2>
                 <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
-                    Atur tingkat kecerahan (1-10) serta intensitas kehangatan warna cahaya (%) yang akan dijalankan secara otomatis oleh sistem sesuai jam yang telah ditentukan.
+                    Atur tingkat kecerahan (1-10) serta intensitas kehangatan warna cahaya (%) yang akan dijalankan secara otomatis oleh sistem sesuai jam yang telah ditentukan. Default 3 fase, admin bisa menambah sampai maksimal 6 fase.
                 </p>
-                
-                <div class="controls-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-                    <!-- Slot Waktu 1: Sore Hari -->
-                    <div class="card" style="background: rgba(0,0,0,0.1);">
-                        <h3 style="color: var(--primary);">Fase 1: Mulai Beroperasi (Sore)</h3>
-                        <div class="control-group" style="margin-top: 10px;">
-                            <label>Jam Mulai:</label>
-                            <input type="time" id="sched-time-1" value="17:30" class="device-selector" style="width: 100%; margin-bottom: 15px; background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 6px; border-radius: 4px;">
-                            
-                            <label>Kecerahan: <span id="sched-dim-label-1">6</span> V</label>
-                            <input type="range" min="1" max="10" value="6" class="slider" id="sched-dim-1" oninput="document.getElementById('sched-dim-label-1').innerText=this.value" style="margin-bottom: 15px;">
-                            
-                            <label>Kehangatan Warna: <span id="sched-cct-label-1">30</span>%</label>
-                            <input type="range" min="0" max="100" value="30" class="slider" id="sched-cct-1" oninput="document.getElementById('sched-cct-label-1').innerText=this.value">
-                        </div>
-                    </div>
 
-                    <!-- Slot Waktu 2: Larut Malam -->
-                    <div class="card" style="background: rgba(0,0,0,0.1);">
-                        <h3 style="color: var(--warning);">Fase 2: Hemat Energi (Tengah Malam)</h3>
-                        <div class="control-group" style="margin-top: 10px;">
-                            <label>Jam Mulai:</label>
-                            <input type="time" id="sched-time-2" value="23:00" class="device-selector" style="width: 100%; margin-bottom: 15px; background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 6px; border-radius: 4px;">
-                            
-                            <label>Kecerahan: <span id="sched-dim-label-2">4</span> V</label>
-                            <input type="range" min="1" max="10" value="4" class="slider" id="sched-dim-2" oninput="document.getElementById('sched-dim-label-2').innerText=this.value" style="margin-bottom: 15px;">
-                            
-                            <label>Kehangatan Warna: <span id="sched-cct-label-2">80</span>%</label>
-                            <input type="range" min="0" max="100" value="80" class="slider" id="sched-cct-2" oninput="document.getElementById('sched-cct-label-2').innerText=this.value">
-                        </div>
-                    </div>
+                <!-- Diisi otomatis oleh JS (renderSchedulePhases): satu kartu per fase jadwal
+                     milik sektor terpilih, jumlahnya dinamis 3-6 -->
+                <div class="controls-grid" id="schedule-phase-list" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;"></div>
 
-                    <!-- Slot Waktu 3: Dini Hari -->
-                    <div class="card" style="background: rgba(0,0,0,0.1);">
-                        <h3 style="color: var(--danger);">Fase 3: Antisipasi Kabut (Dini Hari)</h3>
-                        <div class="control-group" style="margin-top: 10px;">
-                            <label>Jam Mulai:</label>
-                            <input type="time" id="sched-time-3" value="03:30" class="device-selector" style="width: 100%; margin-bottom: 15px; background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 6px; border-radius: 4px;">
-                            
-                            <label>Kecerahan: <span id="sched-dim-label-3">8</span> V</label>
-                            <input type="range" min="1" max="10" value="8" class="slider" id="sched-dim-3" oninput="document.getElementById('sched-dim-label-3').innerText=this.value" style="margin-bottom: 15px;">
-                            
-                            <label>Kehangatan Warna: <span id="sched-cct-label-3">100</span>%</label>
-                            <input type="range" min="0" max="100" value="100" class="slider" id="sched-cct-3" oninput="document.getElementById('sched-cct-label-3').innerText=this.value">
-                        </div>
-                    </div>
+                <div class="schedule-phase-actions">
+                    <button type="button" class="btn-alert-action btn-save-schedule" id="btn-save-schedule" onclick="saveSectorSchedule()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        Simpan Jadwal
+                    </button>
+                    <button type="button" class="btn-alert-action btn-add-phase" id="btn-add-phase" onclick="addSchedulePhase()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Tambah Fase
+                    </button>
+                    <span class="phase-count-hint" id="phase-count-hint"></span>
                 </div>
-
             </div>
         </div>
         <!-- Page Telemetry Logs -->
@@ -340,57 +290,32 @@
             <div class="page-header">
                 <div>
                     <span class="page-eyebrow">Riwayat Data</span>
-                    <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">Riwayat Data &amp; Catatan Historis</h1>
+                    <h1>Riwayat Data &amp; Catatan Historis</h1>
                 </div>
 
-                <!-- Dropdown Pilih Lampu -->
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="color: var(--text-muted); font-size: 14px;">Pilih Lampu:</span>
-                    <select id="telemetry-device-selector" onchange="changeTelemetryDevice(this.value)" style="background: #1e293b; color: white; border: 1px solid #2e3a50; padding: 8px 15px; border-radius: 5px; cursor: pointer;">
-                        <option value="">Belum ada lampu</option>
+                <!-- Dropdown Pilih Sektor - satu sektor bisa berisi beberapa lampu, semua
+                     ditampilkan sekaligus di bawah, tinggal scroll (lihat #telemetry-sector-list) -->
+                <div class="field-inline">
+                    <span class="field-inline-label">Pilih Sektor:</span>
+                    <select id="telemetry-sector-selector" class="select-control" onchange="changeTelemetrySector(this.value)">
+                        <option value="">Belum ada sektor</option>
                     </select>
                 </div>
             </div>
 
-            <!-- Grid Card Status Saat Ini (Quick View) -->
-            <div class="telemetry-summary-grid">
-                <div class="card">
-                    <div class="card-header-row">
-                        <span class="card-icon-badge badge-blue"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
-                        <h3>Rata-rata Tegangan</h3>
-                    </div>
-                    <div class="big-value" style="color: #3b82f6;" id="avg-volt">220.5 V</div>
-                </div>
-                <div class="card">
-                    <div class="card-header-row">
-                        <span class="card-icon-badge badge-green"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
-                        <h3>Rata-rata Arus</h3>
-                    </div>
-                    <div class="big-value" style="color: var(--success);" id="avg-current">0.45 A</div>
-                </div>
-                <div class="card">
-                    <div class="card-header-row">
-                        <span class="card-icon-badge badge-amber"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></span>
-                        <h3>Konsumsi Daya Kumulatif</h3>
-                    </div>
-                    <div class="big-value" style="color: var(--warning);" id="avg-power">98.2 W</div>
-                </div>
-            </div>
-
-            <!-- Container Grafik -->
-            <div class="card" style="padding: 25px; position: relative; height: 450px;">
-                <canvas id="telemetryChart"></canvas>
-            </div>
+            <!-- Diisi otomatis oleh JS (renderTelemetrySectorList): satu blok kartu ringkasan
+                 + grafik per lampu yang ada di sektor terpilih, disusun vertikal -->
+            <div id="telemetry-sector-list" class="telemetry-sector-list"></div>
         </div>
 
         <!-- Halaman 4: Inbox Alerts -->
         <div id="page-alerts" style="display: none;">
 
             <!-- Page Header -->
-            <div class="page-header" style="flex-wrap: wrap; gap: 12px;">
+            <div class="page-header">
                 <div>
                     <span class="page-eyebrow">Notifikasi</span>
-                    <h1 style="color: var(--text-main); font-size: 24px; margin: 0;">Kotak Peringatan</h1>
+                    <h1>Kotak Peringatan</h1>
                 </div>
                 <div style="display: flex; gap: 10px;">
                     <button class="btn-alert-action btn-mark-all" onclick="markAllRead()">
@@ -464,6 +389,49 @@
         </div>
 
     </div>
+
+    <!-- Widget Chat AI - mengambang di semua halaman, terpisah dari page-* -->
+    <div id="ai-chat-panel" class="ai-chat-panel" aria-hidden="true">
+        <div class="ai-chat-header">
+            <div class="ai-chat-header-title">
+                <span class="ai-chat-header-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+                </span>
+                <div>
+                    <span class="ai-chat-header-name">Asisten Dasbor</span>
+                    <span class="ai-chat-header-status" id="ai-chat-status">Siap membantu</span>
+                </div>
+            </div>
+            <button class="ai-chat-close-btn" onclick="closeAiChat()" aria-label="Tutup asisten AI">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+
+        <div class="ai-chat-messages" id="ai-chat-messages">
+            <div class="ai-chat-bubble ai-chat-bubble-assistant">
+                Halo! Aku bisa jawab pertanyaan soal data di dasbor ini secara langsung - status lampu, riwayat telemetry, sampai peringatan. Coba tanya, misalnya: "berapa daya lampu L-107 sekarang?"
+            </div>
+        </div>
+
+        <form class="ai-chat-input-row" id="ai-chat-form" onsubmit="handleAiChatSubmit(event)">
+            <input
+                type="text"
+                id="ai-chat-input"
+                class="ai-chat-input"
+                placeholder="Tanya soal data dasbor..."
+                autocomplete="off"
+                aria-label="Tulis pesan ke asisten AI"
+            >
+            <button type="submit" class="ai-chat-send-btn" aria-label="Kirim pesan">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+        </form>
+    </div>
+
+    <button class="ai-chat-fab" id="ai-chat-fab" onclick="toggleAiChat()" aria-label="Buka asisten AI dasbor" aria-expanded="false">
+        <svg class="ai-chat-fab-icon-open" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+        <svg class="ai-chat-fab-icon-close" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
     </div>
     <script src="script.js"></script>
 </body>

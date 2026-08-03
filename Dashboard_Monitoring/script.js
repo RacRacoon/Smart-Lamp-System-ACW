@@ -1,7 +1,17 @@
-// Backend Python (python-backend/) - satu proses REST+WebSocket. Sesuaikan kalau jalan di host lain.
-const API_BASE_URL = "http://localhost:8000";
-const TELEMETRY_WS_URL = "ws://localhost:8000/ws/telemetry";
+// Backend Python (python-backend/) - satu proses REST+WebSocket. Diturunkan dari host
+// halaman ini sendiri (location.hostname), BUKAN hardcode "localhost" - kalau di-hardcode,
+// dashboard yang dibuka dari HP bakal manggil "localhost:8000" milik HP itu sendiri
+// (bukan PC server), jadi semua fetch/WS gagal diam-diam dan dashboard tampak kosong.
+const API_BASE_URL = `http://${location.hostname}:8000`;
+const TELEMETRY_WS_URL = `ws://${location.hostname}:8000/ws/telemetry`;
 let socket;
+
+// Samakan default font/warna Chart.js dengan tema dasbor (Inter + abu-abu muted) -
+// tidak mengubah warna per-dataset yang sudah diset manual di drawChart().
+if (typeof Chart !== 'undefined') {
+    Chart.defaults.font.family = "'Inter', 'Segoe UI', sans-serif";
+    Chart.defaults.color = '#8a99ad';
+}
 
 function connectWebSocket() {
     socket = new WebSocket(TELEMETRY_WS_URL);
@@ -35,17 +45,6 @@ function connectWebSocket() {
                         uptime: incomingData.uptime || 0,
                         dim: incomingData.dim !== undefined ? parseInt(incomingData.dim) : 8
                     };
-
-                    // Inisialisasi nodeSettings default untuk node baru ini
-                    if (!nodeSettings[deviceId]) {
-                        nodeSettings[deviceId] = {
-                            schedules: incomingData.schedules || [
-                                { time: "17:30", dim: 6, cct: 30 },
-                                { time: "23:00", dim: 4, cct: 80 },
-                                { time: "03:30", dim: 8, cct: 100 }
-                            ]
-                        };
-                    }
 
                     // Inisialisasi telemetryHistory default untuk node baru ini
                     if (!telemetryHistory[deviceId]) {
@@ -119,9 +118,9 @@ function connectWebSocket() {
                         if (telemetryHistory[deviceId].power) telemetryHistory[deviceId].power.shift();
                     }
 
-                    // Jika user sedang melihat tab Telemetry untuk lampu ini, perbarui grafik secara instant
-                    const activeTelDevice = document.getElementById("telemetry-device-selector")?.value;
-                    if (activeTelDevice === deviceId) {
+                    // Jika lampu ini termasuk sektor yang sedang dibuka di tab Riwayat Data,
+                    // perbarui grafik miliknya saja secara instant (tiap lampu punya chart sendiri)
+                    if (devicesData[deviceId].sector === currentTelemetrySector && document.getElementById(`telemetryChart-${deviceId}`)) {
                         drawChart(deviceId);
                         updateTelemetrySummary(deviceId);
                     }
@@ -156,6 +155,24 @@ function connectWebSocket() {
                     // Deteksi otomatis berdasarkan nilai telemetri
                     _checkAndTriggerAlert(deviceId, devicesData[deviceId]);
                 }
+            } else if (incomingData.alert === true) {
+                // Alert tanpa field "id" - device_id-nya sengaja TIDAK didaftarkan
+                // sebagai node dashboard (misal: backend menolak data dari perangkat
+                // asing yang belum terdaftar di database). Tampilkan alert-nya saja,
+                // jangan sentuh devicesData/peta/dropdown sama sekali.
+                addAlert({
+                    nodeId: incomingData.device_id || 'UNKNOWN',
+                    severity: incomingData.severity || 'critical',
+                    type: incomingData.alertType || 'unknown',
+                    message: incomingData.message || 'Terjadi peringatan tanpa detail dari backend.',
+                    volt: 0,
+                    current: 0,
+                    power: 0,
+                    threshold: {},
+                    timestamp: new Date(),
+                    isRead: false,
+                    isDismissed: false
+                });
             }
         } catch (error) {
             console.error("Gagal memproses data dinamis dari backend:", error);
@@ -186,8 +203,7 @@ function setConnectionStatus(isOnline) {
 
 function addDeviceToDropdowns(deviceId, sector) {
     const devSelector = document.getElementById("device-selector");
-    const manageSelector = document.getElementById("manage-node-selector");
-    const telSelector = document.getElementById("telemetry-device-selector");
+    const telSectorSelector = document.getElementById("telemetry-sector-selector");
     const sectorSelector = document.getElementById("sector-selector-input");
 
     const optionExists = (selectEl, value) => {
@@ -203,22 +219,19 @@ function addDeviceToDropdowns(deviceId, sector) {
         devSelector.appendChild(opt);
     }
 
-    if (manageSelector && !optionExists(manageSelector, deviceId)) {
+    // Riwayat Data dikelompokkan per sektor (bukan per lampu lagi) - dropdown ini cuma
+    // perlu didaftar sekali per sektor, isi lampunya di-generate oleh changeTelemetrySector().
+    if (telSectorSelector && sector && !optionExists(telSectorSelector, sector)) {
         const opt = document.createElement("option");
-        opt.value = deviceId;
-
-        // Ambil hanya bagian sebelum tanda kurung jika ada (misal: "Sektor 2")
-        const shortSector = sector.includes("(") ? sector.split("(")[0].trim() : sector;
-
-        opt.textContent = `${deviceId} (${shortSector})`;
-        manageSelector.appendChild(opt);
+        opt.value = sector;
+        opt.textContent = sector;
+        telSectorSelector.appendChild(opt);
     }
 
-    if (telSelector && !optionExists(telSelector, deviceId)) {
-        const opt = document.createElement("option");
-        opt.value = deviceId;
-        opt.textContent = `Tiang ${deviceId}`;
-        telSelector.appendChild(opt);
+    // Kalau lampu baru ini masuk ke sektor yang sedang ditampilkan di halaman Riwayat Data,
+    // render ulang daftarnya supaya lampu baru langsung muncul tanpa perlu ganti-ganti dropdown.
+    if (sector === currentTelemetrySector && document.getElementById("page-telemetry").style.display !== "none") {
+        renderTelemetrySectorList(sector);
     }
 
     if (sectorSelector && sector && !optionExists(sectorSelector, sector)) {
@@ -235,6 +248,11 @@ function addDeviceToDropdowns(deviceId, sector) {
                     { time: "03:30", dim: 8, cct: 100 }
                 ]
             };
+        }
+
+        // Kalau sektor baru ini yang sedang dibuka di tab Kelola Lampu, render jadwalnya
+        if (sector === currentManageSector && document.getElementById("page-manage").style.display !== "none") {
+            renderSchedulePhases(sector);
         }
     }
 }
@@ -307,24 +325,24 @@ function handleLogin(event) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
     })
-    .then(res => {
-        if (!res.ok) throw new Error('unauthorized');
-        return res.json();
-    })
-    .then(data => {
-        sessionStorage.setItem("acw_role", data.role);
-        sessionStorage.setItem("acw_token", data.token);
-        enterDashboard(data.role, data.token);
-    })
-    .catch(() => {
-        errorEl.textContent = "Username atau kata sandi salah. Silakan coba lagi.";
-        errorEl.style.display = "block";
-        passwordInput.value = "";
-        passwordInput.focus();
-    })
-    .finally(() => {
-        submitBtn.disabled = false;
-    });
+        .then(res => {
+            if (!res.ok) throw new Error('unauthorized');
+            return res.json();
+        })
+        .then(data => {
+            sessionStorage.setItem("acw_role", data.role);
+            sessionStorage.setItem("acw_token", data.token);
+            enterDashboard(data.role, data.token);
+        })
+        .catch(() => {
+            errorEl.textContent = "Username atau kata sandi salah. Silakan coba lagi.";
+            errorEl.style.display = "block";
+            passwordInput.value = "";
+            passwordInput.focus();
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+        });
 }
 
 function logout() {
@@ -406,16 +424,6 @@ function initDashboardData() {
                         volt: [node.volt, node.volt, node.volt, node.volt, node.volt, node.volt, node.volt],
                         ampere: [node.current, node.current, node.current, node.current, node.current, node.current, node.current],
                         watt: [node.power, node.power, node.power, node.power, node.power, node.power, node.power]
-                    };
-                }
-
-                if (!nodeSettings[deviceId]) {
-                    nodeSettings[deviceId] = {
-                        schedules: [
-                            { time: "17:30", dim: 6, cct: 30 },
-                            { time: "23:00", dim: 4, cct: 80 },
-                            { time: "03:30", dim: 8, cct: 100 }
-                        ]
                     };
                 }
 
@@ -540,56 +548,172 @@ let sectorSettings = {
     "Sektor 2 (Kertajaya - Depan ITS)": { schedules: [{ time: "18:00", dim: 5, cct: 50 }, { time: "00:00", dim: 3, cct: 80 }, { time: "03:00", dim: 7, cct: 100 }] }
 };
 
-// Fungsi Mengganti Tampilan Form antara Mode Per Node vs Per Sektor
-function changeConfigTarget(mode) {
-    const nodeSelectorContainer = document.getElementById("node-selector-container");
-    const sectorSelectorContainer = document.getElementById("sector-selector-container");
-    const globalApplyLabel = document.getElementById("global-apply-label");
-    const currentDeviceId = document.getElementById("current-device-id").innerText;
+// Jadwal kecerahan sekarang murni per sektor (tidak ada lagi mode per-lampu individu) -
+// default 3 fase per sektor, admin bisa tambah sampai maksimal 6.
+const MIN_SCHEDULE_PHASES = 2;
+const MAX_SCHEDULE_PHASES = 10;
+const PHASE_LABELS = [
+    "Mulai Beroperasi (Sore)",
+    "Hemat Energi (Tengah Malam)",
+    "Antisipasi Kabut (Dini Hari)",
+    "Fase Tambahan",
+    "Fase Tambahan",
+    "Fase Tambahan"
+];
+const PHASE_COLOR_CLASSES = ["phase-primary", "phase-warning", "phase-danger", "phase-info", "phase-success", "phase-purple"];
+let currentManageSector = null;
 
-    if (mode === "sector") {
-        nodeSelectorContainer.style.display = "none";
-        sectorSelectorContainer.style.display = "block";
-        globalApplyLabel.innerText = "Terapkan konfigurasi ini ke SEMUA lampu di dalam Sektor terpilih";
+// Template satu kartu fase - tombol hapus cuma muncul kalau jumlah fase sektor ini masih
+// di atas minimum (3), supaya default 3 fase gak bisa dihapus habis
+function schedulePhaseCardHTML(index, sched, totalPhases) {
+    const n = index + 1;
+    const colorClass = PHASE_COLOR_CLASSES[index % PHASE_COLOR_CLASSES.length];
+    const label = PHASE_LABELS[index] || "Fase Tambahan";
+    const canRemove = totalPhases > MIN_SCHEDULE_PHASES;
 
-        // Ambil sektor dari perangkat yang saat ini aktif
-        const activeSector = devicesData[currentDeviceId].sector;
-        document.getElementById("sector-selector-input").value = activeSector;
-        loadSectorSettingsToUI(activeSector);
-    } else {
-        nodeSelectorContainer.style.display = "block";
-        sectorSelectorContainer.style.display = "none";
-        globalApplyLabel.innerText = "Terapkan konfigurasi ini ke semua lampu secara menyeluruh (Secara Global)";
+    return `
+        <div class="card phase-card ${colorClass}">
+            <div class="phase-card-header">
+                <h3>Fase ${n}: ${label}</h3>
+                ${canRemove ? `<button type="button" class="btn-remove-phase" onclick="removeSchedulePhase(${index})" title="Hapus fase ini" aria-label="Hapus fase ${n}">&times;</button>` : ""}
+            </div>
+            <div class="control-group" style="margin-top: 10px;">
+                <label>Jam Mulai:</label>
+                <input type="time" id="sched-time-${n}" value="${sched.time}" class="input-control" style="width: 100%; margin-bottom: 15px;">
 
-        loadNodeSettingsToUI(currentDeviceId);
-    }
+                <label>Kecerahan: <span id="sched-dim-label-${n}">${sched.dim}</span> V</label>
+                <input type="range" min="1" max="10" value="${sched.dim}" class="slider" id="sched-dim-${n}" oninput="document.getElementById('sched-dim-label-${n}').innerText=this.value" style="margin-bottom: 15px;">
+
+                <label>Kehangatan Warna: <span id="sched-cct-label-${n}">${sched.cct}</span>%</label>
+                <input type="range" min="0" max="100" value="${sched.cct}" class="slider" id="sched-cct-${n}" oninput="document.getElementById('sched-cct-label-${n}').innerText=this.value">
+            </div>
+        </div>`;
 }
 
-// Fungsi pembantu untuk mempopulasikan jadwal ke Form
-function loadSettingsToUI(settings) {
-    if (!settings) return;
+// Render ulang seluruh kartu fase jadwal milik satu sektor (dipanggil tiap ganti sektor,
+// atau setelah fase ditambah/dihapus)
+function renderSchedulePhases(sectorName) {
+    currentManageSector = sectorName || null;
+    const container = document.getElementById("schedule-phase-list");
+    const addBtn = document.getElementById("btn-add-phase");
+    const saveBtn = document.getElementById("btn-save-schedule");
+    const hint = document.getElementById("phase-count-hint");
+    if (!container) return;
 
-    if (settings.schedules && Array.isArray(settings.schedules)) {
-        settings.schedules.forEach((sched, index) => {
-            const i = index + 1;
-            const timeEl = document.getElementById(`sched-time-${i}`);
-            const dimEl = document.getElementById(`sched-dim-${i}`);
-            const dimLabelEl = document.getElementById(`sched-dim-label-${i}`);
-            const cctEl = document.getElementById(`sched-cct-${i}`);
-            const cctLabelEl = document.getElementById(`sched-cct-label-${i}`);
+    const settings = sectorName ? sectorSettings[sectorName] : null;
+    const schedules = (settings && Array.isArray(settings.schedules)) ? settings.schedules : [];
 
-            if (timeEl) timeEl.value = sched.time;
-            if (dimEl) dimEl.value = sched.dim;
-            if (dimLabelEl) dimLabelEl.innerText = sched.dim;
-            if (cctEl) cctEl.value = sched.cct;
-            if (cctLabelEl) cctLabelEl.innerText = sched.cct;
+    if (!sectorName || schedules.length === 0) {
+        container.innerHTML = `<div class="empty-state-block">Pilih sektor dulu untuk mengatur jadwalnya.</div>`;
+        if (addBtn) addBtn.disabled = true;
+        if (saveBtn) saveBtn.disabled = true;
+        if (hint) hint.innerText = "";
+        return;
+    }
+
+    container.innerHTML = schedules
+        .map((sched, i) => schedulePhaseCardHTML(i, sched, schedules.length))
+        .join("");
+
+    if (addBtn) addBtn.disabled = schedules.length >= MAX_SCHEDULE_PHASES;
+    if (saveBtn) saveBtn.disabled = false;
+    if (hint) hint.innerText = `${schedules.length} / ${MAX_SCHEDULE_PHASES} fase`;
+}
+
+// Dipanggil dari dropdown "Sektor Target" di halaman Kelola Lampu
+function loadSectorSettingsToUI(sectorName) {
+    renderSchedulePhases(sectorName);
+}
+
+// Baca nilai fase LANGSUNG dari input yang lagi tampil di form - sumber kebenaran saat
+// ini, karena slider/waktu cuma nulis ke DOM (lihat oninput di schedulePhaseCardHTML),
+// belum pernah ditulis balik ke sectorSettings sampai submit/tambah/hapus fase terjadi
+function readSchedulePhasesFromDOM(count) {
+    const phases = [];
+    for (let i = 1; i <= count; i++) {
+        const timeEl = document.getElementById(`sched-time-${i}`);
+        const dimEl = document.getElementById(`sched-dim-${i}`);
+        const cctEl = document.getElementById(`sched-cct-${i}`);
+        if (!timeEl || !dimEl || !cctEl) continue;
+        phases.push({
+            time: timeEl.value,
+            dim: parseInt(dimEl.value, 10),
+            cct: parseInt(cctEl.value, 10)
         });
     }
+    return phases;
 }
 
-// Mengisi Form berdasarkan Sektor yang dipilih
-function loadSectorSettingsToUI(sectorName) {
-    loadSettingsToUI(sectorSettings[sectorName]);
+// Tombol "+ Tambah Fase" - nambah satu fase baru (nilai default, admin edit sendiri),
+// dikunci di 6 fase maksimal lewat disabled state tombol
+function addSchedulePhase() {
+    if (!currentManageSector) return;
+    const settings = sectorSettings[currentManageSector];
+    if (!settings || !Array.isArray(settings.schedules)) return;
+    if (settings.schedules.length >= MAX_SCHEDULE_PHASES) return;
+
+    // Sinkronkan dulu editan yang sedang berjalan di form sebelum jumlah kartu berubah,
+    // supaya perubahan waktu/kecerahan yang belum di-"Simpan Jadwal" tidak hilang
+    settings.schedules = readSchedulePhasesFromDOM(settings.schedules.length);
+    settings.schedules.push({ time: "12:00", dim: 5, cct: 50 });
+    renderSchedulePhases(currentManageSector);
+}
+
+// Hapus satu fase - dikunci di 3 fase minimum (default) lewat guard di sini + tombol
+// hapus yang cuma dirender kalau totalnya masih di atas minimum
+function removeSchedulePhase(index) {
+    if (!currentManageSector) return;
+    const settings = sectorSettings[currentManageSector];
+    if (!settings || !Array.isArray(settings.schedules)) return;
+    if (settings.schedules.length <= MIN_SCHEDULE_PHASES) return;
+
+    settings.schedules = readSchedulePhasesFromDOM(settings.schedules.length);
+    settings.schedules.splice(index, 1);
+    renderSchedulePhases(currentManageSector);
+}
+
+// Tombol "Simpan Jadwal" - PUT ke backend (admin-only lewat X-ACW-Token), yang lalu
+// menyimpan ke Postgres DAN push konfigurasi ke tiap lampu fisik sektor ini via MQTT
+// (lihat routes_schedules.py). Tanpa ini, jadwal cuma hidup di memori tab browser.
+function saveSectorSchedule() {
+    if (!currentManageSector) return;
+    const settings = sectorSettings[currentManageSector];
+    if (!settings || !Array.isArray(settings.schedules)) return;
+
+    const phases = readSchedulePhasesFromDOM(settings.schedules.length);
+    const saveBtn = document.getElementById("btn-save-schedule");
+    if (saveBtn) saveBtn.disabled = true;
+
+    fetch(`${API_BASE_URL}/api/sector-schedules`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-ACW-Token': authToken || ''
+        },
+        body: JSON.stringify({ sector: currentManageSector, schedules: phases })
+    })
+        .then(res => {
+            if (res.ok) return res.json();
+            return res.json()
+                .catch(() => ({}))
+                .then(data => { throw new Error(data?.error || `HTTP ${res.status}`); });
+        })
+        .then(() => {
+            settings.schedules = phases; // sinkronkan state lokal dengan yang barusan tersimpan
+            console.log(`Jadwal sektor '${currentManageSector}' berhasil disimpan & dipush ke device.`);
+        })
+        .catch(err => {
+            console.error("Gagal menyimpan jadwal sektor:", err);
+            addAlert({
+                nodeId: currentManageSector,
+                severity: 'warning',
+                type: 'schedule_save_failed',
+                message: `Gagal menyimpan jadwal sektor "${currentManageSector}": ${err.message}`
+            });
+        })
+        .finally(() => {
+            if (saveBtn) saveBtn.disabled = false;
+        });
 }
 
 
@@ -744,14 +868,6 @@ function switchDevice(deviceId) {
     const deviceSelector = document.getElementById("device-selector");
     if (deviceSelector) deviceSelector.value = deviceId;
 
-    // Sinkronisasi dropdown pemilih lampu di Manage Nodes
-    const manageNodeSelector = document.getElementById("manage-node-selector");
-    if (manageNodeSelector) manageNodeSelector.value = deviceId;
-
-    // Sinkronisasi judul Manage Node aktif
-    const manageNodeTitle = document.getElementById("manage-node-title");
-    if (manageNodeTitle) manageNodeTitle.innerText = deviceId;
-
     // Update status indicator
     // Update status indicator secara dinamis berdasarkan threshold uptime
     const statusText = document.getElementById("status-text");
@@ -788,13 +904,13 @@ function switchDevice(deviceId) {
     const activeSector = data.sector;
     const settings = sectorSettings[activeSector] || null;
     if (settings) {
-    const panelNodeId = document.getElementById("panel-node-id");
-    if (panelNodeId) panelNodeId.innerText = deviceId;
+        const panelNodeId = document.getElementById("panel-node-id");
+        if (panelNodeId) panelNodeId.innerText = deviceId;
 
-    const panelCurrentDim = document.getElementById("panel-current-dim");
-    if (panelCurrentDim && data.dim !== undefined) {
-        panelCurrentDim.innerText = data.dim;
-    }
+        const panelCurrentDim = document.getElementById("panel-current-dim");
+        if (panelCurrentDim && data.dim !== undefined) {
+            panelCurrentDim.innerText = data.dim;
+        }
 
         // Update jadwal fase rtc di panel peta jika elemennya ada
         if (Array.isArray(settings.schedules)) {
@@ -830,12 +946,13 @@ function switchDevice(deviceId) {
         });
     }
 
-    // Sinkronisasi jika tab manage sedang aktif
+    // Sinkronisasi jika tab manage sedang aktif - jadwal ikut pindah ke sektor milik
+    // lampu yang baru aktif (jadwal sekarang murni per sektor, bukan per lampu)
     const pageManage = document.getElementById("page-manage");
-    if (pageManage && pageManage.style.display === "block") {
-        if (typeof loadNodeSettingsToUI === "function") {
-            loadNodeSettingsToUI(deviceId);
-        }
+    if (pageManage && pageManage.style.display === "block" && data.sector) {
+        const sectorSelectorInput = document.getElementById("sector-selector-input");
+        if (sectorSelectorInput) sectorSelectorInput.value = data.sector;
+        renderSchedulePhases(data.sector);
     }
 }
 
@@ -883,47 +1000,37 @@ function sendDimControl(val) {
             },
             body: JSON.stringify({ id: currentDeviceId, dim: dimVal })
         })
-        .then(res => {
-            if (res.status === 403) throw new Error('forbidden');
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.json();
-        })
-        .then(data => {
-            console.log(`[HTTP] Perintah kecerahan (${dimVal}%) berhasil dikirim ke ${currentDeviceId}:`, data);
-        })
-        .catch(err => {
-            const isForbidden = err.message === 'forbidden';
-            console.error("[HTTP] Gagal mengirim perintah kecerahan ke perangkat:", err);
-            addAlert({
-                nodeId: currentDeviceId,
-                severity: 'warning',
-                type: 'command_failed',
-                message: isForbidden
-                    ? `Perintah kecerahan ke Lampu ${currentDeviceId} ditolak server: hanya admin yang bisa mengubah kecerahan.`
-                    : `Perintah kecerahan ke Lampu ${currentDeviceId} gagal terkirim. Periksa koneksi ke server.`,
-                volt: 0,
-                current: 0,
-                power: 0,
-                threshold: {},
-                timestamp: new Date(),
-                isRead: false,
-                isDismissed: false
+            .then(res => {
+                if (res.status === 403) throw new Error('forbidden');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                console.log(`[HTTP] Perintah kecerahan (${dimVal}%) berhasil dikirim ke ${currentDeviceId}:`, data);
+            })
+            .catch(err => {
+                const isForbidden = err.message === 'forbidden';
+                console.error("[HTTP] Gagal mengirim perintah kecerahan ke perangkat:", err);
+                addAlert({
+                    nodeId: currentDeviceId,
+                    severity: 'warning',
+                    type: 'command_failed',
+                    message: isForbidden
+                        ? `Perintah kecerahan ke Lampu ${currentDeviceId} ditolak server: hanya admin yang bisa mengubah kecerahan.`
+                        : `Perintah kecerahan ke Lampu ${currentDeviceId} gagal terkirim. Periksa koneksi ke server.`,
+                    volt: 0,
+                    current: 0,
+                    power: 0,
+                    threshold: {},
+                    timestamp: new Date(),
+                    isRead: false,
+                    isDismissed: false
+                });
             });
-        });
     }, 150);
 }
 
 // Catatan: Inisialisasi awal dipindahkan ke DOMContentLoaded listener
-
-// Struktur Penyimpanan Pengaturan Konfigurasi Tiap Lampu (State Management)
-let nodeSettings = {
-    "L-101": { schedules: [{ time: "17:30", dim: 6, cct: 30 }, { time: "23:00", dim: 4, cct: 80 }, { time: "03:30", dim: 8, cct: 100 }] },
-    "L-102": { schedules: [{ time: "17:30", dim: 7, cct: 40 }, { time: "22:30", dim: 5, cct: 70 }, { time: "04:00", dim: 9, cct: 90 }] },
-    "L-103": { schedules: [{ time: "18:00", dim: 5, cct: 50 }, { time: "00:00", dim: 3, cct: 80 }, { time: "03:00", dim: 7, cct: 100 }] },
-    "L-104": { schedules: [{ time: "18:00", dim: 5, cct: 50 }, { time: "00:00", dim: 3, cct: 80 }, { time: "03:00", dim: 7, cct: 100 }] },
-    "L-105": { schedules: [{ time: "18:00", dim: 5, cct: 50 }, { time: "00:00", dim: 3, cct: 80 }, { time: "03:00", dim: 7, cct: 100 }] },
-    "L-106": { schedules: [{ time: "18:00", dim: 5, cct: 50 }, { time: "00:00", dim: 3, cct: 80 }, { time: "03:00", dim: 7, cct: 100 }] }
-};
 
 // FUNGSI NAVIGASI TAB HALAMAN (Sudah disatukan & dibersihkan dari duplikasi)
 function navigateTo(pageId, element) {
@@ -949,28 +1056,34 @@ function navigateTo(pageId, element) {
         if (map) map.resize();
     } else if (pageId === 'manage') {
         document.getElementById("page-manage").style.display = "block";
+
+        // Default buka sektor milik lampu yang sedang aktif, kalau belum ada pilih
+        // sektor pertama yang tersedia di dropdown (jadwal sekarang murni per sektor)
         const currentId = document.getElementById("current-device-id").innerText;
+        const sectorSelectorInput = document.getElementById("sector-selector-input");
+        const defaultManageSector = (currentId && devicesData[currentId]?.sector)
+            || sectorSelectorInput?.options[1]?.value
+            || "";
 
-        // Memastikan nama node aktif tersinkronisasi di form judul Manage
-        const manageNodeTitle = document.getElementById("manage-node-title");
-        if (manageNodeTitle) manageNodeTitle.innerText = currentId;
-
-        // Reset radio button ke "node" setiap kali halaman dibuka kembali
-        const radioNode = document.querySelector('input[name="config-mode"][value="node"]');
-        if (radioNode) {
-            radioNode.checked = true;
-            changeConfigTarget("node");
-        }
+        if (sectorSelectorInput) sectorSelectorInput.value = defaultManageSector;
+        renderSchedulePhases(defaultManageSector);
     } else if (pageId === 'telemetry') {
         document.getElementById("page-telemetry").style.display = "block";
 
-        const activeId = document.getElementById("current-device-id").innerText || "L-107";
-        const telSelector = document.getElementById("telemetry-device-selector");
-        if (telSelector) telSelector.value = activeId;
+        // Default buka sektor milik lampu yang sedang aktif (dari peta/dashboard), kalau
+        // belum ada pilih sektor pertama yang tersedia di dropdown
+        const activeId = document.getElementById("current-device-id").innerText;
+        const telSectorSelector = document.getElementById("telemetry-sector-selector");
+        const defaultSector = (activeId && devicesData[activeId]?.sector)
+            || telSectorSelector?.options[1]?.value
+            || "";
+
+        if (telSectorSelector) telSectorSelector.value = defaultSector;
 
         // Beri setTimeout agar browser menyelesaikan render display: block terlebih dahulu
+        // (canvas Chart.js butuh dimensi elemen yang sudah "block", bukan "none")
         setTimeout(() => {
-            renderTelemetryChart(activeId);
+            renderTelemetrySectorList(defaultSector);
         }, 50);
     } else if (pageId === 'alerts') {
         document.getElementById("page-alerts").style.display = "block";
@@ -995,43 +1108,6 @@ window.addEventListener("popstate", () => {
     const pageId = (location.hash || "#dashboard").replace("#", "");
     navigateToHash(pageId);
 });
-
-// Mengisi Form Input Manage Node dengan data sektor aktif sebagai sumber kebenaran tunggal
-function loadNodeSettingsToUI(deviceId) {
-    const data = devicesData[deviceId];
-    const activeSector = data ? data.sector : null;
-    const settings = activeSector && sectorSettings[activeSector]
-        ? sectorSettings[activeSector]
-        : null;
-
-    loadSettingsToUI(settings);
-}
-
-// Menyimpan konfigurasi jadwal pada state frontend
-function saveNodeSettings() {
-    const currentDeviceId = document.getElementById("current-device-id").innerText;
-    const currentSector = devicesData[currentDeviceId]?.sector || null;
-
-    const updatedSchedules = [];
-    for (let i = 1; i <= 3; i++) {
-        updatedSchedules.push({
-            time: document.getElementById(`sched-time-${i}`).value,
-            dim: parseInt(document.getElementById(`sched-dim-${i}`).value),
-            cct: parseInt(document.getElementById(`sched-cct-${i}`).value)
-        });
-    }
-
-    if (currentSector && sectorSettings[currentSector]) {
-        sectorSettings[currentSector].schedules = JSON.parse(JSON.stringify(updatedSchedules));
-    }
-
-    if (nodeSettings[currentDeviceId]) {
-        nodeSettings[currentDeviceId].schedules = JSON.parse(JSON.stringify(updatedSchedules));
-    }
-
-    console.log('Konfigurasi jadwal berhasil disimpan di state frontend untuk:', currentSector);
-    switchDevice(currentDeviceId);
-}
 
 // DATA HISTORIS PZEM (Mock Data 12 Jam Terakhir)
 const telemetryHistory = {
@@ -1073,20 +1149,26 @@ const telemetryHistory = {
     }
 };
 
-let telemetryChartInstance = null;
+// Satu instance Chart.js per lampu (bukan satu global lagi) karena sekarang semua lampu
+// dalam sektor terpilih ditampilkan sekaligus, bukan gantian lewat dropdown.
+let telemetryChartInstances = {};
+let currentTelemetrySector = null;
 
-// INISIALISASI / UPDATE CARD RATA-RATA TELEMETRY
+// INISIALISASI / UPDATE CARD RATA-RATA TELEMETRY (per lampu, id elemen bersufiks deviceId)
 function updateTelemetrySummary(deviceId) {
     const data = telemetryHistory[deviceId];
+    const voltEl = document.getElementById(`avg-volt-${deviceId}`);
+    const currentEl = document.getElementById(`avg-current-${deviceId}`);
+    const powerEl = document.getElementById(`avg-power-${deviceId}`);
+
+    // Blok kartu lampu ini belum/tidak sedang dirender (mis. sektor sudah dipindah) - abaikan
+    if (!voltEl || !currentEl || !powerEl) return;
 
     // Jika data belum ada/belum selesai di-fetch, set tampilan default ke 0
     if (!data) {
-        if (document.getElementById("avg-volt"))
-            document.getElementById("avg-volt").innerText = "0 V";
-        if (document.getElementById("avg-current"))
-            document.getElementById("avg-current").innerText = "0 A";
-        if (document.getElementById("avg-power"))
-            document.getElementById("avg-power").innerText = "0 W";
+        voltEl.innerText = "0 V";
+        currentEl.innerText = "0 A";
+        powerEl.innerText = "0 W";
         return;
     }
 
@@ -1102,19 +1184,18 @@ function updateTelemetrySummary(deviceId) {
         return (sum / arr.length).toFixed(1);
     };
 
-    // Update elemen HTML
-    if (document.getElementById("avg-volt"))
-        document.getElementById("avg-volt").innerText = `${calcAvg(voltArr)} V`;
-    if (document.getElementById("avg-current"))
-        document.getElementById("avg-current").innerText = `${calcAvg(currentArr)} A`;
-    if (document.getElementById("avg-power"))
-        document.getElementById("avg-power").innerText = `${calcAvg(powerArr)} W`;
+    voltEl.innerText = `${calcAvg(voltArr)} V`;
+    currentEl.innerText = `${calcAvg(currentArr)} A`;
+    powerEl.innerText = `${calcAvg(powerArr)} W`;
 }
 
-// FUNGSI MENGGAMBAR/DRAW CHART.JS
+// FUNGSI MENGGAMBAR/DRAW CHART.JS (canvas & instance per lampu: telemetryChart-{deviceId})
 function drawChart(deviceId) {
     const dataSet = telemetryHistory[deviceId];
     if (!dataSet) return;
+
+    const canvas = document.getElementById(`telemetryChart-${deviceId}`);
+    if (!canvas) return; // Blok lampu ini sudah tidak ada di DOM (sektor sudah dipindah)
 
     // Ambil array dengan toleransi nama key
     const labels = dataSet.labels || [];
@@ -1122,13 +1203,13 @@ function drawChart(deviceId) {
     const currentArr = dataSet.current || dataSet.ampere || [];
     const powerArr = dataSet.power || dataSet.watt || [];
 
-    const ctx = document.getElementById('telemetryChart').getContext('2d');
+    const ctx = canvas.getContext('2d');
 
-    if (telemetryChartInstance) {
-        telemetryChartInstance.destroy();
+    if (telemetryChartInstances[deviceId]) {
+        telemetryChartInstances[deviceId].destroy();
     }
 
-    telemetryChartInstance = new Chart(ctx, {
+    telemetryChartInstances[deviceId] = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
@@ -1227,11 +1308,11 @@ function renderTelemetryChart(deviceId) {
                 data.forEach(row => {
                     transformed.labels.push(row.time_label || "");
                     transformed.volt.push(row.volt !== undefined ? parseFloat(row.volt) : 0);
-                    
+
                     const ampVal = row.ampere !== undefined ? parseFloat(row.ampere) : (row.current !== undefined ? parseFloat(row.current) : 0);
                     transformed.ampere.push(ampVal);
                     transformed.current.push(ampVal);
-                    
+
                     const wattVal = row.watt !== undefined ? parseFloat(row.watt) : (row.power !== undefined ? parseFloat(row.power) : 0);
                     transformed.watt.push(wattVal);
                     transformed.power.push(wattVal);
@@ -1257,8 +1338,97 @@ function renderTelemetryChart(deviceId) {
         });
 }
 
-function changeTelemetryDevice(deviceId) {
-    renderTelemetryChart(deviceId);
+// Pill status kesehatan kecil di header tiap blok lampu (warna senada dengan pin peta)
+function telemetryStatusPillHTML(health) {
+    const map = {
+        Healthy: ["telemetry-status-healthy", "Sehat"],
+        Warning: ["telemetry-status-warning", "Perlu Perhatian"],
+        Critical: ["telemetry-status-critical", "Kritis"]
+    };
+    const [cls, label] = map[health] || ["telemetry-status-warning", health || "Tidak Diketahui"];
+    return `<span class="telemetry-status-pill ${cls}">${label}</span>`;
+}
+
+// Template HTML satu blok lampu: header + 3 kartu ringkasan + grafik, id-nya disufiks
+// deviceId supaya banyak lampu bisa tampil sekaligus dalam satu sektor tanpa bentrok id
+function telemetryLampBlockHTML(deviceId, health) {
+    return `
+        <div class="telemetry-lamp-block">
+            <div class="telemetry-lamp-header">
+                <span class="card-icon-badge badge-blue">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
+                </span>
+                <h2>Tiang ${deviceId}</h2>
+                ${telemetryStatusPillHTML(health)}
+            </div>
+
+            <div class="telemetry-summary-grid">
+                <div class="card">
+                    <div class="card-header-row">
+                        <span class="card-icon-badge badge-blue"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+                        <h3>Rata-rata Tegangan</h3>
+                    </div>
+                    <div class="big-value" style="color: #3b82f6;" id="avg-volt-${deviceId}">0.0 V</div>
+                </div>
+                <div class="card">
+                    <div class="card-header-row">
+                        <span class="card-icon-badge badge-green"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+                        <h3>Rata-rata Arus</h3>
+                    </div>
+                    <div class="big-value" style="color: var(--success);" id="avg-current-${deviceId}">0.0 A</div>
+                </div>
+                <div class="card">
+                    <div class="card-header-row">
+                        <span class="card-icon-badge badge-amber"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></span>
+                        <h3>Konsumsi Daya Kumulatif</h3>
+                    </div>
+                    <div class="big-value" style="color: var(--warning);" id="avg-power-${deviceId}">0.0 W</div>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 25px; position: relative; height: 380px;">
+                <canvas id="telemetryChart-${deviceId}"></canvas>
+            </div>
+        </div>`;
+}
+
+// Render semua lampu milik satu sektor sekaligus (ganti dropdown per-lampu lama) - user
+// tinggal scroll ke bawah untuk lihat histori tiap lampu, tidak perlu ganti-ganti pilihan
+function renderTelemetrySectorList(sectorName) {
+    currentTelemetrySector = sectorName || null;
+    const container = document.getElementById("telemetry-sector-list");
+    if (!container) return;
+
+    // Bersihkan instance Chart.js lama supaya tidak nyangkut ke canvas yang sudah dibuang
+    Object.values(telemetryChartInstances).forEach(chart => chart.destroy());
+    telemetryChartInstances = {};
+
+    if (!sectorName) {
+        container.innerHTML = `<div class="empty-state-block">Pilih sektor dulu untuk melihat riwayat datanya.</div>`;
+        return;
+    }
+
+    const deviceIds = Object.values(devicesData)
+        .filter(d => d.sector === sectorName)
+        .map(d => d.id)
+        .sort();
+
+    if (deviceIds.length === 0) {
+        container.innerHTML = `<div class="empty-state-block">Belum ada lampu terdaftar di sektor ini.</div>`;
+        return;
+    }
+
+    container.innerHTML = deviceIds
+        .map(id => telemetryLampBlockHTML(id, devicesData[id].health))
+        .join("");
+
+    // Fetch histori & gambar grafik masing-masing lampu setelah blok-nya ada di DOM
+    deviceIds.forEach(id => renderTelemetryChart(id));
+}
+
+// Dipanggil dari dropdown "Pilih Sektor" di halaman Riwayat Data
+function changeTelemetrySector(sectorName) {
+    renderTelemetrySectorList(sectorName);
 }
 
 // Fungsi untuk mengaktifkan/menonaktifkan input manual override
@@ -1284,10 +1454,32 @@ function toggleManualOverride(isUnlocked) {
     }
 }
 
+// Ambil jadwal RTC sungguhan dari database (GET /api/sector-schedules, publik - dipakai
+// juga oleh panel detail lampu di halaman Beranda yang bisa dilihat semua role), timpa
+// default hardcode di atas. Sektor yang belum punya baris di DB tetap pakai default 3
+// fase bawaan sampai admin menyimpan jadwalnya yang pertama kali.
 function fetchSectorSettings() {
-    if (document.getElementById("current-device-id")) {
-        switchDevice(document.getElementById("current-device-id").innerText);
-    }
+    fetch(`${API_BASE_URL}/api/sector-schedules`)
+        .then(res => res.json())
+        .then(grouped => {
+            Object.keys(grouped).forEach(sector => {
+                if (grouped[sector].length > 0) {
+                    sectorSettings[sector] = { schedules: grouped[sector] };
+                }
+            });
+
+            // Kalau tab Kelola Lampu kebetulan lagi kebuka pas fetch ini selesai, refresh
+            // tampilan fase-nya dengan data server yang baru datang
+            if (currentManageSector && grouped[currentManageSector]) {
+                renderSchedulePhases(currentManageSector);
+            }
+        })
+        .catch(err => console.error("Gagal memuat jadwal sektor dari server:", err))
+        .finally(() => {
+            if (document.getElementById("current-device-id")) {
+                switchDevice(document.getElementById("current-device-id").innerText);
+            }
+        });
 }
 
 
@@ -1799,12 +1991,12 @@ function _checkAndTriggerAlert(deviceId, data) {
 
     // Definisi aturan anomali: [kondisi, severity, type, threshold]
     const rules = [
-        { check: volt > 240,                severity: 'critical', type: 'voltage_spike',  threshold: { volt: 240 } },
-        { check: volt < 100 && volt > 0,    severity: 'critical', type: 'offline',        threshold: { volt: 100 } },
-        { check: current > 1.5,             severity: 'critical', type: 'current_spike',  threshold: { current: 1.5 } },
-        { check: volt >= 100 && volt < 200, severity: 'warning',  type: 'voltage_drop',   threshold: { volt: 200 } },
+        { check: volt > 240, severity: 'critical', type: 'voltage_spike', threshold: { volt: 240 } },
+        { check: volt < 100 && volt > 0, severity: 'critical', type: 'offline', threshold: { volt: 100 } },
+        { check: current > 1.5, severity: 'critical', type: 'current_spike', threshold: { current: 1.5 } },
+        { check: volt >= 100 && volt < 200, severity: 'warning', type: 'voltage_drop', threshold: { volt: 200 } },
         { check: current > 1.0 && current <= 1.5, severity: 'warning', type: 'current_high', threshold: { current: 1.0 } },
-        { check: power > 350,               severity: 'warning',  type: 'power_high',     threshold: {} }
+        { check: power > 350, severity: 'warning', type: 'power_high', threshold: {} }
     ];
 
     rules.forEach(rule => {
@@ -1845,3 +2037,150 @@ function _checkAndTriggerAlert(deviceId, data) {
 // Pesan WebSocket dengan field alert === true akan langsung memanggil addAlert()
 // tanpa melalui logika deteksi otomatis.
 // ============================================================
+
+// ============================================================
+// WIDGET CHAT AI - terhubung ke POST /api/chat (backend Python -> Gemini,
+// tool-calling di-ground ke data Postgres, jawaban akhir di-stream via SSE).
+// ============================================================
+
+// Riwayat percakapan sisi klien - dikirim ulang tiap request biar model ingat
+// konteks sebelumnya (API di baliknya stateless, sama seperti /api/login dkk).
+let aiChatHistory = [];
+
+function setAiChatStatus(text) {
+    const el = document.getElementById('ai-chat-status');
+    if (el) el.textContent = text;
+}
+
+function toggleAiChat() {
+    const panel = document.getElementById('ai-chat-panel');
+    const fab = document.getElementById('ai-chat-fab');
+    if (!panel || !fab) return;
+
+    const isOpen = panel.classList.toggle('is-open');
+    fab.classList.toggle('is-open', isOpen);
+    fab.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    panel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+
+    if (isOpen) {
+        const input = document.getElementById('ai-chat-input');
+        if (input) setTimeout(() => input.focus(), 50);
+    }
+}
+
+function closeAiChat() {
+    const panel = document.getElementById('ai-chat-panel');
+    const fab = document.getElementById('ai-chat-fab');
+    if (!panel || !fab) return;
+    panel.classList.remove('is-open');
+    fab.classList.remove('is-open');
+    fab.setAttribute('aria-expanded', 'false');
+    panel.setAttribute('aria-hidden', 'true');
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const panel = document.getElementById('ai-chat-panel');
+        if (panel && panel.classList.contains('is-open')) closeAiChat();
+    }
+});
+
+function appendAiChatBubble(role, text) {
+    const list = document.getElementById('ai-chat-messages');
+    if (!list) return null;
+    const bubble = document.createElement('div');
+    bubble.className = `ai-chat-bubble ai-chat-bubble-${role}`;
+    bubble.textContent = text;
+    list.appendChild(bubble);
+    list.scrollTop = list.scrollHeight;
+    return bubble;
+}
+
+async function handleAiChatSubmit(event) {
+    event.preventDefault();
+    const input = document.getElementById('ai-chat-input');
+    const sendBtn = document.querySelector('.ai-chat-send-btn');
+    if (!input) return;
+
+    const message = input.value.trim();
+    if (!message) return;
+
+    appendAiChatBubble('user', message);
+    input.value = '';
+    input.disabled = true;
+    if (sendBtn) sendBtn.disabled = true;
+    setAiChatStatus('Mengetik...');
+
+    const assistantBubble = appendAiChatBubble('assistant', '...');
+    let firstChunkReceived = false;
+    let fullText = '';
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, history: aiChatHistory }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            assistantBubble.textContent = err.error || `Asisten AI sedang bermasalah (HTTP ${res.status}).`;
+            setAiChatStatus('Error');
+            return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        const list = document.getElementById('ai-chat-messages');
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // baris terakhir mungkin belum lengkap - simpan buat chunk berikutnya
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('data:')) continue;
+                const dataStr = trimmed.slice(5).trim();
+                if (!dataStr || dataStr === '[DONE]') continue;
+
+                let parsed;
+                try {
+                    parsed = JSON.parse(dataStr);
+                } catch (e) {
+                    continue; // baris SSE terpotong di batas chunk, lewati
+                }
+
+                if (parsed.error) {
+                    fullText += (fullText ? '\n' : '') + `[${parsed.error}]`;
+                } else {
+                    const delta = parsed.choices?.[0]?.delta?.content;
+                    if (delta) fullText += delta;
+                }
+
+                if (!firstChunkReceived && fullText) {
+                    firstChunkReceived = true;
+                }
+                assistantBubble.textContent = fullText || '...';
+                if (list) list.scrollTop = list.scrollHeight;
+            }
+        }
+
+        if (!fullText) assistantBubble.textContent = '(tidak ada balasan dari model)';
+        aiChatHistory.push({ role: 'user', content: message });
+        aiChatHistory.push({ role: 'assistant', content: fullText });
+        setAiChatStatus('Aktif');
+    } catch (err) {
+        console.error('[AI Chat] Gagal terhubung ke backend:', err);
+        assistantBubble.textContent = 'Tidak bisa menghubungi server. Periksa koneksi jaringan.';
+        setAiChatStatus('Error');
+    } finally {
+        input.disabled = false;
+        if (sendBtn) sendBtn.disabled = false;
+        input.focus();
+    }
+}

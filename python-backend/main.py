@@ -22,8 +22,10 @@ import db
 import mqtt_ingest
 import routes_alerts
 import routes_auth
+import routes_chat
 import routes_command
 import routes_devices
+import routes_schedules
 import ws_manager
 
 logging.basicConfig(
@@ -59,6 +61,8 @@ app.include_router(routes_devices.router)
 app.include_router(routes_alerts.router)
 app.include_router(routes_auth.router)
 app.include_router(routes_command.router)
+app.include_router(routes_chat.router)
+app.include_router(routes_schedules.router)
 
 
 @app.websocket("/ws/telemetry")
