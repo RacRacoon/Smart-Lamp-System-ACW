@@ -1,0 +1,21 @@
+# Reverse proxy TLS depan FastAPI backend (python-backend, port 8000).
+# Caddy urus sertifikat Let's Encrypt otomatis - tinggal ganti domain di bawah,
+# arahkan DNS domain itu ke IP server ini, port 80+443 kebuka ke internet.
+#
+# Jalanin: caddy run --config Caddyfile
+# (atau via Docker: docker run -p 80:80 -p 443:443 -v $PWD/Caddyfile:/etc/caddy/Caddyfile caddy)
+
+your-domain.com {
+	reverse_proxy localhost:8000
+
+	# WebSocket (/ws/telemetry) otomatis ke-proxy juga - reverse_proxy Caddy
+	# deteksi header Upgrade/Connection sendiri, tidak perlu konfigurasi tambahan.
+
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+	}
+}
