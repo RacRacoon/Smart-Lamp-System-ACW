@@ -47,3 +47,15 @@ UPTIME_WARNING_HOURS = 8000
 VOLT_SPIKE_THRESHOLD = 240
 VOLT_OFFLINE_THRESHOLD = 200
 CURRENT_SPIKE_THRESHOLD = 1.5
+
+# --- Asisten AI (chat dasbor, jawaban di-ground ke data live lewat tool-calling) ---
+# Lewat endpoint OpenAI-compatible resmi Gemini (bukan OpenRouter lagi). Untuk API
+# key baru per Agustus 2026, model "flash" reguler ("gemini-2.5-flash",
+# "gemini-2.0-flash", alias "gemini-flash-latest" -> gemini-3.6-flash) sudah
+# ditutup/dibatasi sangat ketat (quota free tier limit 0-5 req) buat proyek baru -
+# cuma varian "lite" yang masih dapat kuota gratis normal, makanya dipakai
+# "gemini-flash-lite-latest". Key jangan pernah di-hardcode di sini, selalu dari
+# env var (lihat .env di folder docker-compose, sengaja tidak ikut repo git).
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
