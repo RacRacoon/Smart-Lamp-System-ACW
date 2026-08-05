@@ -136,6 +136,30 @@ def get_devices_latest() -> list[dict[str, Any]]:
     return _fetch(query, ())
 
 
+def get_device_latest(device_id: str) -> dict[str, Any] | None:
+    """Status & telemetry terbaru SATU lampu - dipakai analyze_device() (AI per-lampu
+    di Riwayat Data) supaya gak perlu tarik data SEMUA lampu terus filter di Python."""
+    query = """
+        SELECT
+            d.device_id AS id,
+            d.sector_name AS sector,
+            d.max_lifespan AS max_lifespan,
+            COALESCE(t.volt, 0) AS volt,
+            COALESCE(t.current, 0) AS current,
+            COALESCE(t.power, 0) AS power,
+            COALESCE(t.uptime, 0) AS uptime,
+            COALESCE(t.dim, 80) AS dim,
+            t.created_at AS last_update
+        FROM devices d
+        LEFT JOIN telemetry_logs t ON d.device_id = t.device_id
+        WHERE d.device_id = %s
+        ORDER BY t.created_at DESC
+        LIMIT 1;
+    """
+    rows = _fetch(query, (device_id,))
+    return rows[0] if rows else None
+
+
 def get_telemetry_history(device_id: str) -> list[dict[str, Any]]:
     """Setara dengan node "Get Telemetry History" (GET /api/telemetry-history)."""
     query = """
@@ -191,6 +215,73 @@ def delete_all_alerts() -> list[dict[str, Any]]:
     """Setara dengan node "Delete All Alerts" (DELETE /api/alerts)."""
     query = "DELETE FROM alerts RETURNING id;"
     return _fetch(query, ())
+
+
+def get_sector_lamp_states() -> list[dict[str, Any]]:
+    """Satu baris per lampu terdaftar: sektornya + uptime terbaru. Dipakai halaman
+    Dashboard buat hitung jumlah lampu per sektor DAN klasifikasi kesehatannya.
+
+    Sengaja balikin baris per lampu (bukan langsung COUNT per sektor di SQL): status
+    kesehatan ditentukan alerts.classify_health(), satu-satunya sumber kebenaran
+    ambang batasnya. Kalau di-agregat di SQL, ambang 8000/10000 jam itu harus
+    ditulis ulang di query dan bisa lepas sinkron dengan config.py.
+
+    LEFT JOIN sectors: sektor yang belum punya lampu tetap muncul (device_id NULL)
+    supaya kelihatan di grafik pembagian, bukan hilang diam-diam."""
+    query = """
+        SELECT
+            s.sector_name,
+            d.device_id,
+            COALESCE(t.uptime, 0) AS uptime
+        FROM sectors s
+        LEFT JOIN devices d ON d.sector_name = s.sector_name
+        LEFT JOIN LATERAL (
+            SELECT uptime FROM telemetry_logs
+            WHERE device_id = d.device_id
+            ORDER BY created_at DESC
+            LIMIT 1
+        ) t ON TRUE
+        ORDER BY s.sector_name, d.device_id;
+    """
+    return _fetch(query, ())
+
+
+def get_average_telemetry(buckets: int = 48) -> list[dict[str, Any]]:
+    """Rata-rata telemetry SELURUH lampu, dikelompokkan per jam.
+
+    Ambil N bucket terakhir yang PUNYA data, bukan jendela jam-dinding (mis.
+    "24 jam terakhir"): kalau ingest MQTT sempat berhenti, filter jam-dinding
+    balikin kosong walau riwayatnya ada. Pola LIMIT-lalu-urut-ulang-ASC ini sama
+    dengan get_telemetry_history()."""
+    query = """
+        SELECT * FROM (
+            SELECT
+                TO_CHAR(date_trunc('hour', created_at), 'DD/MM HH24:MI') AS time_label,
+                date_trunc('hour', created_at) AS bucket,
+                ROUND(AVG(volt)::numeric, 2) AS avg_volt,
+                ROUND(AVG(current)::numeric, 3) AS avg_current,
+                ROUND(AVG(power)::numeric, 2) AS avg_power,
+                COUNT(DISTINCT device_id) AS device_count
+            FROM telemetry_logs
+            GROUP BY bucket
+            ORDER BY bucket DESC
+            LIMIT %s
+        ) sub
+        ORDER BY bucket ASC;
+    """
+    rows = _fetch(query, (buckets,))
+    for r in rows:
+        r.pop("bucket", None)  # dipakai buat urut saja, tidak perlu dikirim ke frontend
+    return rows
+
+
+def get_alert_counts() -> dict[str, Any]:
+    """Jumlah alert total & belum dibaca - kartu KPI di Dashboard."""
+    rows = _fetch(
+        "SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE is_read = FALSE) AS unread FROM alerts;",
+        (),
+    )
+    return rows[0] if rows else {"total": 0, "unread": 0}
 
 
 def get_sector_schedules() -> list[dict[str, Any]]:

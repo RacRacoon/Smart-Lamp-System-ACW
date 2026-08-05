@@ -27,7 +27,42 @@ SYSTEM_PROMPT = (
     "(contoh L-107), pakai ID itu apa adanya. Kalau user tidak menyebut lampu mana, "
     "cek dulu daftar lampu lewat get_devices_latest sebelum menjawab. Jawab singkat, "
     "jelas, dan dalam Bahasa Indonesia. Kalau data yang diminta tidak ada/tidak "
-    "ditemukan, bilang terus terang, jangan menebak-nebak."
+    "ditemukan, bilang terus terang, jangan menebak-nebak. Tulis teks polos - JANGAN "
+    "pakai markdown (tanpa **tebal**, tanpa bullet -/*, tanpa heading #)."
+)
+
+ANALYSIS_SYSTEM_PROMPT = (
+    "Kamu asisten analisis teknis untuk dasbor Manajemen Lampu Kota. Kamu akan diberi "
+    "data status terbaru dan riwayat telemetry (tegangan/arus/daya) SATU lampu jalan "
+    "dalam format JSON di pesan user - jangan minta data lain, jangan mengarang angka "
+    "yang tidak ada di situ. Tulis jawaban dalam Bahasa Indonesia, singkat (maksimal "
+    "4-5 kalimat total), teks polos tanpa markdown (tanpa **tebal**, tanpa bullet -/*), "
+    "dengan format persis begini:\n\n"
+    "Kesimpulan: <kondisi lampu ini secara umum berdasarkan data yang diberikan>\n"
+    "Saran: <tindakan yang perlu diambil petugas, atau bilang \"Tidak ada tindakan "
+    "khusus diperlukan\" kalau kondisinya normal>"
+)
+
+SYSTEM_ANALYSIS_PROMPT = (
+    "Kamu asisten analisis teknis untuk dasbor Manajemen Lampu Kota. Kamu akan diberi "
+    "ringkasan SELURUH SISTEM penerangan jalan dalam format JSON di pesan user: jumlah "
+    "lampu & sektor, rincian kesehatan lampu per sektor, rata-rata telemetry "
+    "(tegangan/arus/daya) per jam, dan jumlah peringatan. Jangan minta data lain, jangan "
+    "mengarang angka yang tidak ada di situ.\n\n"
+    "Nilai penting yang perlu kamu perhatikan: tegangan normal sekitar 220V - di atas "
+    "240V dianggap lonjakan, di bawah 200V dianggap perangkat bermasalah/offline. Lampu "
+    "berstatus 'Warning' sudah melewati 8000 jam pakai, 'Need Maintenance' sudah melewati "
+    "10000 jam dan wajib diganti.\n\n"
+    "Bicara pada level SISTEM (tren keseluruhan, sektor mana yang bermasalah, pola yang "
+    "menonjol), bukan membahas satu per satu lampu. Kalau ada sektor yang belum punya "
+    "lampu sama sekali atau data telemetry-nya sedikit/kosong, sebut apa adanya - jangan "
+    "menyimpulkan berlebihan dari data yang tipis.\n\n"
+    "Tulis jawaban dalam Bahasa Indonesia, singkat (maksimal 5-6 kalimat total), teks "
+    "polos tanpa markdown (tanpa **tebal**, tanpa bullet -/*), dengan format persis "
+    "begini:\n\n"
+    "Kesimpulan: <kondisi sistem secara keseluruhan berdasarkan data yang diberikan>\n"
+    "Saran: <tindakan prioritas yang perlu diambil pengelola, atau bilang \"Tidak ada "
+    "tindakan khusus diperlukan\" kalau sistemnya normal>"
 )
 
 TOOLS = [
@@ -178,3 +213,59 @@ def stream_final_answer(messages: list[dict]):
         "POST", f"{config.GEMINI_BASE_URL}/chat/completions",
         headers=_headers(), json=payload, timeout=60.0,
     )
+
+
+def analyze_device(device_id: str) -> str | None:
+    """Analisis satu lampu buat tombol "Analisis AI" di kartu lampu (Riwayat Data).
+    Beda dari resolve_tool_calls()/stream_final_answer(): device_id sudah pasti tahu
+    dari klik user, jadi datanya langsung ditarik & disuntik ke prompt di sini - tidak
+    lewat loop tool-calling (device_id) sama sekali, satu panggilan API non-streaming,
+    bukan dua. Return None kalau device_id tidak terdaftar di database."""
+    latest = db.get_device_latest(device_id)
+    if latest is None:
+        return None
+
+    history = db.get_telemetry_history(device_id)
+
+    user_content = (
+        f"Data status terbaru lampu {device_id}:\n"
+        f"{json.dumps(latest, default=str)}\n\n"
+        f"Riwayat telemetry (maksimal 100 titik terakhir, urut waktu):\n"
+        f"{json.dumps(history, default=str)}"
+    )
+    messages = [
+        {"role": "system", "content": ANALYSIS_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+
+    data = _call_gemini(messages, with_tools=False)
+    return data["choices"][0]["message"]["content"]
+
+
+def analyze_system(overview: dict) -> str:
+    """Analisis tingkat sistem buat kartu Ringkasan AI di halaman Dashboard.
+
+    `overview` sengaja DITERIMA sebagai argumen, bukan dikumpulkan ulang di sini:
+    pemanggilnya mengoper hasil routes_overview.system_overview() yang persis sama
+    dengan yang dipakai kartu KPI & grafik di layar. Kalau fungsi ini query sendiri,
+    angka yang dibahas AI bisa berbeda dari yang sedang dilihat user (mis. ada
+    telemetry baru masuk di antara dua query)."""
+    summary = overview.get("summary", {})
+    sectors = overview.get("sectors", [])
+    avg_telemetry = overview.get("avg_telemetry", [])
+
+    user_content = (
+        f"Ringkasan sistem:\n{json.dumps(summary, default=str)}\n\n"
+        f"Rincian per sektor (jumlah lampu & status kesehatannya):\n"
+        f"{json.dumps(sectors, default=str)}\n\n"
+        f"Rata-rata telemetry seluruh lampu per jam "
+        f"({len(avg_telemetry)} titik terakhir yang ada datanya, urut waktu):\n"
+        f"{json.dumps(avg_telemetry, default=str)}"
+    )
+    messages = [
+        {"role": "system", "content": SYSTEM_ANALYSIS_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+
+    data = _call_gemini(messages, with_tools=False)
+    return data["choices"][0]["message"]["content"]

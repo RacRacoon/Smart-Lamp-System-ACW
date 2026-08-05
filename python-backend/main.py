@@ -25,6 +25,7 @@ import routes_auth
 import routes_chat
 import routes_command
 import routes_devices
+import routes_overview
 import routes_schedules
 import ws_manager
 
@@ -63,6 +64,7 @@ app.include_router(routes_auth.router)
 app.include_router(routes_command.router)
 app.include_router(routes_chat.router)
 app.include_router(routes_schedules.router)
+app.include_router(routes_overview.router)
 
 
 @app.websocket("/ws/telemetry")
