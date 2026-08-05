@@ -1,42 +1,61 @@
 # Smart Lamp System - City Manager Dashboard
 
-Dashboard Monitoring dan Manajemen Sistem Penerangan Jalan Pintar (Smart Street Lighting) berbasis Web Real-Time. Dashboard ini memvisualisasikan data telemetri lampu jalan secara 3D, memungkinkan kendali manual override, penjadwalan berbasis waktu (RTC), otomatisasi berbasis sensor LDR, serta analisis log historis menggunakan grafik interaktif.
+Dashboard Monitoring dan Manajemen Sistem Penerangan Jalan Pintar (Smart Street Lighting) berbasis Web Real-Time. Backend satu proses **Python/FastAPI** menangani REST API, WebSocket, ingest telemetri MQTT, dan evaluasi peringatan otomatis; frontend memvisualisasikan posisi lampu di peta 3D, kendali manual, penjadwalan RTC per sektor, riwayat telemetri, kotak peringatan, dan asisten AI (Gemini) yang menjawab pertanyaan berdasarkan data live di database - bukan jawaban karangan.
 
 ---
 
 ## 🚀 Fitur Utama
 
-### 1. **Dasbor Monitoring Real-Time (Overview Perangkat)**
-* **Visualisasi Peta 3D**: Menggunakan **Maplibre GL** dan **OpenFreeMap** untuk menampilkan posisi tiang lampu jalan secara real-time dengan detail status interaktif pada split-panel.
-* **Status Kesehatan Perangkat**: Indikator status dinamis (*Healthy*, *Warning*, *Critical*) berdasarkan kondisi lampu.
-* **Perhitungan Lifespan**: Estimasi sisa umur operasional lampu (misal: 4,500 / 10,000 jam) dengan visualisasi bar kemajuan dinamis.
-* **Monitoring Daya Aktif (PZEM)**: Menampilkan data Tegangan (V), Arus (A), dan Daya Aktif (W) secara langsung dari perangkat ESP32.
-* **Kendali Cepat (Manual Override)**: Fitur penguncian keamanan dan slider manual untuk mengatur tingkat redup (*Dimming* 1-10V) serta kehangatan warna (*CCT* 0-100%).
+### 1. Dashboard - Ringkasan Sistem
+Halaman beranda, agregat **seluruh sistem** (bukan per lampu):
+* Kartu KPI: total lampu, total daya aktif, rata-rata tegangan & arus, jumlah peringatan belum dibaca.
+* Grafik rata-rata telemetri (tegangan/arus/daya) seluruh lampu, dikelompokkan per jam.
+* Dua diagram donat: kesehatan lampu (Sehat/Perlu Perhatian/Perlu Perawatan) dan pembagian jumlah lampu per sektor, dengan rincian per sektor di bawahnya.
+* **Ringkasan AI Sistem** - analisis naratif kondisi keseluruhan sistem (tombol manual, hasil di-cache).
 
-### 2. **Manajemen Node & Sektor (Manage Nodes)**
-* **Konfigurasi Fleksibel**: Pilihan konfigurasi per-node individu maupun konfigurasi massal per-sektor (contoh: Sektor 1 Jalan Tunjungan, Sektor 2 Kertajaya).
-* **Otomatisasi LDR**: Pengaturan sensor cahaya (LDR) otomatis yang memutus daya lampu (0%) secara mandiri pada siang hari.
-* **Penjadwalan 3 Fase (RTC)**: Integrasi dengan modul RTC DS3231 untuk jadwal otomatisasi waktu:
-  * **Fase 1 (Sore)**: Mulai operasi/dimming sore hari.
-  * **Fase 2 (Tengah Malam)**: Mode hemat energi/redup maksimal.
-  * **Fase 3 (Dini Hari)**: Antisipasi kabut dengan cahaya hangat/CCT tinggi.
-* **Integrasi MQTT**: Tombol kirim konfigurasi terintegrasi langsung dengan broker MQTT melalui backend Node-RED.
+### 2. Monitor Lampu - Detail Per Perangkat
+Pemantauan satu lampu yang dipilih dari dropdown:
+* Status kesehatan, estimasi usia pakai (progress bar terhadap 10.000 jam), daya/tegangan/arus real-time, koordinat GPS.
+* Grafik tren daya terbaru + badge persentase perubahan.
+* **Ringkasan AI per lampu** (tombol manual).
+* Kendali Cepat (Manual Override): slider kecerahan (dimming) dan kehangatan warna (CCT), terkunci di belakang toggle keamanan - khusus admin.
+* Peta 3D (Maplibre GL + OpenFreeMap) dengan panel detail lampu yang bisa dibuka per pin.
 
-### 3. **Log Telemetri & Data Historis (Telemetry Logs)**
-* **Filter Perangkat**: Memilih data historis per-tiang lampu.
-* **Metrik Kumulatif**: Rata-rata Tegangan, Rata-rata Arus, dan Konsumsi Daya Kumulatif.
-* **Grafik Interaktif**: Menggunakan **Chart.js** untuk memplot fluktuasi tegangan, arus, dan watt secara berkala.
+### 3. Kelola Lampu - Penjadwalan RTC per Sektor (khusus admin)
+* Jadwal kecerahan & kehangatan warna murni per sektor (bukan per lampu individu) - berlaku untuk semua lampu dalam sektor terpilih.
+* Default 3 fase, admin bisa menambah sampai maksimal 6 fase, atau menghapus kembali ke minimum 3.
+* Jadwal tersimpan permanen ke database dan di-push ke tiap lampu fisik lewat MQTT (retained) saat disimpan - firmware ESP32 (modul RTC DS3231) yang mengeksekusi tiap fase secara mandiri sesuai jamnya sendiri.
+
+### 4. Riwayat Data - Telemetri per Sektor
+* Pilih sektor, semua lampu di dalamnya ditampilkan sekaligus (scroll), masing-masing dengan kartu ringkasan rata-rata + grafik tegangan/arus/daya dari riwayat asli di database.
+* **Analisis AI per lampu** - tombol per kartu, menyimpulkan kondisi lampu berdasarkan riwayat telemetrinya.
+
+### 5. Kotak Peringatan
+* Daftar peringatan (lonjakan tegangan, perangkat offline, lonjakan arus, perangkat tak terdaftar) dengan filter tingkat keparahan, sektor/lampu, dan pencarian teks.
+* Tandai dibaca (semua role) dan hapus (khusus admin) - aksi hapus lewat modal konfirmasi, bukan langsung eksekusi.
+
+### 6. Asisten AI Dasbor
+Widget chat mengambang di seluruh halaman - jawab pertanyaan bebas soal data sistem lewat tool-calling ke Gemini (cek daftar lampu, riwayat telemetri, atau riwayat peringatan sesuai kebutuhan pertanyaan), jawaban di-stream dan digrounding ke database, tidak mengarang angka.
+
+### 7. Autentikasi & Peran
+* Login dengan sesi berbasis token (12 jam), hash password Argon2id (auto-upgrade dari hash lama saat login berhasil).
+* Dua peran: **admin** (akses penuh, termasuk Kelola Lampu, Kendali Cepat, hapus peringatan) dan **petugas monitoring** (baca-saja - halaman & aksi admin disembunyikan dan ditolak juga di sisi backend).
 
 ---
 
 ## 🛠️ Teknologi yang Digunakan
 
-* **Frontend**: HTML5, Vanilla CSS3 (Custom Dark Theme & Responsive Layout), JavaScript (ES6)
-* **Visualisasi & Peta**: Maplibre GL, OpenFreeMap (Vektor 3D)
-* **Grafik**: Chart.js
-* **Komunikasi Backend & Real-Time**: Node-RED, WebSockets (`ws://localhost:1880`), REST API (`http://localhost:1880/api`)
-* **Basis Data**: PostgreSQL (melalui integrasi Node-RED)
-* **Protokol IoT**: MQTT (untuk kontrol dan pengiriman parameter ke ESP32)
+| Lapisan | Teknologi |
+|---|---|
+| Frontend | HTML5, Vanilla CSS3 (dark theme, custom dropdown & modal dengan transisi), JavaScript (ES6, tanpa framework/build step) |
+| Peta 3D | Maplibre GL + OpenFreeMap |
+| Grafik | Chart.js |
+| Backend | Python 3.11, FastAPI (REST + WebSocket dalam satu proses), Uvicorn |
+| Database | PostgreSQL (koneksi lewat psycopg2, connection pool) |
+| Ingest IoT | MQTT (paho-mqtt) - subscribe telemetri, publish command/jadwal ke ESP32 |
+| Autentikasi | Argon2id (argon2-cffi), sesi token in-memory |
+| Asisten AI | Google Gemini, lewat endpoint OpenAI-compatible resminya (httpx) |
+| Reverse proxy (produksi) | Caddy (TLS otomatis Let's Encrypt, lihat `Caddyfile`) |
 
 ---
 
@@ -44,47 +63,116 @@ Dashboard Monitoring dan Manajemen Sistem Penerangan Jalan Pintar (Smart Street 
 
 ```bash
 Dashboard_Monitoring/
-├── index.html   # Struktur utama halaman (Dashboard, Manage, & Telemetry)
-├── style.css    # Gaya UI, tema gelap, transisi panel, dan tata letak responsif
-├── script.js    # Logika WebSocket, Chart.js, Maplibre GL, serta sinkronisasi state
-└── README.md    # Dokumentasi proyek
+├── index.html          # Struktur seluruh halaman (Dashboard, Monitor, Kelola, Riwayat, Peringatan)
+├── style.css            # Tema gelap, komponen custom (dropdown/modal + transisi), layout responsif
+└── script.js            # Navigasi SPA, WebSocket, Chart.js, Maplibre GL, state & sinkronisasi
+
+python-backend/
+├── main.py               # Entrypoint FastAPI - daftar semua router, startup (DB pool, MQTT, WS)
+├── config.py              # Semua konfigurasi dari environment variable
+├── db.py                  # Query PostgreSQL (parameterized)
+├── mqtt_ingest.py         # Subscribe telemetri MQTT, evaluasi alert, publish command/jadwal
+├── auth.py                 # Hashing password (Argon2id) & sesi token
+├── alerts.py                # Aturan klasifikasi kesehatan & threshold peringatan
+├── ai_chat.py                # Integrasi Gemini: chat tool-calling, analisis per-lampu & per-sistem
+├── ws_manager.py              # Broadcast WebSocket ke semua dashboard yang terhubung
+├── routes_devices.py           # GET /api/devices-latest, /api/telemetry-history
+├── routes_overview.py           # GET /api/system-overview (agregat Dashboard)
+├── routes_schedules.py           # GET/PUT /api/sector-schedules
+├── routes_command.py              # POST /api/lights/:id/command (kendali cepat)
+├── routes_alerts.py                # CRUD /api/alerts*
+├── routes_auth.py                   # POST /api/login
+├── routes_chat.py                    # POST /api/chat, /api/chat/analyze-device, /api/chat/analyze-system
+├── requirements.txt
+└── Dockerfile
+
+Caddyfile                # Reverse proxy TLS untuk deployment produksi (opsional)
 ```
 
 ---
 
 ## ⚙️ Persiapan & Jalankan Lokal
 
-### 1. Prasyarat (Prerequisites)
-Pastikan Anda sudah menginstal dan menjalankan:
-1. **Node-RED**: Berjalan pada port default (`http://localhost:1880`).
-2. **PostgreSQL**: Database dengan tabel telemetri dan konfigurasi lampu.
-3. **MQTT Broker**: (Misalnya Mosquitto) untuk lalu lintas data sensor ESP32 dan pengiriman konfigurasi.
+### 1. Prasyarat
+* PostgreSQL dengan tabel `devices`, `sectors`, `telemetry_logs`, `alerts`, `users`, `sector_schedules` sudah dibuat.
+* Broker MQTT (mis. Mosquitto atau `broker.emqx.io` publik) untuk lalu lintas telemetri ESP32.
+* Python 3.11+.
+* (Opsional) API key Gemini dari [Google AI Studio](https://aistudio.google.com/apikey) untuk fitur asisten AI - tanpa ini, semua fitur non-AI tetap berjalan normal, endpoint chat/analisis akan balikin 503.
 
-### 2. Konfigurasi Endpoint Backend
-Jika Node-RED atau database Anda berjalan di IP/port yang berbeda, sesuaikan URL pada bagian awal file `script.js`:
-```javascript
-// Sesuaikan dengan alamat server Node-RED Anda
-const NODE_RED_WS_URL = "ws://localhost:1880/ws/telemetry";
-```
+### 2. Konfigurasi Environment Variable
 
-### 3. Menjalankan Dashboard
-Karena dashboard menggunakan vanilla HTML/JS, Anda dapat membukanya secara langsung atau menggunakan local server sederhana:
+| Variabel | Default | Keterangan |
+|---|---|---|
+| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | `postgres_db` / `5432` / `smart_lights` / `admin` / `ACW123` | Koneksi PostgreSQL |
+| `MQTT_HOST` / `MQTT_PORT` | `broker.emqx.io` / `1883` | Broker MQTT |
+| `MQTT_TELEMETRY_TOPIC` | `iot/lights/+/telemetry` | Topic subscribe telemetri |
+| `API_HOST` / `API_PORT` | `0.0.0.0` / `8000` | Alamat listen server |
+| `SESSION_DURATION_HOURS` | `12` | Masa berlaku sesi login |
+| `CORS_ALLOW_ORIGINS` | `*` | Origin yang diizinkan akses API |
+| `GEMINI_API_KEY` | *(kosong)* | Wajib diisi untuk fitur asisten AI |
+| `GEMINI_MODEL` | `gemini-flash-lite-latest` | Model Gemini yang dipakai |
 
-**Menggunakan VS Code Live Server (Direkomendasikan)**:
-1. Buka folder `Dashboard_Monitoring` di VS Code.
-2. Klik kanan pada `index.html` dan pilih **Open with Live Server**.
+Jangan pernah taruh `GEMINI_API_KEY` atau kredensial database langsung di source code - selalu lewat environment variable.
 
-**Menggunakan Python HTTP Server**:
-Jalankan perintah ini di dalam folder proyek melalui terminal:
+### 3. Menjalankan Backend
+
 ```bash
-python3 -m http.server 8000
+cd python-backend
+pip install -r requirements.txt
+export DB_HOST=localhost DB_PASSWORD=... GEMINI_API_KEY=...   # sesuaikan
+python3 main.py
 ```
-Buka browser dan akses ke `http://localhost:8000`.
+
+Atau lewat Docker:
+
+```bash
+cd python-backend
+docker build -t acw-backend .
+docker run -p 8000:8000 --env-file .env acw-backend
+```
+
+Dokumentasi API otomatis (Swagger UI) tersedia di `http://localhost:8000/docs` setelah server jalan.
+
+### 4. Menjalankan Frontend
+
+Dashboard adalah HTML/CSS/JS murni tanpa build step - buka lewat server statis apa saja:
+
+```bash
+cd Dashboard_Monitoring
+python3 -m http.server 5500
+```
+
+Buka `http://localhost:5500`. Frontend otomatis menurunkan alamat backend dari hostname halaman itu sendiri (`http://<host>:8000`) - jadi kalau dashboard diakses dari perangkat lain di jaringan yang sama, tidak perlu ubah konfigurasi apa pun.
 
 ---
 
-## 📡 Skema Integrasi Data Node-RED
-Aplikasi ini dirancang untuk bekerja secara dinamis. Alur data yang didukung oleh `script.js`:
-1. **Inisialisasi Awal**: Saat halaman dimuat, web melakukan `fetch` ke API Node-RED (`/api/devices-latest`) untuk mendapatkan koordinat dan data telemetri terbaru yang disimpan di PostgreSQL.
-2. **Dinamis Node Detection**: Jika ada perangkat baru terhubung (misal: `L-107`) yang belum didefinisikan secara lokal, frontend akan otomatis menambahkannya ke dropdown pilihan, membuat pin peta baru, dan mendaftarkan konfigurasi defaultnya.
-3. **Koneksi WebSocket**: Menjaga koneksi real-time untuk memperbarui status daya PZEM, tingkat lifespan, koordinat, dan peringatan tanpa perlu me-refresh halaman.
+## 🔌 Ringkasan Endpoint API
+
+| Method | Endpoint | Akses | Keterangan |
+|---|---|---|---|
+| POST | `/api/login` | Publik | Autentikasi, balikin token sesi |
+| GET | `/api/devices-latest` | Publik | Status & telemetri terbaru semua lampu |
+| GET | `/api/telemetry-history` | Publik | Riwayat telemetri satu lampu |
+| GET | `/api/system-overview` | Publik | Agregat sistem untuk halaman Dashboard |
+| GET | `/api/sector-schedules` | Publik | Jadwal RTC semua sektor |
+| PUT | `/api/sector-schedules` | Admin | Simpan jadwal sektor + push MQTT |
+| POST | `/api/lights/{id}/command` | Admin | Kendali cepat (dim) |
+| GET | `/api/alerts-history` | Publik | Riwayat peringatan |
+| PATCH | `/api/alerts/{id}/read` | Publik | Tandai satu peringatan dibaca |
+| POST | `/api/alerts/mark-all-read` | Publik | Tandai semua dibaca |
+| DELETE | `/api/alerts/{id}` / `/api/alerts` | Admin | Hapus satu / semua peringatan |
+| POST | `/api/chat` | Publik | Chat AI (streaming, tool-calling) |
+| POST | `/api/chat/analyze-device` | Publik | Analisis AI satu lampu |
+| POST | `/api/chat/analyze-system` | Publik | Analisis AI seluruh sistem |
+| WS | `/ws/telemetry` | Publik | Broadcast real-time ke dashboard |
+
+Endpoint yang mengubah data (kendali, jadwal, hapus peringatan) memvalidasi peran admin lewat header `X-ACW-Token`, bukan sekadar disembunyikan di UI.
+
+---
+
+## 📡 Alur Data Real-Time
+
+1. ESP32 publish telemetri ke topic MQTT `iot/lights/{device_id}/telemetry`.
+2. `mqtt_ingest.py` menyimpannya ke PostgreSQL, mengevaluasi status kesehatan & threshold peringatan, lalu broadcast ke semua dashboard yang terhubung lewat WebSocket.
+3. Perangkat dengan `device_id` yang belum terdaftar di tabel `devices` **ditolak** (bukan auto-register) dan memicu peringatan kritis "Perangkat Tidak Terdaftar".
+4. Frontend menerima update lewat WebSocket dan menyinkronkan kartu status, peta, grafik, serta badge peringatan tanpa perlu refresh halaman.
