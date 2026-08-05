@@ -201,6 +201,173 @@ function setConnectionStatus(isOnline) {
     textEl.textContent = isOnline ? "Terhubung" : "Menyambung ulang...";
 }
 
+// ============================================================
+//  CUSTOM DROPDOWN — bungkus native <select> dengan transisi menu-dropdown
+//  dari skill transitions-dev (origin-aware scale+fade, lihat .t-dropdown
+//  di style.css). Native <select> TETAP ada di DOM (disembunyikan lewat
+//  .native-select-hidden) sebagai sumber kebenaran value/opsi/onchange -
+//  semua kode lama yang appendChild opsi atau pasang onchange="..." di
+//  HTML jalan tanpa perlu diubah. Custom trigger+menu di sini cuma
+//  lapisan visual yang baca & nulis balik ke select aslinya.
+// ============================================================
+const customDropdowns = {};
+
+function initCustomSelect(selectId) {
+    const nativeSelect = document.getElementById(selectId);
+    if (!nativeSelect || customDropdowns[selectId]) return;
+
+    nativeSelect.classList.add("native-select-hidden");
+
+    const wrap = document.createElement("div");
+    wrap.className = "t-dropdown-wrap";
+    wrap.setAttribute("style", nativeSelect.getAttribute("style") || "");
+
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "t-dropdown-trigger";
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+
+    const label = document.createElement("span");
+    label.className = "t-dropdown-trigger-label";
+    trigger.appendChild(label);
+
+    const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    chevron.setAttribute("class", "t-dropdown-chevron");
+    chevron.setAttribute("width", "14");
+    chevron.setAttribute("height", "14");
+    chevron.setAttribute("viewBox", "0 0 24 24");
+    chevron.setAttribute("fill", "none");
+    chevron.setAttribute("stroke", "currentColor");
+    chevron.setAttribute("stroke-width", "2");
+    chevron.setAttribute("stroke-linecap", "round");
+    chevron.setAttribute("stroke-linejoin", "round");
+    chevron.innerHTML = '<polyline points="6 9 12 15 18 9"></polyline>';
+    trigger.appendChild(chevron);
+
+    const menu = document.createElement("div");
+    menu.className = "t-dropdown t-dropdown-menu";
+    menu.dataset.origin = "top-left";
+    menu.setAttribute("role", "listbox");
+    menu.tabIndex = -1;
+
+    wrap.appendChild(trigger);
+    wrap.appendChild(menu);
+    nativeSelect.insertAdjacentElement("afterend", wrap);
+
+    const closeMs = () => parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--dropdown-close-dur")
+    ) || 150;
+
+    // Toggle .is-open / .is-closing dengan setTimeout cleanup persis pola dari skill -
+    // tanpa cleanup ini, buka berikutnya bakal loncat dari skala closing, bukan dari
+    // skala pre-open istirahat.
+    function open() {
+        Object.keys(customDropdowns).forEach(id => {
+            if (id !== selectId) customDropdowns[id].close();
+        });
+        menu.classList.remove("is-closing");
+        menu.classList.add("is-open");
+        trigger.setAttribute("aria-expanded", "true");
+    }
+    function close() {
+        if (!menu.classList.contains("is-open")) return;
+        menu.classList.remove("is-open");
+        menu.classList.add("is-closing");
+        trigger.setAttribute("aria-expanded", "false");
+        setTimeout(() => menu.classList.remove("is-closing"), closeMs());
+    }
+    function toggle() {
+        if (menu.classList.contains("is-open")) close(); else open();
+    }
+    function selectValue(value) {
+        if (nativeSelect.value !== value) {
+            nativeSelect.value = value;
+            // dispatch manual - set .value lewat JS tidak otomatis memicu onchange
+            // (baik atribut inline di HTML maupun listener lain yang nempel ke select ini)
+            nativeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        syncLabel();
+        close();
+    }
+    function syncLabel() {
+        const opt = nativeSelect.options[nativeSelect.selectedIndex];
+        label.textContent = opt ? opt.textContent : "";
+        Array.from(menu.children).forEach(row => {
+            row.setAttribute("aria-selected", row.dataset.value === nativeSelect.value ? "true" : "false");
+        });
+    }
+    function rebuildOptions() {
+        menu.innerHTML = "";
+        Array.from(nativeSelect.options).forEach(opt => {
+            const row = document.createElement("div");
+            row.className = "t-dropdown-option";
+            row.setAttribute("role", "option");
+            row.dataset.value = opt.value;
+            row.textContent = opt.textContent;
+            row.addEventListener("click", () => selectValue(opt.value));
+            menu.appendChild(row);
+        });
+        syncLabel();
+    }
+
+    trigger.addEventListener("click", toggle);
+
+    trigger.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            if (!menu.classList.contains("is-open")) open();
+            menu.focus();
+            const options = menu.querySelectorAll(".t-dropdown-option");
+            options.forEach(o => o.classList.remove("is-active"));
+            options[0]?.classList.add("is-active");
+        } else if (e.key === "Escape") {
+            close();
+        }
+    });
+
+    menu.addEventListener("keydown", (e) => {
+        const options = Array.from(menu.querySelectorAll(".t-dropdown-option"));
+        const activeIndex = options.findIndex(o => o.classList.contains("is-active"));
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            const dir = e.key === "ArrowDown" ? 1 : -1;
+            const nextIndex = (activeIndex + dir + options.length) % options.length;
+            options.forEach(o => o.classList.remove("is-active"));
+            options[nextIndex]?.classList.add("is-active");
+            options[nextIndex]?.scrollIntoView({ block: "nearest" });
+        } else if (e.key === "Enter") {
+            e.preventDefault();
+            const active = options[activeIndex] || options[0];
+            if (active) selectValue(active.dataset.value);
+        } else if (e.key === "Escape") {
+            e.preventDefault();
+            close();
+            trigger.focus();
+        }
+    });
+
+    document.addEventListener("click", (e) => {
+        if (!wrap.contains(e.target)) close();
+    });
+
+    // Nangkep <option> yang ditambah/dihapus lewat appendChild (addDeviceToDropdowns dkk) -
+    // TIDAK nangkep nativeSelect.value = X yang di-set langsung dari tempat lain (browser
+    // tidak fire mutation buat itu), makanya titik-titik itu manggil
+    // refreshCustomSelectLabel() manual sesudahnya (lihat pemanggilnya di file ini)
+    new MutationObserver(rebuildOptions).observe(nativeSelect, { childList: true });
+
+    rebuildOptions();
+
+    customDropdowns[selectId] = { open, close, syncLabel };
+}
+
+// Dipanggil sesudah kode lain nge-set `.value` native select secara langsung (bukan
+// lewat klik dropdown custom) - supaya label yang tampil di trigger ikut sinkron
+function refreshCustomSelectLabel(selectId) {
+    customDropdowns[selectId]?.syncLabel();
+}
+
 function addDeviceToDropdowns(deviceId, sector) {
     const devSelector = document.getElementById("device-selector");
     const telSectorSelector = document.getElementById("telemetry-sector-selector");
@@ -264,6 +431,7 @@ function onMarkerClick(device) {
     // Sinkronisasi dropdown pemilih lampu
     const selector = document.getElementById("device-selector");
     if (selector) selector.value = deviceId;
+    refreshCustomSelectLabel("device-selector");
 
     // Update data perangkat, tampilkan panel detail, dan terbangkan peta secara smooth
     switchDevice(deviceId);
@@ -355,17 +523,39 @@ function enterDashboard(role, token) {
     currentRole = role;
     authToken = token;
 
-    document.getElementById("login-overlay").style.display = "none";
-    document.getElementById("app-shell").style.display = "flex";
+    const finishEnterDashboard = () => {
+        document.getElementById("login-overlay").style.display = "none";
+        document.getElementById("app-shell").style.display = "flex";
 
-    const roleBadge = document.getElementById("role-badge");
-    if (roleBadge) roleBadge.textContent = role === "admin" ? "Admin" : "Petugas Monitoring";
+        const roleBadge = document.getElementById("role-badge");
+        if (roleBadge) roleBadge.textContent = role === "admin" ? "Admin" : "Petugas Monitoring";
 
-    applyRoleRestrictions(role);
+        applyRoleRestrictions(role);
 
-    if (!dashboardInitialized) {
-        dashboardInitialized = true;
-        initDashboardData();
+        if (!dashboardInitialized) {
+            dashboardInitialized = true;
+            ["device-selector", "sector-selector-input", "telemetry-sector-selector", "alert-node-filter"]
+                .forEach(initCustomSelect);
+            initDashboardData();
+        }
+    };
+
+    // Transisi tutup ala modal (skill transitions-dev, 06-modal.md) pada kartu login
+    // sebelum overlay-nya disembunyikan - .is-open sudah nempel dari HTML sejak awal,
+    // jadi cuma jalur TUTUP ini yang dianimasikan, bukan kemunculan pertama kali.
+    const loginCard = document.getElementById("login-form");
+    if (loginCard) {
+        const closeMs = parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue("--modal-close-dur")
+        ) || 150;
+        loginCard.classList.remove("is-open");
+        loginCard.classList.add("is-closing");
+        setTimeout(() => {
+            loginCard.classList.remove("is-closing");
+            finishEnterDashboard();
+        }, closeMs);
+    } else {
+        finishEnterDashboard();
     }
 }
 
@@ -446,11 +636,12 @@ function initDashboardData() {
             connectWebSocket();
         })
         .finally(() => {
-            // Buka halaman sesuai URL saat pertama kali dimuat (deep link / refresh)
+            // Buka halaman sesuai URL saat pertama kali dimuat (deep link / refresh).
+            // Dipanggil TANPA pengecualian halaman default: Dashboard perlu navigateTo()
+            // buat men-trigger loadSystemOverview(). Dulu 'dashboard' di-skip karena
+            // halaman lama sudah tampil apa adanya dari HTML dan tidak perlu muat apa-apa.
             const initialPage = (location.hash || "#dashboard").replace("#", "");
-            if (initialPage !== "dashboard") {
-                navigateToHash(initialPage);
-            }
+            navigateToHash(initialPage);
         });
 }
 
@@ -833,6 +1024,11 @@ function switchDevice(deviceId) {
     const data = devicesData[deviceId];
     if (!data) return;
 
+    // Dipakai buat bedain switchDevice() yang beneran ganti lampu (perlu fetch histori
+    // baru) vs yang cuma re-sync tick WS buat lampu yang sudah aktif (cukup pakai data
+    // yang sudah ada di memori) - lihat pemakaiannya di bagian tren daya Beranda di bawah
+    const isRealSwitch = document.getElementById("current-device-id")?.innerText !== deviceId;
+
     // 1. Perbarui Informasi Atas (Card Data) - Hanya jika elemennya ada di halaman aktif
     const currentDeviceEl = document.getElementById("current-device-id");
     if (currentDeviceEl) currentDeviceEl.innerText = data.id;
@@ -867,6 +1063,7 @@ function switchDevice(deviceId) {
     // Sinkronisasi dropdown pemilih lampu di Dashboard
     const deviceSelector = document.getElementById("device-selector");
     if (deviceSelector) deviceSelector.value = deviceId;
+    refreshCustomSelectLabel("device-selector");
 
     // Update status indicator
     // Update status indicator secara dinamis berdasarkan threshold uptime
@@ -952,9 +1149,597 @@ function switchDevice(deviceId) {
     if (pageManage && pageManage.style.display === "block" && data.sector) {
         const sectorSelectorInput = document.getElementById("sector-selector-input");
         if (sectorSelectorInput) sectorSelectorInput.value = data.sector;
+        refreshCustomSelectLabel("sector-selector-input");
         renderSchedulePhases(data.sector);
     }
+
+    // Refresh tren daya di Monitor Lampu kalau halaman ini yang lagi aktif dilihat. Ganti
+    // lampu beneran -> fetch histori baru (loadBerandaTrend); tick WS buat lampu yang sudah
+    // aktif -> cukup gambar ulang dari data yang sudah di-live-append (refreshBerandaTrendUI),
+    // supaya gak fetch /api/telemetry-history berulang-ulang tiap telemetry masuk
+    const pageMonitor = document.getElementById("page-monitor");
+    if (pageMonitor && pageMonitor.style.display !== "none") {
+        if (isRealSwitch) {
+            loadBerandaTrend(deviceId);
+        } else {
+            refreshBerandaTrendUI(deviceId);
+        }
+    }
 }
+
+// ============================================================
+//  DASHBOARD (halaman beranda) — agregat SELURUH sistem dari GET /api/system-overview.
+//  Tidak ada angka contoh di sini: kalau backend balikin nol/array kosong, yang tampil
+//  memang nol dan empty state, bukan data karangan.
+// ============================================================
+let avgTelemetryChartInstance = null;
+let healthPieChartInstance = null;
+let sectorPieChartInstance = null;
+
+const HEALTH_COLORS = {
+    "Healthy": "#10b981",
+    "Warning": "#ffb800",
+    "Need Maintenance": "#f23d3d"
+};
+const HEALTH_LABELS = {
+    "Healthy": "Sehat",
+    "Warning": "Perlu Perhatian",
+    "Need Maintenance": "Perlu Perawatan"
+};
+// Palet buat donat pembagian sektor - jumlah sektor bisa berapa saja, jadi warnanya
+// diputar pakai modulo (bukan diindeks langsung, itu bakal undefined lewat dari 6)
+const SECTOR_COLORS = ["#3c50e0", "#10b981", "#ffb800", "#a855f7", "#3b82f6", "#f23d3d"];
+
+function loadSystemOverview() {
+    fetch(`${API_BASE_URL}/api/system-overview`)
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
+            renderSystemKpi(data.summary || {});
+            renderAvgTelemetryChart(data.avg_telemetry || []);
+            renderHealthPie(data.summary?.health_totals || {}, data.sectors || []);
+            renderSectorPie(data.sectors || []);
+        })
+        .catch(err => console.error("Gagal memuat ringkasan sistem:", err));
+}
+
+function systemKpiCardHTML({ badge, icon, title, value, unit, sub }) {
+    return `
+        <div class="card">
+            <div class="card-header-row">
+                <span class="card-icon-badge ${badge}">${icon}</span>
+                <h3>${title}</h3>
+            </div>
+            <div class="big-value">${value}${unit ? ` <span class="kpi-unit">${unit}</span>` : ""}</div>
+            ${sub ? `<p class="status-note">${sub}</p>` : ""}
+        </div>`;
+}
+
+function renderSystemKpi(summary) {
+    const grid = document.getElementById("system-kpi-grid");
+    if (!grid) return;
+
+    const icons = {
+        lamp: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>',
+        bolt: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+        wave: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+        bell: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
+    };
+
+    const total = summary.total_devices ?? 0;
+    const reporting = summary.reporting_devices ?? 0;
+
+    grid.innerHTML = [
+        systemKpiCardHTML({
+            badge: "badge-blue", icon: icons.lamp, title: "Total Lampu",
+            value: total, unit: "",
+            sub: `Tersebar di ${summary.total_sectors ?? 0} sektor`
+        }),
+        systemKpiCardHTML({
+            badge: "badge-amber", icon: icons.bolt, title: "Total Daya Aktif",
+            value: (summary.total_power ?? 0).toLocaleString('id-ID'), unit: "W",
+            sub: `Dari ${reporting} lampu yang melapor`
+        }),
+        systemKpiCardHTML({
+            badge: "badge-green", icon: icons.wave, title: "Rata-rata Tegangan",
+            value: (summary.avg_volt ?? 0).toFixed(1), unit: "V",
+            sub: `Arus rata-rata ${(summary.avg_current ?? 0).toFixed(2)} A`
+        }),
+        systemKpiCardHTML({
+            badge: "badge-purple", icon: icons.bell, title: "Peringatan Belum Dibaca",
+            value: summary.alerts_unread ?? 0, unit: "",
+            sub: `${summary.alerts_total ?? 0} peringatan tersimpan`
+        })
+    ].join("");
+}
+
+function renderAvgTelemetryChart(rows) {
+    const canvas = document.getElementById("avg-telemetry-chart");
+    const empty = document.getElementById("avg-telemetry-empty");
+    const hint = document.getElementById("avg-telemetry-hint");
+    if (!canvas) return;
+
+    if (avgTelemetryChartInstance) {
+        avgTelemetryChartInstance.destroy();
+        avgTelemetryChartInstance = null;
+    }
+
+    if (!rows.length) {
+        canvas.style.display = "none";
+        if (empty) empty.style.display = "block";
+        if (hint) hint.textContent = "";
+        return;
+    }
+    canvas.style.display = "block";
+    if (empty) empty.style.display = "none";
+    if (hint) hint.textContent = `${rows.length} jam terakhir yang ada datanya`;
+
+    const ctx = canvas.getContext('2d');
+    avgTelemetryChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: rows.map(r => r.time_label),
+            datasets: [
+                {
+                    label: 'Tegangan rata-rata (V)',
+                    data: rows.map(r => parseFloat(r.avg_volt)),
+                    borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)',
+                    yAxisID: 'y-volt', tension: 0.35, fill: true, borderWidth: 2,
+                    pointRadius: 0, pointHoverRadius: 4
+                },
+                {
+                    label: 'Arus rata-rata (A)',
+                    data: rows.map(r => parseFloat(r.avg_current)),
+                    borderColor: '#10b981', backgroundColor: 'transparent',
+                    yAxisID: 'y-amp', tension: 0.35, borderWidth: 2,
+                    borderDash: [5, 4], pointRadius: 0, pointHoverRadius: 4
+                },
+                {
+                    label: 'Daya rata-rata (W)',
+                    data: rows.map(r => parseFloat(r.avg_power)),
+                    borderColor: '#f59e0b', backgroundColor: 'transparent',
+                    yAxisID: 'y-watt', tension: 0.35, borderWidth: 2,
+                    pointRadius: 0, pointHoverRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: { labels: { color: '#94a3b8', usePointStyle: true, boxWidth: 8, padding: 18 } },
+                tooltip: {
+                    callbacks: {
+                        // Rata-rata dihitung dari jumlah lampu yang berbeda-beda tiap jam -
+                        // tampilkan jumlahnya biar angka rata-ratanya tidak salah dibaca
+                        afterBody: (items) => {
+                            const n = rows[items[0].dataIndex]?.device_count;
+                            return n ? `Rata-rata dari ${n} lampu` : "";
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { color: '#8a99ad', maxTicksLimit: 8 } },
+                'y-volt': {
+                    type: 'linear', position: 'left', beginAtZero: true,
+                    grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#3b82f6' },
+                    title: { display: true, text: 'Volt (V)', color: '#3b82f6' }
+                },
+                'y-amp': {
+                    type: 'linear', position: 'right', beginAtZero: true,
+                    grid: { drawOnChartArea: false }, ticks: { color: '#10b981' },
+                    title: { display: true, text: 'Arus (A)', color: '#10b981' }
+                },
+                'y-watt': {
+                    type: 'linear', position: 'right', beginAtZero: true,
+                    grid: { drawOnChartArea: false }, ticks: { color: '#f59e0b' },
+                    title: { display: true, text: 'Daya (W)', color: '#f59e0b' }
+                }
+            }
+        }
+    });
+}
+
+// Opsi bersama dua donat - legend di bawah, tooltip nampilin jumlah + persentase
+function doughnutOptions() {
+    return {
+        responsive: true, maintainAspectRatio: false, cutout: '58%',
+        plugins: {
+            legend: { position: 'bottom', labels: { color: '#94a3b8', usePointStyle: true, boxWidth: 8, padding: 14 } },
+            tooltip: {
+                callbacks: {
+                    label: (item) => {
+                        const total = item.dataset.data.reduce((a, b) => a + b, 0);
+                        const pct = total ? ((item.parsed / total) * 100).toFixed(1) : "0.0";
+                        return `${item.label}: ${item.parsed} lampu (${pct}%)`;
+                    }
+                }
+            }
+        }
+    };
+}
+
+function renderHealthPie(healthTotals, sectors) {
+    const canvas = document.getElementById("health-pie-chart");
+    const empty = document.getElementById("health-pie-empty");
+    const list = document.getElementById("sector-health-list");
+    if (!canvas) return;
+
+    if (healthPieChartInstance) {
+        healthPieChartInstance.destroy();
+        healthPieChartInstance = null;
+    }
+
+    // Cuma tampilkan status yang jumlahnya > 0 - slice bernilai nol bikin legend
+    // penuh keterangan yang tidak mewakili apa-apa
+    const keys = Object.keys(HEALTH_COLORS).filter(k => (healthTotals[k] ?? 0) > 0);
+    const grandTotal = keys.reduce((sum, k) => sum + healthTotals[k], 0);
+
+    if (grandTotal === 0) {
+        canvas.style.display = "none";
+        if (empty) empty.style.display = "flex";
+    } else {
+        canvas.style.display = "block";
+        if (empty) empty.style.display = "none";
+        healthPieChartInstance = new Chart(canvas.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: keys.map(k => HEALTH_LABELS[k]),
+                datasets: [{
+                    data: keys.map(k => healthTotals[k]),
+                    backgroundColor: keys.map(k => HEALTH_COLORS[k]),
+                    borderColor: '#1c2434', borderWidth: 2
+                }]
+            },
+            options: doughnutOptions()
+        });
+    }
+
+    // Rincian per sektor di bawah donat
+    if (!list) return;
+    list.innerHTML = "";
+    sectors.forEach(s => {
+        const parts = Object.keys(HEALTH_COLORS)
+            .filter(k => (s.health?.[k] ?? 0) > 0)
+            .map(k => `<span class="health-chip" style="color:${HEALTH_COLORS[k]}">${s.health[k]} ${HEALTH_LABELS[k]}</span>`)
+            .join("");
+        const row = document.createElement("div");
+        row.className = "sector-health-row";
+        row.innerHTML = `
+            <span class="sector-health-name">${s.sector}</span>
+            <span class="sector-health-chips">${parts || '<span class="health-chip is-muted">Belum ada lampu</span>'}</span>`;
+        list.appendChild(row);
+    });
+}
+
+function renderSectorPie(sectors) {
+    const canvas = document.getElementById("sector-pie-chart");
+    const empty = document.getElementById("sector-pie-empty");
+    const list = document.getElementById("sector-count-list");
+    if (!canvas) return;
+
+    if (sectorPieChartInstance) {
+        sectorPieChartInstance.destroy();
+        sectorPieChartInstance = null;
+    }
+
+    const withLamps = sectors.filter(s => (s.lamp_count ?? 0) > 0);
+    const totalLamps = sectors.reduce((sum, s) => sum + (s.lamp_count ?? 0), 0);
+
+    if (totalLamps === 0) {
+        canvas.style.display = "none";
+        if (empty) empty.style.display = "flex";
+    } else {
+        canvas.style.display = "block";
+        if (empty) empty.style.display = "none";
+        sectorPieChartInstance = new Chart(canvas.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: withLamps.map(s => s.sector),
+                datasets: [{
+                    data: withLamps.map(s => s.lamp_count),
+                    backgroundColor: withLamps.map((_, i) => SECTOR_COLORS[i % SECTOR_COLORS.length]),
+                    borderColor: '#1c2434', borderWidth: 2
+                }]
+            },
+            options: doughnutOptions()
+        });
+    }
+
+    // Daftar SEMUA sektor termasuk yang kosong - sektor tanpa lampu tidak muncul di
+    // donat (tidak bisa digambar 0%), tapi tetap perlu kelihatan supaya jelas ada
+    if (!list) return;
+    list.innerHTML = "";
+    sectors.forEach(s => {
+        const count = s.lamp_count ?? 0;
+        const pct = totalLamps ? ((count / totalLamps) * 100).toFixed(0) : 0;
+        const color = count > 0 ? SECTOR_COLORS[withLamps.indexOf(s) % SECTOR_COLORS.length] : "#8a99ad";
+        const row = document.createElement("div");
+        row.className = "sector-health-row";
+        row.innerHTML = `
+            <span class="sector-health-name"><span class="sector-dot" style="background:${color}"></span>${s.sector}</span>
+            <span class="sector-health-chips"><span class="health-chip${count ? '' : ' is-muted'}">${count} lampu · ${pct}%</span></span>`;
+        list.appendChild(row);
+    });
+}
+
+// ============================================================
+//  TREN DAYA (Monitor Lampu) — kartu chart + badge persentase di kartu Daya Aktif, dibangun
+//  dari data telemetry ASLI (endpoint sama dengan Riwayat Data), bukan angka karangan.
+// ============================================================
+let berandaTrendChartInstance = null;
+
+// Tarik histori telemetry ASLI (sekali) buat lampu aktif dari /api/telemetry-history.
+// Dipanggil pas Beranda pertama kali dibuka / ganti lampu beneran - update berikutnya
+// tiap tick WS baca dari telemetryHistory yang sudah di-live-append di socket.onmessage,
+// TIDAK fetch ulang tiap tick (boros & gak perlu, lihat isRealSwitch di switchDevice()).
+function loadBerandaTrend(deviceId) {
+    if (!deviceId) return;
+
+    fetch(`${API_BASE_URL}/api/telemetry-history?device_id=${deviceId}`)
+        .then(response => response.json())
+        .then(rows => {
+            const labels = [];
+            const power = [];
+            (Array.isArray(rows) ? rows : []).forEach(row => {
+                labels.push(row.time_label || "");
+                const wattVal = row.watt !== undefined ? parseFloat(row.watt) : (row.power !== undefined ? parseFloat(row.power) : 0);
+                power.push(wattVal);
+            });
+
+            // Simpan ke store global yang sama dipakai Riwayat Data, biar dua halaman
+            // konsisten dan tick WS berikutnya nge-append ke array yang benar
+            telemetryHistory[deviceId] = {
+                ...(telemetryHistory[deviceId] || {}),
+                labels,
+                power,
+                watt: power
+            };
+
+            refreshBerandaTrendUI(deviceId);
+        })
+        .catch(err => console.error("Gagal memuat tren daya buat Beranda:", err));
+}
+
+// Gambar ulang chart + badge tren dari data yang SUDAH ada di memori (telemetryHistory) -
+// dipanggil tiap tick WS buat lampu aktif, tanpa fetch ulang ke backend
+function refreshBerandaTrendUI(deviceId) {
+    const canvas = document.getElementById("beranda-trend-chart");
+    if (!canvas) return;
+
+    const hist = telemetryHistory[deviceId];
+    const labels = hist?.labels || [];
+    const powerArr = hist?.power || hist?.watt || [];
+    if (labels.length === 0) return;
+
+    drawBerandaTrendChart(canvas, labels, powerArr);
+    updatePowerTrendPill(powerArr);
+}
+
+function drawBerandaTrendChart(canvas, labels, powerArr) {
+    const ctx = canvas.getContext('2d');
+    if (berandaTrendChartInstance) berandaTrendChartInstance.destroy();
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.parentElement?.clientHeight || 200);
+    gradient.addColorStop(0, 'rgba(123, 143, 245, 0.35)');
+    gradient.addColorStop(1, 'rgba(123, 143, 245, 0)');
+
+    berandaTrendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Daya (W)',
+                data: powerArr,
+                borderColor: '#7b8ff5',
+                backgroundColor: gradient,
+                tension: 0.35,
+                fill: true,
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHoverRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#8a99ad', maxTicksLimit: 6 }
+                },
+                y: {
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: '#8a99ad' }
+                }
+            },
+            interaction: { intersect: false, mode: 'index' }
+        }
+    });
+}
+
+// Badge "naik/turun X%" di kartu Daya Aktif - bandingin titik terbaru vs titik paling
+// awal di riwayat yang sudah dimuat (BUKAN klaim "vs kemarin", karena kita gak selalu
+// tahu persis rentang waktunya - judulnya di title atribut biar jujur soal itu)
+function updatePowerTrendPill(powerArr) {
+    const pill = document.getElementById("power-trend-pill");
+    if (!pill) return;
+
+    if (!powerArr || powerArr.length < 2) {
+        pill.style.display = "none";
+        return;
+    }
+
+    const first = parseFloat(powerArr[0]) || 0;
+    const latest = parseFloat(powerArr[powerArr.length - 1]) || 0;
+
+    if (first === 0) {
+        pill.style.display = "none";
+        return;
+    }
+
+    const pct = ((latest - first) / first) * 100;
+    const direction = pct > 0.5 ? "up" : pct < -0.5 ? "down" : "flat";
+    const arrowPath = direction === "up" ? "M5 15l7-7 7 7" : direction === "down" ? "M19 9l-7 7-7-7" : "M5 12h14";
+
+    pill.className = `stat-trend-pill trend-${direction}`;
+    pill.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="${arrowPath}"/></svg><span>${Math.abs(pct).toFixed(1)}%</span>`;
+    pill.title = "Perubahan dibanding titik data paling awal pada riwayat yang dimuat";
+    pill.style.display = "inline-flex";
+}
+
+// ============================================================
+//  RINGKASAN AI SISTEM (halaman Dashboard) — kartu paling bawah, di bawah dua donat.
+//  Menganalisis SELURUH sistem lewat POST /api/chat/analyze-system: backend mengoper
+//  hasil system_overview() yang sama persis dengan yang mengisi KPI & grafik di layar,
+//  jadi angka yang dibahas AI tidak bisa beda dari yang sedang dilihat user.
+//
+//  Sengaja MANUAL (tombol), bukan auto tiap halaman dibuka: kuota Gemini tier gratis
+//  ketat, sedangkan Dashboard adalah halaman default yang kebuka tiap login/refresh/
+//  pindah tab. Hasilnya di-cache selama halaman belum di-reload.
+// ============================================================
+let systemAiCache = null;
+
+function renderSystemAiState(state, payload) {
+    const body = document.getElementById("system-ai-body");
+    const refreshBtn = document.getElementById("system-ai-refresh");
+    if (!body) return;
+
+    body.innerHTML = "";
+    // Tombol refresh cuma relevan kalau sudah ada hasil - di state lain, aksi utamanya
+    // sudah diwakili tombol di dalam body (Analisis Sekarang / Coba Lagi)
+    if (refreshBtn) {
+        refreshBtn.style.display = state === "result" ? "flex" : "none";
+        refreshBtn.disabled = false;
+    }
+
+    if (state === "empty") {
+        const wrap = document.createElement("div");
+        wrap.className = "ai-summary-empty";
+
+        const icon = document.createElement("div");
+        icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>';
+        wrap.appendChild(icon);
+
+        const text = document.createElement("p");
+        text.textContent = payload?.message || "Minta AI menyimpulkan kondisi seluruh sistem dari data di halaman ini.";
+        wrap.appendChild(text);
+
+        if (!payload?.hideButton) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn-ai-summary";
+            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg><span>Analisis Sekarang</span>';
+            btn.addEventListener("click", () => requestSystemAiSummary(true));
+            wrap.appendChild(btn);
+        }
+
+        body.appendChild(wrap);
+        return;
+    }
+
+    if (state === "loading") {
+        const wrap = document.createElement("div");
+        wrap.className = "ai-summary-skeleton";
+
+        const label = document.createElement("div");
+        label.className = "ai-summary-skeleton-label";
+        label.textContent = "Menganalisis kondisi seluruh sistem...";
+        wrap.appendChild(label);
+
+        ["", "is-medium", "", "is-short"].forEach(mod => {
+            const line = document.createElement("div");
+            line.className = `ai-summary-skeleton-line ${mod}`.trim();
+            wrap.appendChild(line);
+        });
+
+        body.appendChild(wrap);
+        return;
+    }
+
+    if (state === "result") {
+        const wrap = document.createElement("div");
+        wrap.className = "ai-summary-result";
+        // renderLampAiResult() dipakai ulang dari fitur Analisis AI di Riwayat Data -
+        // parser "Kesimpulan:/Saran:" yang sama, dan tetap bangun node lewat
+        // textContent (teks model tidak pernah diperlakukan sebagai HTML)
+        renderLampAiResult(wrap, payload?.analysis || "");
+        body.appendChild(wrap);
+
+        const meta = document.createElement("div");
+        meta.className = "ai-summary-meta";
+        meta.textContent = `Seluruh sistem · dianalisis ${payload?.timeLabel || "-"}`;
+        body.appendChild(meta);
+        return;
+    }
+
+    if (state === "error") {
+        const wrap = document.createElement("div");
+        wrap.className = "ai-summary-error";
+        wrap.textContent = `Gagal menganalisis: ${payload?.message || "kesalahan tidak diketahui"}`;
+        body.appendChild(wrap);
+
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "btn-ai-summary";
+        retry.style.marginTop = "12px";
+        retry.style.alignSelf = "flex-start";
+        retry.textContent = "Coba Lagi";
+        retry.addEventListener("click", () => requestSystemAiSummary(true));
+        body.appendChild(retry);
+    }
+}
+
+// Tampilkan hasil cache kalau ada, kalau belum tampilkan state kosong. TIDAK pernah
+// manggil API sendiri - itu cuma lewat requestSystemAiSummary()
+function syncSystemAiSummary() {
+    if (!document.getElementById("system-ai-body")) return;
+    if (systemAiCache) {
+        renderSystemAiState("result", systemAiCache);
+    } else {
+        renderSystemAiState("empty");
+    }
+}
+
+function requestSystemAiSummary(force = false) {
+    if (!force && systemAiCache) {
+        syncSystemAiSummary();
+        return;
+    }
+
+    const refreshBtn = document.getElementById("system-ai-refresh");
+    if (refreshBtn) refreshBtn.disabled = true;
+    renderSystemAiState("loading");
+
+    fetch(`${API_BASE_URL}/api/chat/analyze-system`, { method: 'POST' })
+        .then(res => {
+            if (res.ok) return res.json();
+            return res.json()
+                .catch(() => ({}))
+                .then(data => { throw new Error(data?.error || `HTTP ${res.status}`); });
+        })
+        .then(data => {
+            systemAiCache = {
+                analysis: data.analysis || "",
+                timeLabel: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+            };
+            renderSystemAiState("result", systemAiCache);
+        })
+        .catch(err => {
+            console.error("Gagal menganalisis sistem:", err);
+            renderSystemAiState("error", { message: err.message });
+        })
+        .finally(() => {
+            if (refreshBtn) refreshBtn.disabled = false;
+        });
+}
+
 
 // Fungsi menutup kembali panel informasi kanan
 function closeMapPanel() {
@@ -1042,6 +1827,7 @@ function navigateTo(pageId, element) {
 
     // Sembunyikan semua halaman
     document.getElementById("page-dashboard").style.display = "none";
+    document.getElementById("page-monitor").style.display = "none";
     document.getElementById("page-manage").style.display = "none";
     document.getElementById("page-telemetry").style.display = "none";
     document.getElementById("page-alerts").style.display = "none";
@@ -1053,7 +1839,24 @@ function navigateTo(pageId, element) {
     // Tampilkan halaman target & beri kelas aktif pada tombol navigasi
     if (pageId === 'dashboard') {
         document.getElementById("page-dashboard").style.display = "block";
+        // setTimeout supaya browser kelar render display:block dulu - canvas Chart.js
+        // butuh elemen yang sudah punya dimensi, bukan yang masih display:none
+        setTimeout(() => loadSystemOverview(), 50);
+        // Cuma tampilkan hasil analisis yang sudah ada di cache (atau state kosong) -
+        // sengaja tidak manggil API tiap halaman dibuka, lihat catatan kuota di
+        // requestSystemAiSummary()
+        syncSystemAiSummary();
+    } else if (pageId === 'monitor') {
+        document.getElementById("page-monitor").style.display = "block";
         if (map) map.resize();
+
+        // Tarik histori tren daya buat lampu aktif pas halaman dibuka - setTimeout biar
+        // browser kelar nge-render display:block dulu (canvas Chart.js butuh dimensi
+        // yang sudah "block", sama seperti pola di halaman Riwayat Data)
+        const activeDeviceId = document.getElementById("current-device-id")?.innerText;
+        if (activeDeviceId) {
+            setTimeout(() => loadBerandaTrend(activeDeviceId), 50);
+        }
     } else if (pageId === 'manage') {
         document.getElementById("page-manage").style.display = "block";
 
@@ -1066,6 +1869,7 @@ function navigateTo(pageId, element) {
             || "";
 
         if (sectorSelectorInput) sectorSelectorInput.value = defaultManageSector;
+        refreshCustomSelectLabel("sector-selector-input");
         renderSchedulePhases(defaultManageSector);
     } else if (pageId === 'telemetry') {
         document.getElementById("page-telemetry").style.display = "block";
@@ -1079,6 +1883,7 @@ function navigateTo(pageId, element) {
             || "";
 
         if (telSectorSelector) telSectorSelector.value = defaultSector;
+        refreshCustomSelectLabel("telemetry-sector-selector");
 
         // Beri setTimeout agar browser menyelesaikan render display: block terlebih dahulu
         // (canvas Chart.js butuh dimensi elemen yang sudah "block", bukan "none")
@@ -1389,6 +2194,14 @@ function telemetryLampBlockHTML(deviceId, health) {
             <div class="card" style="padding: 25px; position: relative; height: 380px;">
                 <canvas id="telemetryChart-${deviceId}"></canvas>
             </div>
+
+            <div class="lamp-ai-analysis">
+                <button type="button" class="btn-analyze-ai" id="btn-analyze-${deviceId}" onclick="analyzeLampAI('${deviceId}')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+                    Analisis AI
+                </button>
+                <div class="lamp-ai-result" id="ai-result-${deviceId}" style="display: none;"></div>
+            </div>
         </div>`;
 }
 
@@ -1429,6 +2242,87 @@ function renderTelemetrySectorList(sectorName) {
 // Dipanggil dari dropdown "Pilih Sektor" di halaman Riwayat Data
 function changeTelemetrySector(sectorName) {
     renderTelemetrySectorList(sectorName);
+}
+
+// Render hasil analisis AI ke dalam elemen - dibangun lewat createElement/textContent
+// (bukan innerHTML dengan teks AI mentah) supaya teks dari model tidak pernah
+// diperlakukan sebagai HTML, walau kecil kemungkinannya model balikin markup aneh
+// Model kadang tetap balikin markdown (**tebal**, - bullet, # heading) walau sistem
+// prompt sudah minta teks polos - dashboard ini nampilin balasan AI lewat textContent
+// apa adanya (sengaja, biar teks model tidak pernah diperlakukan sebagai HTML), jadi
+// simbolnya kalau tidak dibersihkan muncul mentah-mentah ke user. Dipakai di semua
+// tempat yang nampilin balasan AI: chat widget, ringkasan per-lampu, ringkasan sistem.
+function stripMarkdownNoise(text) {
+    if (!text) return text;
+    return text
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/__(.+?)__/g, '$1')
+        .replace(/(^|[\s(])\*(?!\s)([^*\n]+?)\*(?=[\s).,;:!?]|$)/g, '$1$2')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/^[ \t]*[-*+][ \t]+/gm, '• ');
+}
+
+function renderLampAiResult(container, text) {
+    container.innerHTML = "";
+    text = stripMarkdownNoise(text);
+
+    const kesimpulanMatch = text.match(/Kesimpulan:\s*([\s\S]*?)(?:\nSaran:|$)/i);
+    const saranMatch = text.match(/Saran:\s*([\s\S]*)$/i);
+
+    const buildLine = (label, value) => {
+        const p = document.createElement("p");
+        const strong = document.createElement("strong");
+        strong.textContent = `${label}: `;
+        p.appendChild(strong);
+        p.appendChild(document.createTextNode(value));
+        return p;
+    };
+
+    if (kesimpulanMatch || saranMatch) {
+        if (kesimpulanMatch) container.appendChild(buildLine("Kesimpulan", kesimpulanMatch[1].trim()));
+        if (saranMatch) container.appendChild(buildLine("Saran", saranMatch[1].trim()));
+    } else {
+        const p = document.createElement("p");
+        p.textContent = text;
+        container.appendChild(p);
+    }
+}
+
+// Tombol "Analisis AI" per kartu lampu - satu panggilan sekali klik (bukan hover, biar
+// gak nembak API Gemini berkali-kali dan bikin tabrakan kuota tier gratis)
+function analyzeLampAI(deviceId) {
+    const btn = document.getElementById(`btn-analyze-${deviceId}`);
+    const resultEl = document.getElementById(`ai-result-${deviceId}`);
+    if (!resultEl) return;
+
+    if (btn) btn.disabled = true;
+    resultEl.style.display = "block";
+    resultEl.className = "lamp-ai-result is-loading";
+    resultEl.textContent = "Menganalisis data lampu...";
+
+    fetch(`${API_BASE_URL}/api/chat/analyze-device`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: deviceId })
+    })
+        .then(res => {
+            if (res.ok) return res.json();
+            return res.json()
+                .catch(() => ({}))
+                .then(data => { throw new Error(data?.error || `HTTP ${res.status}`); });
+        })
+        .then(data => {
+            resultEl.className = "lamp-ai-result";
+            renderLampAiResult(resultEl, data.analysis || "");
+        })
+        .catch(err => {
+            console.error(`Gagal menganalisis lampu ${deviceId}:`, err);
+            resultEl.className = "lamp-ai-result is-error";
+            resultEl.textContent = `Gagal menganalisis: ${err.message}`;
+        })
+        .finally(() => {
+            if (btn) btn.disabled = false;
+        });
 }
 
 // Fungsi untuk mengaktifkan/menonaktifkan input manual override
@@ -1626,6 +2520,85 @@ function markAllRead() {
         .catch(err => console.error('Gagal mark-all-read ke DB:', err));
 }
 
+// ============================================================
+//  MODAL KONFIRMASI — dari skill transitions-dev (06-modal.md, sama
+//  seperti transisi tutup kartu login di enterDashboard()). Satu
+//  instance dipakai ulang buat semua aksi destruktif (Hapus Semua,
+//  Hapus per-alert) - openConfirmModal() isi judul/pesan/aksi-nya
+//  secara dinamis, tombol Confirm statis di HTML tinggal panggil
+//  handleConfirmModalConfirm() yang jalanin closure yang lagi disimpan.
+// ============================================================
+let confirmModalOnConfirm = null;
+
+function openConfirmModal({ title, message, confirmLabel = "Hapus", onConfirm }) {
+    const backdrop = document.getElementById("confirm-modal-backdrop");
+    const modal = document.getElementById("confirm-modal");
+    if (!backdrop || !modal) return;
+
+    document.getElementById("confirm-modal-title").textContent = title;
+    document.getElementById("confirm-modal-message").textContent = message;
+    document.getElementById("confirm-modal-confirm-btn").textContent = confirmLabel;
+    confirmModalOnConfirm = onConfirm;
+
+    backdrop.classList.remove("is-closing");
+    backdrop.classList.add("is-open");
+    modal.classList.remove("is-closing");
+    modal.classList.add("is-open");
+
+    document.getElementById("confirm-modal-confirm-btn").focus();
+}
+
+function cancelConfirmModal() {
+    const backdrop = document.getElementById("confirm-modal-backdrop");
+    const modal = document.getElementById("confirm-modal");
+    if (!backdrop || !modal || !backdrop.classList.contains("is-open")) return;
+
+    const closeMs = parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--modal-close-dur")
+    ) || 150;
+
+    backdrop.classList.remove("is-open");
+    backdrop.classList.add("is-closing");
+    modal.classList.remove("is-open");
+    modal.classList.add("is-closing");
+    setTimeout(() => {
+        backdrop.classList.remove("is-closing");
+        modal.classList.remove("is-closing");
+    }, closeMs);
+
+    confirmModalOnConfirm = null;
+}
+
+function handleConfirmModalConfirm() {
+    const action = confirmModalOnConfirm;
+    cancelConfirmModal();
+    if (action) action();
+}
+
+document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const backdrop = document.getElementById("confirm-modal-backdrop");
+    if (backdrop && backdrop.classList.contains("is-open")) cancelConfirmModal();
+});
+
+function confirmDismissAlert(alertId) {
+    openConfirmModal({
+        title: "Hapus Peringatan?",
+        message: "Peringatan ini akan dihapus permanen dari daftar.",
+        confirmLabel: "Hapus",
+        onConfirm: () => dismissAlert(alertId)
+    });
+}
+
+function confirmClearAllAlerts() {
+    openConfirmModal({
+        title: "Hapus Semua Peringatan?",
+        message: "Semua peringatan akan dihapus permanen dan tidak bisa dikembalikan.",
+        confirmLabel: "Hapus Semua",
+        onConfirm: () => clearAllAlerts()
+    });
+}
+
 /**
  * Hapus satu alert dari tampilan dan DB.
  */
@@ -1778,7 +2751,7 @@ function _buildAlertCardHTML(alert) {
 
     // Tombol "Hapus" cuma buat admin - user (monitoring-only) cuma boleh menandai dibaca
     const dismissBtn = currentRole === 'admin'
-        ? `<button class="btn-dismiss" onclick="dismissAlert('${alert.id}')">${_svgIcon('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>')} Hapus</button>`
+        ? `<button class="btn-dismiss" onclick="confirmDismissAlert('${alert.id}')">${_svgIcon('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>')} Hapus</button>`
         : '';
 
     return `
@@ -2165,11 +3138,12 @@ async function handleAiChatSubmit(event) {
                 if (!firstChunkReceived && fullText) {
                     firstChunkReceived = true;
                 }
-                assistantBubble.textContent = fullText || '...';
+                assistantBubble.textContent = stripMarkdownNoise(fullText) || '...';
                 if (list) list.scrollTop = list.scrollHeight;
             }
         }
 
+        fullText = stripMarkdownNoise(fullText);
         if (!fullText) assistantBubble.textContent = '(tidak ada balasan dari model)';
         aiChatHistory.push({ role: 'user', content: message });
         aiChatHistory.push({ role: 'assistant', content: fullText });
