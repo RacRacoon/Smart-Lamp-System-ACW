@@ -43,7 +43,11 @@ function connectWebSocket() {
                         lng: incomingData.lng || 112.75000,
                         alerts: incomingData.alerts || 0,
                         uptime: incomingData.uptime || 0,
-                        dim: incomingData.dim !== undefined ? parseInt(incomingData.dim) : 8
+                        dim: incomingData.dim !== undefined ? parseInt(incomingData.dim) : 8,
+                        // Pesan WS ini SENDIRI adalah bukti lampu baru saja lapor - beda dari
+                        // fetch awal (lastUpdate ikut node.last_update dari DB), di sini
+                        // "sekarang" itu sendiri sudah akurat, tidak perlu tanya backend
+                        lastUpdate: new Date().toISOString()
                     };
 
                     // Inisialisasi telemetryHistory default untuk node baru ini
@@ -62,10 +66,13 @@ function connectWebSocket() {
                     // 3. Gambar Pinpoint Lampu Baru secara otomatis ke peta MapLibre
                     addNewMapMarker(devicesData[deviceId]);
                 } else {
-                    // Jika sudah ada, tinggal perbarui datanya secara real-time
+                    // Jika sudah ada, tinggal perbarui datanya secara real-time. incomingData
+                    // dari broadcast MQTT tidak bawa timestamp sendiri - pesan ini SAMPAI
+                    // berarti lampunya baru saja lapor, jadi "sekarang" itu sendiri jawabannya
                     devicesData[deviceId] = {
                         ...devicesData[deviceId],
-                        ...incomingData
+                        ...incomingData,
+                        lastUpdate: new Date().toISOString()
                     };
                 }
 
@@ -368,6 +375,140 @@ function refreshCustomSelectLabel(selectId) {
     customDropdowns[selectId]?.syncLabel();
 }
 
+// ============================================================
+//  ONBOARDING SEKTOR & LAMPU BARU (Kelola Lampu) — sebelum ini ada, satu-satunya cara
+//  daftarin device_id/sektor baru adalah INSERT manual lewat psql. Dua form kecil:
+//  Tambah Sektor (POST /api/sectors) dan Daftarkan Lampu (POST /api/devices).
+// ============================================================
+
+// Tambah <option> sektor ke SEMUA dropdown sektor di app sekaligus (custom-select
+// otomatis nangkep lewat MutationObserver-nya masing-masing, tidak perlu dipanggil
+// manual di sini) - dipakai baik pas sektor baru dibuat maupun pas refresh dari server
+function addSectorOptionEverywhere(sectorName) {
+    ["sector-selector-input", "telemetry-sector-selector", "provision-device-sector"].forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        const exists = Array.from(select.options).some(opt => opt.value === sectorName);
+        if (!exists) {
+            const opt = document.createElement("option");
+            opt.value = sectorName;
+            opt.textContent = sectorName;
+            select.appendChild(opt);
+        }
+    });
+
+    // Sektor baru butuh default 3 fase jadwal supaya renderSchedulePhases() punya
+    // sesuatu buat ditampilkan begitu admin pilih sektor ini - sama seperti default yang
+    // dipasang addDeviceToDropdowns() buat sektor yang muncul lewat jalur device
+    if (!sectorSettings[sectorName]) {
+        sectorSettings[sectorName] = {
+            schedules: [
+                { time: "17:30", dim: 6, cct: 30 },
+                { time: "23:00", dim: 4, cct: 80 },
+                { time: "03:30", dim: 8, cct: 100 }
+            ]
+        };
+    }
+}
+
+// Muat ulang daftar sektor LANGSUNG dari server (bukan dari devicesData lokal) - form
+// Daftarkan Lampu butuh nampilin sektor yang belum punya lampu sama sekali, yang
+// tidak akan pernah nongol lewat jalur addDeviceToDropdowns (itu dipicu per-device)
+function loadProvisionSectorOptions() {
+    fetch(`${API_BASE_URL}/api/sectors`)
+        .then(res => res.json())
+        .then(sectors => sectors.forEach(addSectorOptionEverywhere))
+        .catch(err => console.error("Gagal memuat daftar sektor:", err));
+}
+
+function renderProvisionMsg(elId, text, isError) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.textContent = text;
+    el.className = `provision-msg ${isError ? "is-error" : "is-success"}`;
+}
+
+function handleProvisionSector(event) {
+    event.preventDefault();
+    const input = document.getElementById("provision-sector-name");
+    const submitBtn = document.getElementById("provision-sector-submit");
+    const sectorName = input.value.trim();
+    if (!sectorName) return;
+
+    submitBtn.disabled = true;
+    fetch(`${API_BASE_URL}/api/sectors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-ACW-Token': authToken || '' },
+        body: JSON.stringify({ sector_name: sectorName })
+    })
+        .then(res => {
+            if (res.ok) return res.json();
+            return res.json().catch(() => ({})).then(data => { throw new Error(data?.error || `HTTP ${res.status}`); });
+        })
+        .then(data => {
+            addSectorOptionEverywhere(data.sector_name);
+            renderProvisionMsg("provision-sector-msg", `Sektor "${data.sector_name}" ditambahkan. Sudah bisa dipilih di form Daftarkan Lampu.`, false);
+            input.value = "";
+        })
+        .catch(err => {
+            console.error("Gagal menambah sektor:", err);
+            renderProvisionMsg("provision-sector-msg", `Gagal: ${err.message}`, true);
+        })
+        .finally(() => { submitBtn.disabled = false; });
+}
+
+function handleProvisionDevice(event) {
+    event.preventDefault();
+    const idInput = document.getElementById("provision-device-id");
+    const sectorSelect = document.getElementById("provision-device-sector");
+    const latInput = document.getElementById("provision-device-lat");
+    const lngInput = document.getElementById("provision-device-lng");
+    const submitBtn = document.getElementById("provision-device-submit");
+
+    const deviceId = idInput.value.trim();
+    const sectorName = sectorSelect.value;
+    if (!deviceId) return;
+    if (!sectorName) {
+        renderProvisionMsg("provision-device-msg", "Pilih sektor dulu (tambah sektor baru di sebelah kiri kalau belum ada).", true);
+        return;
+    }
+
+    const body = { device_id: deviceId, sector_name: sectorName };
+    if (latInput.value.trim()) body.lat = parseFloat(latInput.value);
+    if (lngInput.value.trim()) body.lng = parseFloat(lngInput.value);
+
+    submitBtn.disabled = true;
+    fetch(`${API_BASE_URL}/api/devices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-ACW-Token': authToken || '' },
+        body: JSON.stringify(body)
+    })
+        .then(res => {
+            if (res.ok) return res.json();
+            return res.json().catch(() => ({})).then(data => { throw new Error(data?.error || `HTTP ${res.status}`); });
+        })
+        .then(data => {
+            // Sengaja TIDAK nyuntik ke devicesData/peta di sini - lampu ini belum pernah
+            // kirim telemetry, jadi belum ada volt/current/power/koordinat SUNGGUHAN buat
+            // ditampilkan (prinsip yang sama dengan seluruh dasbor: jangan tampilkan data
+            // karangan). Dia otomatis muncul sendiri begitu ESP32-nya kirim pesan MQTT
+            // pertama - device_exists() di backend sudah True buat device_id ini sekarang.
+            renderProvisionMsg(
+                "provision-device-msg",
+                `Lampu "${data.device_id}" terdaftar di ${data.sector_name}. Akan otomatis muncul di dasbor begitu ESP32-nya mulai kirim telemetry MQTT.`,
+                false
+            );
+            idInput.value = "";
+            latInput.value = "";
+            lngInput.value = "";
+        })
+        .catch(err => {
+            console.error("Gagal mendaftarkan lampu:", err);
+            renderProvisionMsg("provision-device-msg", `Gagal: ${err.message}`, true);
+        })
+        .finally(() => { submitBtn.disabled = false; });
+}
+
 function addDeviceToDropdowns(deviceId, sector) {
     const devSelector = document.getElementById("device-selector");
     const telSectorSelector = document.getElementById("telemetry-sector-selector");
@@ -534,7 +675,7 @@ function enterDashboard(role, token) {
 
         if (!dashboardInitialized) {
             dashboardInitialized = true;
-            ["device-selector", "sector-selector-input", "telemetry-sector-selector", "alert-node-filter"]
+            ["device-selector", "sector-selector-input", "telemetry-sector-selector", "alert-node-filter", "provision-device-sector"]
                 .forEach(initCustomSelect);
             initDashboardData();
         }
@@ -604,7 +745,12 @@ function initDashboardData() {
                     lat: parseFloat(node.lat),
                     lng: parseFloat(node.lng),
                     alerts: node.health === "Healthy" ? 0 : 1,
-                    dim: node.dim !== undefined ? parseInt(node.dim) : 8
+                    dim: node.dim !== undefined ? parseInt(node.dim) : 8,
+                    // Timestamp baris telemetry TERAKHIR di DB (bukan "sekarang") - dasar
+                    // badge "terakhir lapor" biar lampu yang berhenti kirim data ketahuan,
+                    // bukan diam-diam nampilin angka basi selamanya. null kalau lampu ini
+                    // belum pernah kirim telemetry sama sekali.
+                    lastUpdate: node.last_update || null
                 };
 
                 // === PERBAIKAN DI SINI: Inisialisasi telemetryHistory dinamis jika belum ada ===
@@ -1020,6 +1166,60 @@ function updateMarkerStyles(activeId) {
     });
 }
 
+// Ambang "curiga lampu berhenti lapor" - lampu PJU normalnya lapor jauh lebih sering
+// dari ini, jadi diam >15 menit sudah pantas dicurigai, >24 jam kemungkinan besar mati/
+// putus jaringan. Dua tingkat, bukan biner online/offline: staleness itu spektrum,
+// bukan status pasti (bisa juga cuma delay jaringan sesaat).
+const STALE_WARNING_MS = 15 * 60 * 1000;
+const STALE_DANGER_MS = 24 * 60 * 60 * 1000;
+
+// Format selisih waktu jadi teks relatif Bahasa Indonesia + tingkat keparahannya -
+// dipakai renderLastUpdateNote() dan bisa dipakai ulang di tempat lain yang nanti
+// juga perlu nampilin "terakhir lapor" (mis. Riwayat Data, Dashboard per-sektor)
+function formatRelativeTime(isoString) {
+    if (!isoString) return { text: "Belum pernah lapor telemetry", tier: "danger" };
+
+    const then = new Date(isoString);
+    if (isNaN(then.getTime())) return { text: "Belum pernah lapor telemetry", tier: "danger" };
+
+    const diffMs = Date.now() - then.getTime();
+    let text;
+    if (diffMs < 60000) {
+        text = "Baru saja";
+    } else if (diffMs < 3600000) {
+        text = `${Math.floor(diffMs / 60000)} menit lalu`;
+    } else if (diffMs < 86400000) {
+        text = `${Math.floor(diffMs / 3600000)} jam lalu`;
+    } else {
+        text = `${Math.floor(diffMs / 86400000)} hari lalu`;
+    }
+
+    const tier = diffMs >= STALE_DANGER_MS ? "danger" : diffMs >= STALE_WARNING_MS ? "warning" : "fresh";
+    return { text, tier };
+}
+
+// Render badge "terakhir lapor" di kartu Status Perangkat (Monitor Lampu)
+function renderLastUpdateNote(isoString) {
+    const el = document.getElementById("last-update-note");
+    if (!el) return;
+
+    const { text, tier } = formatRelativeTime(isoString);
+    el.textContent = `Diperbarui ${text}`;
+    el.classList.remove("is-stale-warning", "is-stale-danger");
+    if (tier === "warning") el.classList.add("is-stale-warning");
+    if (tier === "danger") el.classList.add("is-stale-danger");
+}
+
+// Refresh teks relatifnya secara berkala walau tidak ada data baru masuk - "2 menit
+// lalu" harus terus maju jadi "3 menit lalu" dst, bukan macet sampai next WS event
+setInterval(() => {
+    const activeId = document.getElementById("current-device-id")?.innerText;
+    const pageMonitor = document.getElementById("page-monitor");
+    if (activeId && devicesData[activeId] && pageMonitor && pageMonitor.style.display !== "none") {
+        renderLastUpdateNote(devicesData[activeId].lastUpdate);
+    }
+}, 30000);
+
 function switchDevice(deviceId) {
     const data = devicesData[deviceId];
     if (!data) return;
@@ -1086,6 +1286,8 @@ function switchDevice(deviceId) {
         // Perbarui data database lokal agar teks statusnya tetap tersimpan sinkron
         data.health = statusText.innerText;
     }
+
+    renderLastUpdateNote(data.lastUpdate);
 
     // Panggil fungsi lifespan jika fungsi tersebut ada
     if (typeof updateLifespanUI === "function") {
@@ -1871,6 +2073,11 @@ function navigateTo(pageId, element) {
         if (sectorSelectorInput) sectorSelectorInput.value = defaultManageSector;
         refreshCustomSelectLabel("sector-selector-input");
         renderSchedulePhases(defaultManageSector);
+
+        // Refresh dari server (bukan cuma dari devicesData lokal) - form Daftarkan Lampu
+        // butuh nampilin sektor yang BELUM punya lampu sama sekali, yang gak akan pernah
+        // nongol lewat jalur addDeviceToDropdowns (itu dipicu per-device, bukan per-sektor)
+        loadProvisionSectorOptions();
     } else if (pageId === 'telemetry') {
         document.getElementById("page-telemetry").style.display = "block";
 
@@ -2579,6 +2786,149 @@ document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     const backdrop = document.getElementById("confirm-modal-backdrop");
     if (backdrop && backdrop.classList.contains("is-open")) cancelConfirmModal();
+});
+
+// ============================================================
+//  HAPUS SEKTOR — beda dari confirm-modal generik di atas: aksi ini bisa CASCADE
+//  hapus jadwal RTC sektornya, jadi dijaga dua lapis - sesi admin (X-ACW-Token,
+//  sudah dicek backend) DITAMBAH ketik ulang username+password admin (step-up auth,
+//  juga divalidasi ULANG di backend, bukan cuma gerbang UI). Backend juga nolak
+//  (409) kalau sektornya masih punya lampu - dicek dulu di sini biar admin gak perlu
+//  ngetik password cuma buat ditolak.
+// ============================================================
+let deleteSectorTarget = null;
+
+function openDeleteSectorModal() {
+    const sectorName = document.getElementById("sector-selector-input")?.value;
+    if (!sectorName) return;
+
+    deleteSectorTarget = sectorName;
+    const backdrop = document.getElementById("delete-sector-modal-backdrop");
+    const modal = document.getElementById("delete-sector-modal");
+    const formEl = document.getElementById("delete-sector-modal-form");
+    const confirmBtn = document.getElementById("delete-sector-confirm-btn");
+
+    document.getElementById("delete-sector-modal-title").textContent = `Hapus "${sectorName}"?`;
+    document.getElementById("delete-sector-modal-message").textContent = "Memeriksa jumlah lampu di sektor ini...";
+    document.getElementById("delete-sector-modal-error").textContent = "";
+    document.getElementById("delete-sector-username").value = "";
+    document.getElementById("delete-sector-password").value = "";
+    formEl.style.display = "none";
+    confirmBtn.style.display = "none";
+
+    backdrop.classList.remove("is-closing");
+    backdrop.classList.add("is-open");
+    modal.classList.remove("is-closing");
+    modal.classList.add("is-open");
+
+    // Hitung jumlah lampu LANGSUNG dari backend (bukan devicesData lokal) - devicesData
+    // masih nyimpen 6 lampu contoh dari jaman sebelum migrasi (L-101..L-106, lihat
+    // deklarasi awalnya) yang gak pernah kehapus, jadi kalau dipakai buat cek ini bisa
+    // salah blokir sektor yang aslinya di DB sudah kosong. system-overview query
+    // langsung ke tabel devices, jadi pasti akurat.
+    fetch(`${API_BASE_URL}/api/system-overview`)
+        .then(res => res.json())
+        .then(data => {
+            if (deleteSectorTarget !== sectorName) return; // modal sudah ditutup/ganti target duluan
+            const sectorInfo = (data.sectors || []).find(s => s.sector === sectorName);
+            const deviceCount = sectorInfo?.lamp_count ?? 0;
+
+            if (deviceCount > 0) {
+                document.getElementById("delete-sector-modal-message").textContent =
+                    `Sektor ini masih punya ${deviceCount} lampu terdaftar. Pindahkan atau hapus lampu-lampu itu dulu sebelum sektor ini bisa dihapus.`;
+            } else {
+                document.getElementById("delete-sector-modal-message").textContent =
+                    `Sektor "${sectorName}" beserta jadwal RTC-nya akan dihapus permanen. Masukkan username & password admin untuk konfirmasi.`;
+                formEl.style.display = "block";
+                confirmBtn.style.display = "inline-flex";
+                document.getElementById("delete-sector-username").focus();
+            }
+        })
+        .catch(err => {
+            console.error("Gagal memeriksa jumlah lampu sektor:", err);
+            document.getElementById("delete-sector-modal-message").textContent =
+                "Gagal memeriksa jumlah lampu di sektor ini. Tutup dan coba lagi.";
+        });
+}
+
+function cancelDeleteSectorModal() {
+    const backdrop = document.getElementById("delete-sector-modal-backdrop");
+    const modal = document.getElementById("delete-sector-modal");
+    if (!backdrop || !modal || !backdrop.classList.contains("is-open")) return;
+
+    const closeMs = parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--modal-close-dur")
+    ) || 150;
+
+    backdrop.classList.remove("is-open");
+    backdrop.classList.add("is-closing");
+    modal.classList.remove("is-open");
+    modal.classList.add("is-closing");
+    setTimeout(() => {
+        backdrop.classList.remove("is-closing");
+        modal.classList.remove("is-closing");
+    }, closeMs);
+
+    deleteSectorTarget = null;
+}
+
+// Lepas sektor dari semua dropdown + state lokal setelah beneran kehapus di server -
+// tidak perlu refetch, kita yang paling tahu sektor mana yang barusan hilang
+function removeSectorEverywhere(sectorName) {
+    ["sector-selector-input", "telemetry-sector-selector", "provision-device-sector"].forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        const opt = Array.from(select.options).find(o => o.value === sectorName);
+        if (opt) opt.remove();
+        if (select.value === sectorName) select.value = "";
+        refreshCustomSelectLabel(id);
+    });
+
+    delete sectorSettings[sectorName];
+
+    const remainingSector = document.getElementById("sector-selector-input")?.value || "";
+    renderSchedulePhases(remainingSector);
+}
+
+function submitDeleteSector() {
+    const username = document.getElementById("delete-sector-username").value.trim();
+    const password = document.getElementById("delete-sector-password").value;
+    const errEl = document.getElementById("delete-sector-modal-error");
+
+    if (!username || !password) {
+        errEl.textContent = "Username dan password wajib diisi.";
+        return;
+    }
+
+    const confirmBtn = document.getElementById("delete-sector-confirm-btn");
+    confirmBtn.disabled = true;
+    errEl.textContent = "";
+
+    fetch(`${API_BASE_URL}/api/sectors/${encodeURIComponent(deleteSectorTarget)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'X-ACW-Token': authToken || '' },
+        body: JSON.stringify({ username, password })
+    })
+        .then(res => {
+            if (res.ok) return res.json();
+            return res.json().catch(() => ({})).then(data => { throw new Error(data?.error || `HTTP ${res.status}`); });
+        })
+        .then(data => {
+            const deletedSector = data.sector_name;
+            cancelDeleteSectorModal();
+            removeSectorEverywhere(deletedSector);
+        })
+        .catch(err => {
+            console.error("Gagal menghapus sektor:", err);
+            errEl.textContent = err.message;
+        })
+        .finally(() => { confirmBtn.disabled = false; });
+}
+
+document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const backdrop = document.getElementById("delete-sector-modal-backdrop");
+    if (backdrop && backdrop.classList.contains("is-open")) cancelDeleteSectorModal();
 });
 
 function confirmDismissAlert(alertId) {

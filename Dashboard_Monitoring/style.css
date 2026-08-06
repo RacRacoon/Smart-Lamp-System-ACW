@@ -1,14 +1,23 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
-    --bg-dark: #121824;
-    --bg-card: #1c2434;
-    --surface-2: #1e293b;
-    --border: #2e3a50;
+    /* Referensi desain: Vision UI Dashboard (glassmorphism + dark, gaya yang
+       direkomendasikan skill ui-ux-pro-max buat produk tipe "Smart Home/IoT
+       Dashboard" - persis kategori dasbor ini). --bg-dark sekarang cuma warna dasar
+       PALING BELAKANG (dipakai <body>, ketiban gradient glow di bawah); --bg-card
+       jadi rgba tembus pandang supaya glow itu keliatan nembus lewat kartu-kartu di
+       atasnya ("mengambang"), dipasangkan sama backdrop-filter (lihat blok
+       ".card, .controls-section, ..." setelah body). --bg-card-solid nilai fallback
+       kalau browser gak dukung backdrop-filter (df CSS @supports lama). */
+    --bg-dark: #0a0e1c;
+    --bg-card: rgba(27, 34, 64, 0.6);
+    --bg-card-solid: #1c2434;
+    --surface-2: rgba(34, 44, 76, 0.65);
+    --border: rgba(140, 158, 255, 0.16);
     --text-main: #f1f5f9;
-    --text-muted: #8a99ad;
-    --primary: #3c50e0;
-    --primary-light: #7b8ff5;
+    --text-muted: #93a0c2;
+    --primary: #4562f0;
+    --primary-light: #8b9dff;
     --success: #10b981;
     --warning: #ffb800;
     --danger: #f23d3d;
@@ -18,6 +27,17 @@
     --danger-text: #f87171;
     --info: #3b82f6;
 
+    /* Gradasi - SENGAJA dipakai hemat, cuma di 3 titik brand paling menonjol (tombol
+       login, item sidebar aktif, tombol simpan utama) biar tetap kerasa "aksen
+       istimewa", bukan dipaksa ke semua tombol sampai kehilangan hierarki. */
+    --gradient-primary: linear-gradient(135deg, #4318ff 0%, #0075ff 100%);
+    --gradient-accent: linear-gradient(135deg, #0075ff 0%, #21d4fd 100%);
+
+    /* Titik-titik cahaya ambient di background <body> - lihat aturan body di bawah */
+    --glow-purple: rgba(67, 24, 255, 0.32);
+    --glow-blue: rgba(0, 117, 255, 0.22);
+    --glow-purple-soft: rgba(94, 44, 255, 0.16);
+
     --font-sans: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     --font-mono: 'JetBrains Mono', 'Courier New', Courier, monospace;
 
@@ -25,11 +45,15 @@
     --radius-md: 8px;
     --radius-lg: 12px;
 
+    --blur-glass: 18px;
+
     /* Elevation - dipakai konsisten di semua permukaan (card/panel/toolbar) supaya
-       kedalamannya seragam, bukan tebak-tebakan box-shadow per komponen */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.28);
-    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.36);
+       kedalamannya seragam, bukan tebak-tebakan box-shadow per komponen. Lebih dalam
+       + ada cincin border tipis biru-glow dibanding sebelumnya, biar kartu kelihatan
+       jelas "mengambang" di atas gradient body, bukan cuma nempel datar. */
+    --shadow-sm: 0 2px 10px rgba(3, 5, 14, 0.4), 0 0 0 1px rgba(140, 158, 255, 0.04);
+    --shadow-md: 0 8px 24px rgba(3, 5, 14, 0.48), 0 0 0 1px rgba(140, 158, 255, 0.05);
+    --shadow-lg: 0 20px 48px rgba(3, 5, 14, 0.58), 0 0 0 1px rgba(140, 158, 255, 0.06);
 
     --transition-fast: 0.15s ease;
     --transition-base: 0.2s ease;
@@ -45,18 +69,66 @@
 /* Kunci tinggi dokumen persis 1 viewport - tanpa ini, kalau konten .main-content
    lebih tinggi dari layar, seluruh HALAMAN ikut scroll (termasuk sidebar), padahal
    yang seharusnya scroll cuma area kontennya saja (lihat .main-content overflow-y). */
-html, body {
+html,
+body {
     height: 100%;
     overflow: hidden;
 }
 
 body {
+    /* Titik-titik cahaya ambient (radial-gradient) di atas dasar navy gelap - inilah
+       "background" yang bikin kartu-kartu tembus pandang di atasnya kelihatan
+       mengambang, bukan cuma dekorasi kosong. body sendiri gak pernah discroll
+       (lihat html,body{overflow:hidden} di atas), jadi gradiennya diam sempurna,
+       gak perlu background-attachment:fixed segala. */
     background-color: var(--bg-dark);
+    background-image:
+        radial-gradient(circle at 12% -8%, var(--glow-purple), transparent 42%),
+        radial-gradient(circle at 100% 8%, var(--glow-blue), transparent 40%),
+        radial-gradient(circle at 45% 115%, var(--glow-purple-soft), transparent 55%);
     color: var(--text-main);
     display: flex;
     height: 100vh;
     font-size: 16px;
     line-height: 1.5;
+}
+
+/* Permukaan "kaca" yang mengambang di atas gradient body - satu titik kontrol buat
+   semua kartu/panel supaya konsisten, daripada nempel backdrop-filter di tiap
+   komponen satu-satu. Dipilih SELEKTIF (bukan semua elemen kecil kayak badge/pill) -
+   backdrop-filter mahal kalau dipasang ke puluhan elemen kecil sekaligus, terutama
+   pas scroll; elemen kecil di dalam kartu ini otomatis kebagian efeknya karena duduk
+   di ATAS induk yang sudah blur, gak perlu blur lapis kedua.
+
+   .confirm-modal dan .t-dropdown-menu SENGAJA TIDAK ikut daftar ini walau sama-sama
+   dari keluarga ".card"-ish - dua-duanya mengambang di ATAS konten halaman yang
+   RAMAI (form, tombol, chart di baliknya), bukan di atas gradient kosong seperti
+   kartu biasa/sidebar/login-card. Kalau ikut dibikin tembus pandang, teks/tombol di
+   halaman belakang nembus lewat blur dan bikin dua lapis teks kebaca tumpang tindih
+   (ketauan pas modal konfirmasi hapus sektor dites - "Hapus Sektor Ini" punya
+   halaman kelihatan nyambung sama tombol modal). Modal & dropdown TETAP perlu solid
+   demi keterbacaan - itulah kenapa keduanya punya blok warna sendiri di bawah. */
+.card,
+.controls-section,
+.alert-stat-card,
+.login-card,
+.sidebar {
+    backdrop-filter: blur(var(--blur-glass));
+    -webkit-backdrop-filter: blur(var(--blur-glass));
+}
+
+/* Fallback browser yang gak dukung backdrop-filter sama sekali (bukan cuma vendor
+   prefix beda) - tanpa blur, rgba tembus pandang doang bakal susah dibaca teksnya
+   kalau kebetulan nempel di bagian gradient yang terang, jadi baliknya ke solid. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+
+    .card,
+    .controls-section,
+    .alert-stat-card,
+    .login-card,
+    .sidebar {
+        background-color: var(--bg-card-solid);
+    }
 }
 
 /* Pembungkus sidebar+main-content (tampil setelah login). display:flex diatur lewat
@@ -86,7 +158,10 @@ select:focus-visible,
 
 /* Hormati preferensi pengguna yang mengurangi animasi (motion sensitivity) */
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
+
+    *,
+    *::before,
+    *::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
@@ -105,16 +180,16 @@ select:focus-visible,
     justify-content: center;
     background-color: var(--bg-dark);
     background-image:
-        radial-gradient(circle at 18% 20%, rgba(60, 80, 224, 0.16), transparent 45%),
-        radial-gradient(circle at 82% 78%, rgba(16, 185, 129, 0.1), transparent 45%);
-    padding: 20px;
+        radial-gradient(circle at 18% 20%, var(--glow-purple), transparent 45%),
+        radial-gradient(circle at 82% 78%, var(--glow-blue), transparent 45%);
+    padding: 40px;
     z-index: 100;
 }
 
 .login-brand-mark {
-    width: 52px;
-    height: 52px;
-    margin: 0 auto 16px;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -123,17 +198,154 @@ select:focus-visible,
     color: var(--primary-light);
 }
 
+/* Kartu login ngambang di atas background gelap (bukan full-bleed lagi) - lebar
+   dibatasi max-width 1360px + tinggi max-height 840px, ditengahin lewat padding
+   #login-overlay di atas. border-radius/border/shadow-lg dipasang balik supaya
+   ada tepi kartu yang jelas, ditambah glow ring ambient (rgba primary, lembut)
+   biar kesannya kartu ini "melayang" dengan cahaya di bawahnya, bukan cuma kotak
+   solid nempel di background. Tinggi dibatasi (bukan 100%) supaya isi form gak
+   kejauhan jaraknya dari headline di layar tinggi - ruang kosong yang bikin
+   "kesan kosong" sebelumnya. */
 .login-card {
     width: 100%;
-    max-width: 360px;
+    max-width: 1360px;
+    height: 100%;
+    max-height: 840px;
     background-color: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    padding: 36px 28px;
+    box-shadow:
+        var(--shadow-lg),
+        0 0 90px -20px rgba(67, 24, 255, 0.45),
+        0 0 60px -24px rgba(0, 117, 255, 0.35);
+    display: flex;
+    overflow: hidden;
+}
+
+.login-brand-panel {
+    flex: 1 1 45%;
+    padding: 64px 72px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    box-shadow: var(--shadow-lg);
+    justify-content: center;
+    background:
+        radial-gradient(circle at 15% 10%, var(--glow-purple), transparent 55%),
+        radial-gradient(circle at 90% 95%, var(--glow-blue), transparent 50%);
+    border-right: 1px solid var(--border);
+}
+
+.login-brand-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 44px;
+}
+
+.login-brand-wordmark {
+    font-size: 13.5px;
+    font-weight: 900;
+    letter-spacing: 0.4px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.login-brand-headline {
+    font-size: 54px;
+    font-weight: 900;
+    line-height: 1.15;
+    margin-bottom: 18px;
+    /* Teks gradasi putih->biru muda - aksen "istimewa" yang sama dipakai hemat di
+       tombol Masuk & item sidebar aktif (lihat --gradient-primary), bukan warna baru */
+    background: linear-gradient(135deg, #ffffff 25%, var(--primary-light) 110%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.login-brand-copy {
+    color: var(--text-muted);
+    font-size: 16.5px;
+    line-height: 1.65;
+    margin-bottom: 36px;
+    max-width: 400px;
+}
+
+.login-brand-points {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.login-brand-points li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 15px;
+    color: var(--text-main);
+}
+
+.login-brand-points svg {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    box-sizing: border-box;
+    padding: 4px;
+    border-radius: 50%;
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.login-form-panel {
+    flex: 1 1 55%;
+    padding: 48px 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* Panel form sekarang selebar 55% dari kartu 1360px, jadi tanpa batas ini
+   label/input/tombol bakal melar terlalu lebar - konstrain ke lebar kolom form
+   yang wajar & tetap dicenterin di tengah panelnya, seperti pada referensi. */
+.login-form-panel>* {
+    width: 100%;
+    max-width: 420px;
+}
+
+.login-form-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+/* Panel kiri (sapaan + sorotan fitur) murni pemanis - di layar sempit disembunyikan
+   total, form-nya sendiri yang harus tetap 100% fungsional & gampang diisi tanpa
+   scroll horizontal. Kartu balik jadi full-bleed di mobile (bukan kartu kecil
+   ngambang dengan padding 40px overlay yang makan ruang berharga di layar
+   sempit) - cuma kolom kiri yang hilang. Breakpoint disamakan sama titik potong
+   tablet yang sudah ada di bawah (768px). */
+@media (max-width: 768px) {
+    #login-overlay {
+        padding: 0;
+    }
+
+    .login-card {
+        max-width: none;
+        max-height: none;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .login-brand-panel {
+        display: none;
+    }
+
+    .login-form-panel {
+        padding: 36px 28px;
+    }
 }
 
 /* ============================================================
@@ -150,39 +362,51 @@ select:focus-visible,
       openConfirmModal()/cancelConfirmModal() di script.js.
    ============================================================ */
 :root {
-  --modal-open-dur: 250ms;
-  --modal-close-dur: 150ms;
-  --modal-scale: 0.96;
-  --modal-scale-close: 0.96;
-  --modal-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --modal-open-dur: 250ms;
+    --modal-close-dur: 150ms;
+    --modal-scale: 0.96;
+    --modal-scale-close: 0.96;
+    --modal-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .t-modal {
-  transform-origin: center;
-  transform: scale(var(--modal-scale));
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform var(--modal-open-dur) var(--modal-ease),
-    opacity   var(--modal-open-dur) var(--modal-ease);
-  will-change: transform, opacity;
+    transform-origin: center;
+    transform: scale(var(--modal-scale));
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        transform var(--modal-open-dur) var(--modal-ease),
+        opacity var(--modal-open-dur) var(--modal-ease);
+    /* SENGAJA tanpa will-change di sini (beda dari snippet asli skill transitions-dev) -
+     will-change permanen di base class memaksa elemen ini dipromosikan ke GPU
+     compositing layer SELAMA modal terbuka, bukan cuma pas 250ms transisinya. Teks
+     bold yang dirender di layer ter-promote itu lewat jalur rasterisasi beda (Skia
+     GPU, bukan hinting normal) - di sejumlah driver GPU/Linux ini bikin teks bold
+     kelihatan miring padahal tidak ada font-style italic sama sekali. Modal ini
+     jarang dibuka dan transisinya cuma sekali-sekali, gak ada animasi kontinu yang
+     benar-benar butuh hint performa ini - harga rendering teks yang rusak lebih
+     mahal dari manfaat compositing yang nyaris tidak kerasa di sini. */
 }
+
 .t-modal.is-open {
-  transform: scale(1);
-  opacity: 1;
-  pointer-events: auto;
+    transform: scale(1);
+    opacity: 1;
+    pointer-events: auto;
 }
+
 .t-modal.is-closing {
-  transform: scale(var(--modal-scale-close));
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform var(--modal-close-dur) var(--modal-ease),
-    opacity   var(--modal-close-dur) var(--modal-ease);
+    transform: scale(var(--modal-scale-close));
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        transform var(--modal-close-dur) var(--modal-ease),
+        opacity var(--modal-close-dur) var(--modal-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .t-modal { transition: none !important; }
+    .t-modal {
+        transition: none !important;
+    }
 }
 
 /* --- Chrome di sekitar snippet di atas: backdrop + dialog konfirmasi hapus - ini
@@ -213,13 +437,19 @@ select:focus-visible,
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .confirm-modal-backdrop { transition: none !important; }
+    .confirm-modal-backdrop {
+        transition: none !important;
+    }
 }
 
 .confirm-modal {
     width: 100%;
     max-width: 380px;
-    background-color: var(--bg-card);
+    /* Solid, BUKAN var(--bg-card) tembus pandang - modal ini ngambang di atas
+       konten halaman yang ramai (form/tombol/chart), beda dari kartu biasa yang
+       ngambang di atas gradient kosong. Lihat catatan panjang di komentar blok
+       backdrop-filter deket awal file. */
+    background-color: var(--bg-card-solid);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: 28px;
@@ -263,10 +493,12 @@ select:focus-visible,
     padding: 10px;
     min-height: 42px;
     border-radius: 6px;
+    font-family: inherit;
     font-size: 14px;
     font-weight: 600;
+    font-style: normal;
     cursor: pointer;
-    transition: background-color var(--transition-base), filter var(--transition-base);
+    transition: background-color var(--transition-base), border-color var(--transition-base);
 }
 
 .btn-modal-cancel {
@@ -286,38 +518,37 @@ select:focus-visible,
 }
 
 .btn-modal-confirm:hover {
-    filter: brightness(1.1);
-}
-
-.login-card h1 {
-    font-size: 20px;
-    font-weight: 700;
-    text-align: center;
-    margin-bottom: 4px;
+    /* SENGAJA background-color solid, bukan filter:brightness() - CSS filter maksa
+       browser rasterize elemen (termasuk teksnya) lewat jalur pixel/GPU terpisah
+       dari rendering glyph normal, dan di beberapa browser/driver GPU itu bikin
+       teks bold kelihatan berubah bentuk/miring selama state hover aktif. Nilai di
+       bawah juga BUKAN cuma soal itu - brightness(1.1) di atas --danger ternyata
+       cuma dapat kontras 3.42:1 buat teks putih, di bawah WCAG AA 4.5:1. Warna solid
+       ini gelap dikit dari --danger (bukan terang), kontrasnya 5.38:1. */
+    background-color: #c62f2f;
 }
 
 .login-subtitle {
     color: var(--text-muted);
-    font-size: 13px;
-    text-align: center;
-    margin-bottom: 20px;
+    font-size: 14.5px;
+    margin-bottom: 28px;
 }
 
 .login-card label {
-    font-size: 13px;
+    font-size: 14px;
     color: var(--text-muted);
-    margin-bottom: 6px;
+    margin-bottom: 7px;
 }
 
 .login-card input {
     background-color: var(--surface-2);
     color: var(--text-main);
     border: 1px solid var(--border);
-    padding: 10px 14px;
-    min-height: 44px;
-    border-radius: 6px;
-    font-size: 14px;
-    margin-bottom: 8px;
+    padding: 13px 16px;
+    min-height: 48px;
+    border-radius: 8px;
+    font-size: 15px;
+    margin-bottom: 10px;
     outline: none;
     transition: border-color 0.2s;
 }
@@ -328,21 +559,21 @@ select:focus-visible,
 
 .login-error {
     color: var(--danger);
-    font-size: 13px;
+    font-size: 13.5px;
     margin-bottom: 8px;
 }
 
 .btn-login {
-    background-color: var(--primary);
+    background: var(--gradient-primary);
     color: #fff;
     border: none;
-    padding: 12px;
-    min-height: 44px;
-    border-radius: 6px;
+    padding: 14px;
+    min-height: 48px;
+    border-radius: 8px;
     font-weight: 600;
-    font-size: 14px;
+    font-size: 15px;
     cursor: pointer;
-    margin-top: 8px;
+    margin-top: 10px;
     transition: filter 0.2s;
 }
 
@@ -370,15 +601,18 @@ select:focus-visible,
 .main-content::-webkit-scrollbar {
     width: 8px;
 }
+
 .sidebar::-webkit-scrollbar-track,
 .main-content::-webkit-scrollbar-track {
     background: transparent;
 }
+
 .sidebar::-webkit-scrollbar-thumb,
 .main-content::-webkit-scrollbar-thumb {
     background-color: var(--border);
     border-radius: 4px;
 }
+
 .sidebar::-webkit-scrollbar-thumb:hover,
 .main-content::-webkit-scrollbar-thumb:hover {
     background-color: var(--text-muted);
@@ -495,15 +729,17 @@ select:focus-visible,
 }
 
 .sidebar ul li.active {
-    background-color: var(--primary);
+    background: var(--gradient-primary);
     box-shadow: var(--shadow-sm);
 }
 
-.sidebar ul li:hover a, .sidebar ul li.active a {
+.sidebar ul li:hover a,
+.sidebar ul li.active a {
     color: var(--text-main);
 }
 
-.sidebar ul li:hover .nav-icon, .sidebar ul li.active .nav-icon {
+.sidebar ul li:hover .nav-icon,
+.sidebar ul li.active .nav-icon {
     opacity: 1;
 }
 
@@ -658,10 +894,25 @@ header h1 {
     flex-shrink: 0;
 }
 
-.badge-blue { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
-.badge-amber { background: rgba(255, 184, 0, 0.15); color: var(--warning); }
-.badge-green { background: rgba(16, 185, 129, 0.15); color: var(--success); }
-.badge-purple { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+.badge-blue {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+}
+
+.badge-amber {
+    background: rgba(255, 184, 0, 0.15);
+    color: var(--warning);
+}
+
+.badge-green {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.badge-purple {
+    background: rgba(168, 85, 247, 0.15);
+    color: #a855f7;
+}
 
 /* Kontrol form terpadu (select & input teks/waktu) - dipakai di semua halaman
    supaya dropdown/input punya tampilan konsisten, bukan style inline berulang
@@ -712,45 +963,65 @@ header h1 {
    cuma lapisan visualnya.
    ============================================================ */
 :root {
-  --dropdown-open-dur: 250ms;
-  --dropdown-close-dur: 150ms;
-  --dropdown-pre-scale: 0.97;
-  --dropdown-closing-scale: 0.99;
-  --dropdown-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --dropdown-open-dur: 250ms;
+    --dropdown-close-dur: 150ms;
+    --dropdown-pre-scale: 0.97;
+    --dropdown-closing-scale: 0.99;
+    --dropdown-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .t-dropdown {
-  transform-origin: top left;
-  transform: scale(var(--dropdown-pre-scale));
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform var(--dropdown-open-dur) var(--dropdown-ease),
-    opacity   var(--dropdown-open-dur) var(--dropdown-ease);
-  will-change: transform, opacity;
+    transform-origin: top left;
+    transform: scale(var(--dropdown-pre-scale));
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        transform var(--dropdown-open-dur) var(--dropdown-ease),
+        opacity var(--dropdown-open-dur) var(--dropdown-ease);
+    /* SENGAJA tanpa will-change - alasan sama dengan .t-modal di atas: permanen di
+     base class bikin teks di dalam menu (opsi dropdown) berpotensi rusak render-nya
+     selama menu terbuka, bukan cuma pas transisi buka/tutup. */
 }
-.t-dropdown[data-origin="top-right"]     { transform-origin: top right; }
-.t-dropdown[data-origin="top-center"]    { transform-origin: top center; }
-.t-dropdown[data-origin="bottom-left"]   { transform-origin: bottom left; }
-.t-dropdown[data-origin="bottom-center"] { transform-origin: bottom center; }
-.t-dropdown[data-origin="bottom-right"]  { transform-origin: bottom right; }
+
+.t-dropdown[data-origin="top-right"] {
+    transform-origin: top right;
+}
+
+.t-dropdown[data-origin="top-center"] {
+    transform-origin: top center;
+}
+
+.t-dropdown[data-origin="bottom-left"] {
+    transform-origin: bottom left;
+}
+
+.t-dropdown[data-origin="bottom-center"] {
+    transform-origin: bottom center;
+}
+
+.t-dropdown[data-origin="bottom-right"] {
+    transform-origin: bottom right;
+}
 
 .t-dropdown.is-open {
-  transform: scale(1);
-  opacity: 1;
-  pointer-events: auto;
+    transform: scale(1);
+    opacity: 1;
+    pointer-events: auto;
 }
+
 .t-dropdown.is-closing {
-  transform: scale(var(--dropdown-closing-scale));
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform var(--dropdown-close-dur) var(--dropdown-ease),
-    opacity   var(--dropdown-close-dur) var(--dropdown-ease);
+    transform: scale(var(--dropdown-closing-scale));
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        transform var(--dropdown-close-dur) var(--dropdown-ease),
+        opacity var(--dropdown-close-dur) var(--dropdown-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .t-dropdown { transition: none !important; }
+    .t-dropdown {
+        transition: none !important;
+    }
 }
 
 /* --- Chrome di sekitar snippet di atas: trigger button, badan menu, baris opsi -
@@ -815,7 +1086,10 @@ header h1 {
     min-width: 100%;
     max-height: 280px;
     overflow-y: auto;
-    background-color: var(--bg-card);
+    /* Solid, sama alasannya kayak .confirm-modal - menu ini kebuka di atas isi
+       halaman lain (kartu/chart di bawahnya), tembus pandang bikin dua lapis teks
+       numpuk susah dibaca. */
+    background-color: var(--bg-card-solid);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     box-shadow: var(--shadow-md);
@@ -873,12 +1147,30 @@ header h1 {
     background-color: rgba(0, 0, 0, 0.15);
     border-left: 3px solid var(--border);
 }
-.phase-card.phase-primary { border-left-color: var(--primary); }
-.phase-card.phase-warning { border-left-color: var(--warning); }
-.phase-card.phase-danger { border-left-color: var(--danger); }
-.phase-card.phase-info { border-left-color: var(--info); }
-.phase-card.phase-success { border-left-color: var(--success); }
-.phase-card.phase-purple { border-left-color: #a855f7; }
+
+.phase-card.phase-primary {
+    border-left-color: var(--primary);
+}
+
+.phase-card.phase-warning {
+    border-left-color: var(--warning);
+}
+
+.phase-card.phase-danger {
+    border-left-color: var(--danger);
+}
+
+.phase-card.phase-info {
+    border-left-color: var(--info);
+}
+
+.phase-card.phase-success {
+    border-left-color: var(--success);
+}
+
+.phase-card.phase-purple {
+    border-left-color: #a855f7;
+}
 
 .card h3 {
     color: var(--text-muted);
@@ -926,9 +1218,20 @@ header h1 {
     margin-left: auto;
 }
 
-.stat-trend-pill.trend-up { background: rgba(16, 185, 129, 0.15); color: var(--success); }
-.stat-trend-pill.trend-down { background: rgba(242, 61, 61, 0.15); color: var(--danger); }
-.stat-trend-pill.trend-flat { background: rgba(138, 153, 173, 0.15); color: var(--text-muted); }
+.stat-trend-pill.trend-up {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.stat-trend-pill.trend-down {
+    background: rgba(242, 61, 61, 0.15);
+    color: var(--danger);
+}
+
+.stat-trend-pill.trend-flat {
+    background: rgba(138, 153, 173, 0.15);
+    color: var(--text-muted);
+}
 
 /* ============================================================
    HALAMAN DASHBOARD (ringkasan sistem) — KPI, chart telemetry rata-rata, dua donat
@@ -1138,16 +1441,28 @@ header h1 {
     animation: ai-summary-shimmer 1.4s linear infinite;
 }
 
-.ai-summary-skeleton-line.is-short { width: 55%; }
-.ai-summary-skeleton-line.is-medium { width: 80%; }
+.ai-summary-skeleton-line.is-short {
+    width: 55%;
+}
+
+.ai-summary-skeleton-line.is-medium {
+    width: 80%;
+}
 
 @keyframes ai-summary-shimmer {
-    from { background-position: 200% 0; }
-    to { background-position: -200% 0; }
+    from {
+        background-position: 200% 0;
+    }
+
+    to {
+        background-position: -200% 0;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .ai-summary-skeleton-line { animation: none; }
+    .ai-summary-skeleton-line {
+        animation: none;
+    }
 }
 
 .ai-summary-skeleton-label {
@@ -1163,7 +1478,7 @@ header h1 {
     color: var(--text-main);
 }
 
-.ai-summary-result p + p {
+.ai-summary-result p+p {
     margin-top: 10px;
 }
 
@@ -1189,24 +1504,47 @@ header h1 {
     font-size: 13px;
 }
 
-.status-healthy { background-color: rgba(16, 185, 129, 0.2); color: var(--success); }
-.status-warning { background-color: rgba(255, 184, 0, 0.2); color: var(--warning); }
-.status-critical { background-color: rgba(242, 61, 61, 0.2); color: var(--danger); }
+.status-healthy {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: var(--success);
+}
+
+.status-warning {
+    background-color: rgba(255, 184, 0, 0.2);
+    color: var(--warning);
+}
+
+.status-critical {
+    background-color: rgba(242, 61, 61, 0.2);
+    color: var(--danger);
+}
 
 /* Lifespan Dynamic Card Styles */
 .lifespan-card.warning-state {
     background-color: #382c0e;
     border-color: var(--warning);
 }
-.lifespan-card.warning-state h3 { color: #d4a328; }
-.lifespan-card.warning-state .big-value { color: var(--warning); }
+
+.lifespan-card.warning-state h3 {
+    color: #d4a328;
+}
+
+.lifespan-card.warning-state .big-value {
+    color: var(--warning);
+}
 
 .lifespan-card.danger-state {
     background-color: #3c1414;
     border-color: var(--danger);
 }
-.lifespan-card.danger-state h3 { color: #d94e4e; }
-.lifespan-card.danger-state .big-value { color: var(--danger); }
+
+.lifespan-card.danger-state h3 {
+    color: #d94e4e;
+}
+
+.lifespan-card.danger-state .big-value {
+    color: var(--danger);
+}
 
 .progress-bar-container {
     background-color: var(--border);
@@ -1228,8 +1566,28 @@ header h1 {
     color: var(--text-muted);
     margin-top: 8px;
 }
-.lifespan-card.warning-state .status-note { color: var(--warning); }
-.lifespan-card.danger-state .status-note { color: var(--danger); }
+
+.lifespan-card.warning-state .status-note {
+    color: var(--warning);
+}
+
+.lifespan-card.danger-state .status-note {
+    color: var(--danger);
+}
+
+/* Badge "terakhir lapor" (#last-update-note) - lampu yang berhenti kirim telemetry
+   (mati/ESP32 crash/putus jaringan) tetap nampilin pembacaan terakhirnya selamanya
+   kalau tidak ditandai kapan data itu masuk. Dua tingkat: >15 menit dicurigai (lampu
+   PJU biasanya lapor jauh lebih sering dari itu), >24 jam kemungkinan besar mati. */
+.status-note.is-stale-warning {
+    color: var(--warning);
+    font-weight: 600;
+}
+
+.status-note.is-stale-danger {
+    color: var(--danger-text);
+    font-weight: 600;
+}
 
 .gps-value p {
     font-size: 16px;
@@ -1310,8 +1668,8 @@ header h1 {
 }
 
 .btn-save-schedule {
-    background: var(--primary);
-    border-color: var(--primary);
+    background: var(--gradient-primary);
+    border-color: transparent;
     color: #fff;
 }
 
@@ -1338,6 +1696,63 @@ header h1 {
 .phase-count-hint {
     color: var(--text-muted);
     font-size: 13px;
+}
+
+/* --- Onboarding sektor & lampu baru (Kelola Lampu) --- */
+.provision-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 900px) {
+    .provision-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.provision-col h2 {
+    margin-bottom: 8px;
+}
+
+.provision-hint {
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 14px;
+}
+
+.provision-hint code {
+    background: var(--surface-2);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.provision-latlng-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.provision-msg {
+    margin-top: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.provision-msg:empty {
+    display: none;
+}
+
+.provision-msg.is-success {
+    color: var(--success);
+}
+
+.provision-msg.is-error {
+    color: var(--danger-text);
 }
 
 .slider {
@@ -1444,7 +1859,8 @@ header h1 {
     font-size: 15px;
     font-weight: 600;
     color: var(--text-main);
-    font-family: var(--font-mono); /* Gaya font koordinat kaku profesional */
+    font-family: var(--font-mono);
+    /* Gaya font koordinat kaku profesional */
 }
 
 /* Desain Section Peta Besar di Bawah Dashboard */
@@ -1464,7 +1880,8 @@ header h1 {
 
 #map {
     width: 100%;
-    height: 800px; /* Ukuran peta menjadi jauh lebih luas dan proporsional */
+    height: 800px;
+    /* Ukuran peta menjadi jauh lebih luas dan proporsional */
     border-radius: 6px;
     border: 1px solid var(--border);
     background-color: var(--bg-dark);
@@ -1483,13 +1900,15 @@ header h1 {
 
 #map {
     width: 100%;
-    height: 500px; /* Sesuai tinggi ideal di dasbor */
+    height: 500px;
+    /* Sesuai tinggi ideal di dasbor */
     border: none;
 }
 
 /* Panel Detail Sisi Kanan */
 #map-info-panel {
-    flex: 0; /* Mulai dari lebar 0% */
+    flex: 0;
+    /* Mulai dari lebar 0% */
     background-color: #151f32;
     border-left: 0 solid var(--border);
     transition: flex 0.5s cubic-bezier(0.25, 1, 0.5, 1), padding 0.5s ease, border-width 0.3s ease;
@@ -1534,7 +1953,11 @@ header h1 {
     border-radius: 6px;
     transition: color 0.2s, background-color 0.2s;
 }
-.close-panel-btn:hover { color: var(--danger); background-color: rgba(242, 61, 61, 0.1); }
+
+.close-panel-btn:hover {
+    color: var(--danger);
+    background-color: rgba(242, 61, 61, 0.1);
+}
 
 .info-group {
     margin-bottom: 20px;
@@ -1580,6 +2003,7 @@ header h1 {
     color: var(--info);
     flex-shrink: 0;
 }
+
 .info-group h4 {
     font-size: 13px;
     color: var(--text-muted);
@@ -1604,8 +2028,9 @@ header h1 {
     flex-direction: column;
     gap: 10px;
 }
+
 .timeline-item {
-    background: rgba(0,0,0,0.2);
+    background: rgba(0, 0, 0, 0.2);
     padding: 10px;
     border-radius: 5px;
     border-left: 3px solid var(--primary);
@@ -1613,11 +2038,13 @@ header h1 {
     flex-direction: column;
     gap: 4px;
 }
+
 .tl-time {
     font-size: 13px;
     font-weight: 700;
     color: var(--text-main);
 }
+
 .tl-desc {
     font-size: 12px;
     color: var(--text-muted);
@@ -1629,15 +2056,18 @@ header h1 {
     cursor: not-allowed;
     background: var(--surface-2);
 }
+
 .slider:disabled::-webkit-slider-thumb {
     background: #64748b !important;
     border-color: #64748b !important;
     cursor: not-allowed;
     transform: none !important;
 }
+
 .slider:disabled::-moz-range-track {
     background: var(--surface-2);
 }
+
 .slider:disabled::-moz-range-thumb {
     background: #64748b !important;
     border-color: #64748b !important;
@@ -1647,46 +2077,51 @@ header h1 {
 
 /* Switch Toggle Container */
 .switch {
-  position: relative;
-  display: inline-block;
-  width: 46px;
-  height: 22px;
+    position: relative;
+    display: inline-block;
+    width: 46px;
+    height: 22px;
 }
 
 /* Sembunyikan checkbox bawaan browser */
 .switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
+    opacity: 0;
+    width: 0;
+    height: 0;
 }
 
 /* Desain slider switch bulat */
 .slider-round {
-  position: absolute;
-  cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: #334155;
-  transition: .3s;
-  border-radius: 34px;
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #334155;
+    transition: .3s;
+    border-radius: 34px;
 }
+
 .slider-round:before {
-  position: absolute;
-  content: "";
-  height: 16px;
-  width: 16px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: .3s;
-  border-radius: 50%;
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
 }
 
 /* Warna saat switch aktif (Terbuka/Unlocked) */
-input:checked + .slider-round {
-  background-color: var(--success);
+input:checked+.slider-round {
+    background-color: var(--success);
 }
-input:checked + .slider-round:before {
-  transform: translateX(24px);
+
+input:checked+.slider-round:before {
+    transform: translateX(24px);
 }
 
 
@@ -1833,7 +2268,7 @@ input:checked + .slider-round:before {
     padding-top: 0;
 }
 
-.telemetry-lamp-block + .telemetry-lamp-block {
+.telemetry-lamp-block+.telemetry-lamp-block {
     border-top: 1px solid var(--border);
 }
 
@@ -1859,9 +2294,20 @@ input:checked + .slider-round:before {
     font-weight: 600;
 }
 
-.telemetry-status-healthy { background: rgba(16, 185, 129, 0.15); color: var(--success); }
-.telemetry-status-warning { background: rgba(255, 184, 0, 0.15); color: var(--warning); }
-.telemetry-status-critical { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+.telemetry-status-healthy {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.telemetry-status-warning {
+    background: rgba(255, 184, 0, 0.15);
+    color: var(--warning);
+}
+
+.telemetry-status-critical {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+}
 
 .empty-state-block {
     padding: 60px 20px;
@@ -1915,7 +2361,7 @@ input:checked + .slider-round:before {
     margin: 0;
 }
 
-.lamp-ai-result p + p {
+.lamp-ai-result p+p {
     margin-top: 8px;
 }
 
@@ -2256,6 +2702,7 @@ input:checked + .slider-round:before {
    RESPONSIVE — Layar sempit (tablet & mobile)
    ============================================================ */
 @media (max-width: 768px) {
+
     /* Sidebar+main-content sebenarnya flex child dari #app-shell (wrapper terpisah,
        di-set display:flex oleh JS saat login), bukan langsung anak body - jadi
        flex-direction harus diubah di situ, bukan di body (dulu salah target,
@@ -2315,6 +2762,7 @@ input:checked + .slider-round:before {
 }
 
 @media (max-width: 640px) {
+
     .alert-stats-grid,
     .telemetry-summary-grid {
         grid-template-columns: 1fr;
@@ -2476,9 +2924,11 @@ input:checked + .slider-round:before {
 .ai-chat-messages::-webkit-scrollbar {
     width: 8px;
 }
+
 .ai-chat-messages::-webkit-scrollbar-track {
     background: transparent;
 }
+
 .ai-chat-messages::-webkit-scrollbar-thumb {
     background-color: var(--border);
     border-radius: 4px;
