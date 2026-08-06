@@ -6,6 +6,36 @@ const API_BASE_URL = `http://${location.hostname}:8000`;
 const TELEMETRY_WS_URL = `ws://${location.hostname}:8000/ws/telemetry`;
 let socket;
 
+// Escape teks sebelum ditempel ke innerHTML. WAJIB dipakai untuk SEMUA nilai yang
+// asalnya dari luar dashboard - terutama device_id, sector, dan message alert: broker
+// MQTT-nya publik (broker.emqx.io, tanpa auth), jadi siapa pun bisa publish payload
+// berisi markup ke topic telemetry. Backend menolak device_id tak terdaftar tapi tetap
+// menyimpan + menyiarkan alert-nya (biar percobaan perangkat asing kelihatan), dan
+// alert itu ikut terbaca ulang dari DB tiap kali Kotak Peringatan dibuka - tanpa escape,
+// satu payload jahat jadi script yang jalan di browser tiap admin, permanen.
+function escapeHtml(value) {
+    if (value === null || value === undefined) return "";
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+// Escape untuk nilai yang masuk ke dalam string literal JavaScript di atribut inline
+// (mis. onclick="markAlertRead('...')"). escapeHtml() saja tidak cukup di posisi ini:
+// setelah browser men-decode entity HTML-nya, isinya masih dieksekusi sebagai JS.
+function escapeJsString(value) {
+    return String(value ?? "")
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/</g, "\\x3C")
+        .replace(/\r/g, "\\r")
+        .replace(/\n/g, "\\n");
+}
+
 // Samakan default font/warna Chart.js dengan tema dasbor (Inter + abu-abu muted) -
 // tidak mengubah warna per-dataset yang sudah diset manual di drawChart().
 if (typeof Chart !== 'undefined') {
@@ -916,7 +946,7 @@ function schedulePhaseCardHTML(index, sched, totalPhases) {
             </div>
             <div class="control-group" style="margin-top: 10px;">
                 <label>Jam Mulai:</label>
-                <input type="time" id="sched-time-${n}" value="${sched.time}" class="input-control" style="width: 100%; margin-bottom: 15px;">
+                <input type="time" id="sched-time-${n}" value="${escapeHtml(sched.time)}" class="input-control" style="width: 100%; margin-bottom: 15px;">
 
                 <label>Kecerahan: <span id="sched-dim-label-${n}">${sched.dim}</span> V</label>
                 <input type="range" min="1" max="10" value="${sched.dim}" class="slider" id="sched-dim-${n}" oninput="document.getElementById('sched-dim-label-${n}').innerText=this.value" style="margin-bottom: 15px;">
@@ -1611,7 +1641,7 @@ function renderHealthPie(healthTotals, sectors) {
         const row = document.createElement("div");
         row.className = "sector-health-row";
         row.innerHTML = `
-            <span class="sector-health-name">${s.sector}</span>
+            <span class="sector-health-name">${escapeHtml(s.sector)}</span>
             <span class="sector-health-chips">${parts || '<span class="health-chip is-muted">Belum ada lampu</span>'}</span>`;
         list.appendChild(row);
     });
@@ -1662,7 +1692,7 @@ function renderSectorPie(sectors) {
         const row = document.createElement("div");
         row.className = "sector-health-row";
         row.innerHTML = `
-            <span class="sector-health-name"><span class="sector-dot" style="background:${color}"></span>${s.sector}</span>
+            <span class="sector-health-name"><span class="sector-dot" style="background:${color}"></span>${escapeHtml(s.sector)}</span>
             <span class="sector-health-chips"><span class="health-chip${count ? '' : ' is-muted'}">${count} lampu · ${pct}%</span></span>`;
         list.appendChild(row);
     });
@@ -2364,13 +2394,19 @@ function telemetryStatusPillHTML(health) {
 // Template HTML satu blok lampu: header + 3 kartu ringkasan + grafik, id-nya disufiks
 // deviceId supaya banyak lampu bisa tampil sekaligus dalam satu sektor tanpa bentrok id
 function telemetryLampBlockHTML(deviceId, health) {
+    // deviceId dipakai dua peran di template ini: teks yang tampil DAN sufiks id elemen
+    // yang dicari getElementById()/renderTelemetryChart(). Backend membatasi device_id ke
+    // [A-Za-z0-9._-] (lihat is_valid_device_id di mqtt_ingest.py), jadi untuk id yang sah
+    // escapeHtml() tidak mengubah apa pun - lookup elemen tetap ketemu.
+    const safeId = escapeHtml(deviceId);
+    const safeIdJs = escapeHtml(escapeJsString(deviceId));
     return `
         <div class="telemetry-lamp-block">
             <div class="telemetry-lamp-header">
                 <span class="card-icon-badge badge-blue">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
                 </span>
-                <h2>Tiang ${deviceId}</h2>
+                <h2>Tiang ${safeId}</h2>
                 ${telemetryStatusPillHTML(health)}
             </div>
 
@@ -2380,34 +2416,34 @@ function telemetryLampBlockHTML(deviceId, health) {
                         <span class="card-icon-badge badge-blue"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
                         <h3>Rata-rata Tegangan</h3>
                     </div>
-                    <div class="big-value" style="color: #3b82f6;" id="avg-volt-${deviceId}">0.0 V</div>
+                    <div class="big-value" style="color: #3b82f6;" id="avg-volt-${safeId}">0.0 V</div>
                 </div>
                 <div class="card">
                     <div class="card-header-row">
                         <span class="card-icon-badge badge-green"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
                         <h3>Rata-rata Arus</h3>
                     </div>
-                    <div class="big-value" style="color: var(--success);" id="avg-current-${deviceId}">0.0 A</div>
+                    <div class="big-value" style="color: var(--success);" id="avg-current-${safeId}">0.0 A</div>
                 </div>
                 <div class="card">
                     <div class="card-header-row">
                         <span class="card-icon-badge badge-amber"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></span>
                         <h3>Konsumsi Daya Kumulatif</h3>
                     </div>
-                    <div class="big-value" style="color: var(--warning);" id="avg-power-${deviceId}">0.0 W</div>
+                    <div class="big-value" style="color: var(--warning);" id="avg-power-${safeId}">0.0 W</div>
                 </div>
             </div>
 
             <div class="card" style="padding: 25px; position: relative; height: 380px;">
-                <canvas id="telemetryChart-${deviceId}"></canvas>
+                <canvas id="telemetryChart-${safeId}"></canvas>
             </div>
 
             <div class="lamp-ai-analysis">
-                <button type="button" class="btn-analyze-ai" id="btn-analyze-${deviceId}" onclick="analyzeLampAI('${deviceId}')">
+                <button type="button" class="btn-analyze-ai" id="btn-analyze-${safeId}" onclick="analyzeLampAI('${safeIdJs}')">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
                     Analisis AI
                 </button>
-                <div class="lamp-ai-result" id="ai-result-${deviceId}" style="display: none;"></div>
+                <div class="lamp-ai-result" id="ai-result-${safeId}" style="display: none;"></div>
             </div>
         </div>`;
 }
@@ -3095,27 +3131,30 @@ function _buildAlertCardHTML(alert) {
     const cardClass = `alert-card severity-${alert.severity}${isUnread ? ' unread' : ''}`;
 
     // Tombol "Tandai Dibaca" hanya tampil jika belum dibaca
+    const safeIdAttr = escapeHtml(alert.id);
+    const safeIdJs = escapeHtml(escapeJsString(alert.id));
+
     const readBtn = !alert.isRead
-        ? `<button class="btn-read" onclick="markAlertRead('${alert.id}')">${_svgIcon('<path d="M20 6 9 17l-5-5"/>')} Tandai Dibaca</button>`
+        ? `<button class="btn-read" onclick="markAlertRead('${safeIdJs}')">${_svgIcon('<path d="M20 6 9 17l-5-5"/>')} Tandai Dibaca</button>`
         : '';
 
     // Tombol "Hapus" cuma buat admin - user (monitoring-only) cuma boleh menandai dibaca
     const dismissBtn = currentRole === 'admin'
-        ? `<button class="btn-dismiss" onclick="confirmDismissAlert('${alert.id}')">${_svgIcon('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>')} Hapus</button>`
+        ? `<button class="btn-dismiss" onclick="confirmDismissAlert('${safeIdJs}')">${_svgIcon('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>')} Hapus</button>`
         : '';
 
     return `
-    <div class="${cardClass}" id="card-${alert.id}">
+    <div class="${cardClass}" id="card-${safeIdAttr}">
         <div class="alert-card-header">
             <div class="alert-card-header-left">
                 ${unreadDot}
                 <span class="alert-severity-badge ${severityBadgeClass}">${severityLabel}</span>
-                <span class="alert-node-id">${alert.nodeId}</span>
+                <span class="alert-node-id">${escapeHtml(alert.nodeId)}</span>
                 <span style="display:inline-flex; color: var(--text-muted);">${typeIcon}</span>
             </div>
-            <span class="alert-timestamp">${timestamp}</span>
+            <span class="alert-timestamp">${escapeHtml(timestamp)}</span>
         </div>
-        <p class="alert-message">${alert.message}</p>
+        <p class="alert-message">${escapeHtml(alert.message)}</p>
         <div class="alert-metrics">
             <div class="alert-metric-item">
                 <span class="alert-metric-label">${_METRIC_ICON_VOLT} Tegangan:</span>
@@ -3136,7 +3175,7 @@ function _buildAlertCardHTML(alert) {
             </div>` : ''}
         </div>
         <div class="alert-footer">
-            <span class="alert-type-label">${_formatAlertType(alert.type)}</span>
+            <span class="alert-type-label">${escapeHtml(_formatAlertType(alert.type))}</span>
             <div class="alert-actions">
                 ${readBtn}
                 ${dismissBtn}

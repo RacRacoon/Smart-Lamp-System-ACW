@@ -20,6 +20,11 @@ import db
 logger = logging.getLogger("acw.routes.provisioning")
 router = APIRouter(prefix="/api", tags=["provisioning"])
 
+# Nama sektor sengaja TIDAK dibatasi charset seperti device_id - isinya nama jalan
+# sungguhan yang wajar pakai spasi/kurung/tanda hubung ("Sektor 2 (Kertajaya - Depan
+# ITS)"). Yang dibatasi cuma panjangnya, sisanya diserahkan ke escaping saat render.
+MAX_SECTOR_NAME_LENGTH = 120
+
 
 class CreateSectorRequest(BaseModel):
     sector_name: str
@@ -57,6 +62,11 @@ def add_sector(
     sector_name = body.sector_name.strip()
     if not sector_name:
         raise HTTPException(status_code=400, detail={"error": "Nama sektor tidak boleh kosong"})
+    if len(sector_name) > MAX_SECTOR_NAME_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": f"Nama sektor terlalu panjang (maks {MAX_SECTOR_NAME_LENGTH} karakter)"},
+        )
 
     try:
         db.create_sector(sector_name)
@@ -80,6 +90,14 @@ def add_device(
     device_id = body.device_id.strip()
     if not device_id:
         raise HTTPException(status_code=400, detail={"error": "ID lampu tidak boleh kosong"})
+
+    # Charset yang sama dengan gerbang ingest MQTT - kalau di sini lebih longgar, ID yang
+    # ditolak ingest justru bisa didaftarkan admin dan lampunya tidak akan pernah bisa lapor.
+    if not config.is_valid_device_id(device_id):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "ID lampu hanya boleh huruf, angka, titik, garis bawah, dan tanda hubung (maks 64 karakter)"},
+        )
 
     sector_name = body.sector_name.strip()
     if not sector_name:

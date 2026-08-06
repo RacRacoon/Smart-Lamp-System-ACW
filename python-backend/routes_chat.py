@@ -6,18 +6,34 @@ tool-calling, tidak bisa ubah apapun.
 import logging
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import ai_chat
 import config
+import rate_limit
 import routes_overview
 
 logger = logging.getLogger("acw.routes.chat")
 router = APIRouter(prefix="/api", tags=["chat"])
 
 MAX_MESSAGE_LENGTH = 4000
+
+
+def _enforce_ai_rate_limit(request: Request) -> None:
+    """Satu jatah dipakai bersama ketiga endpoint AI (bucket "ai" yang sama): yang
+    dilindungi itu kuota Gemini, dan kuota itu memang satu untuk semuanya - kalau tiap
+    endpoint dikasih jatah sendiri, totalnya jadi tiga kali lipat dari yang dimaksud."""
+    allowed, retry_after = rate_limit.check(
+        "ai", rate_limit.client_ip(request),
+        config.RATE_LIMIT_AI_MAX, config.RATE_LIMIT_AI_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"error": f"Terlalu banyak permintaan ke asisten AI. Coba lagi dalam {retry_after} detik."},
+        )
 
 
 class ChatMessage(BaseModel):
@@ -35,11 +51,13 @@ class AnalyzeDeviceRequest(BaseModel):
 
 
 @router.post("/chat/analyze-system")
-def analyze_system():
+def analyze_system(request: Request):
     """Kartu "Ringkasan AI" di halaman Dashboard - analisis agregat seluruh sistem.
     Datanya diambil dari routes_overview.system_overview(), fungsi yang sama yang
     mengisi KPI & grafik di halaman itu, supaya angka yang dibahas AI persis sama
     dengan yang sedang dilihat user."""
+    _enforce_ai_rate_limit(request)
+
     if not config.GEMINI_API_KEY:
         raise HTTPException(status_code=503, detail={"error": "Asisten AI belum dikonfigurasi di server (GEMINI_API_KEY kosong)"})
 
@@ -65,9 +83,11 @@ def analyze_system():
 
 
 @router.post("/chat/analyze-device")
-def analyze_device(body: AnalyzeDeviceRequest):
+def analyze_device(body: AnalyzeDeviceRequest, request: Request):
     """Tombol "Analisis AI" per kartu lampu di Riwayat Data - satu panggilan non-streaming,
     beda dari /api/chat (tidak ada histori percakapan, tidak ada tool-calling)."""
+    _enforce_ai_rate_limit(request)
+
     device_id = body.device_id.strip()
     if not device_id:
         raise HTTPException(status_code=400, detail={"error": "device_id tidak boleh kosong"})
@@ -90,7 +110,9 @@ def analyze_device(body: AnalyzeDeviceRequest):
 
 
 @router.post("/chat")
-def chat(body: ChatRequest):
+def chat(body: ChatRequest, request: Request):
+    _enforce_ai_rate_limit(request)
+
     message = body.message.strip()
     if not message:
         raise HTTPException(status_code=400, detail={"error": "Pesan tidak boleh kosong"})

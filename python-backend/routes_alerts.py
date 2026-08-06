@@ -12,13 +12,18 @@ permanen dari API, bukan tempelan.
 """
 import logging
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Query
 
 import auth
 import db
 
 logger = logging.getLogger("acw.routes.alerts")
 router = APIRouter(prefix="/api", tags=["alerts"])
+
+# Endpoint ini publik, jadi `limit` datang dari query string yang bisa diisi siapa saja.
+# Tanpa batas atas, satu request `?limit=100000000` cukup buat menarik seluruh tabel
+# alerts ke memori proses. Dashboard sendiri paling banyak minta 100 (fetchAlertsFromDB).
+MAX_ALERTS_LIMIT = 500
 
 
 def _require_admin(x_acw_token: str | None) -> None:
@@ -27,7 +32,7 @@ def _require_admin(x_acw_token: str | None) -> None:
 
 
 @router.get("/alerts-history")
-def alerts_history(limit: int = 50):
+def alerts_history(limit: int = Query(default=50, ge=1, le=MAX_ALERTS_LIMIT)):
     return db.get_alerts_history(limit)
 
 

@@ -5,11 +5,13 @@ biasa (tidak perlu lagi akal-akalan functionGlobalContext buat akses crypto).
 """
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 import auth
+import config
 import db
+import rate_limit
 
 logger = logging.getLogger("acw.routes.auth")
 router = APIRouter(prefix="/api", tags=["auth"])
@@ -21,7 +23,21 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
-def login(body: LoginRequest):
+def login(body: LoginRequest, request: Request):
+    # Dibatasi per-IP SEBELUM query database: tanpa ini password admin bisa ditebak
+    # secepat jaringan mengizinkan. Kunci rate limit-nya IP, bukan username - kalau
+    # dikunci per-username, penyerang justru bisa memakainya buat mengunci akun admin
+    # sungguhan dari luar (denial of service ke pemilik akun yang sah).
+    allowed, retry_after = rate_limit.check(
+        "login", rate_limit.client_ip(request),
+        config.RATE_LIMIT_LOGIN_MAX, config.RATE_LIMIT_LOGIN_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"error": f"Terlalu banyak percobaan login. Coba lagi dalam {retry_after} detik."},
+        )
+
     username = body.username.strip()
     password = body.password
 

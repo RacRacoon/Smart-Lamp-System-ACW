@@ -57,6 +57,18 @@ def _parse_payload(topic: str, raw: dict) -> dict:
 def _handle_telemetry(data: dict) -> None:
     device_id = data["device_id"]
 
+    # Bentuk device_id dicek lebih dulu, dan yang gagal DIBUANG DIAM-DIAM - sengaja tidak
+    # bikin alert seperti cabang device tak terdaftar di bawah. Isi alert itu memuat
+    # device_id-nya sendiri lalu disimpan permanen + disiarkan ke semua dashboard, jadi
+    # kalau ID berisi markup dibuatkan alert, justru jalur itu yang jadi senjatanya.
+    # Cukup dicatat ke log (bukan HTML, tidak dirender di mana pun).
+    if not config.is_valid_device_id(device_id):
+        logger.warning(
+            "Telemetry ditolak - bentuk device_id tidak valid (%d karakter, awalan: %r)",
+            len(device_id or ""), (device_id or "")[:32],
+        )
+        return
+
     # Whitelist: device_id harus sudah diinput manual ke tabel devices lebih dulu.
     # Kalau belum, data ditolak sepenuhnya (tidak masuk telemetry_logs, tidak
     # auto-register) dan dashboard diberi tahu lewat alert - bukan diam-diam dibuang,
