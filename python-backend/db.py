@@ -77,6 +77,37 @@ def device_exists(device_id: str) -> bool:
     return bool(rows)
 
 
+def get_sector_names() -> list[str]:
+    """Semua sektor terdaftar langsung dari tabel sectors - beda dari dropdown lain
+    di frontend yang cuma nampilin sektor kalau sudah ada lampu/jadwal di dalamnya.
+    Dipakai form onboarding (routes_provisioning.py) supaya sektor baru yang masih
+    kosong pun langsung bisa dipilih buat lampu berikutnya."""
+    rows = _fetch("SELECT sector_name FROM sectors ORDER BY sector_name;", ())
+    return [r["sector_name"] for r in rows]
+
+
+def create_sector(sector_name: str) -> None:
+    """Daftarkan sektor baru. Nama duplikat lempar psycopg2.errors.UniqueViolation
+    (PK sectors.sector_name) - ditangani jadi 409 di routes_provisioning.py."""
+    _run("INSERT INTO sectors (sector_name) VALUES (%s);", (sector_name,))
+
+
+def create_device(device_id: str, sector_name: str, lat: float, lng: float, max_lifespan: int) -> None:
+    """Daftarkan lampu baru ke whitelist - satu-satunya cara device_exists() jadi
+    True buat device_id ini, jadi ESP32 baru bisa mulai lapor telemetry. Sebelum ada
+    endpoint ini, onboarding cuma bisa lewat INSERT manual di psql (lihat
+    device_exists() di atas). device_id duplikat -> UniqueViolation, sector_name
+    yang belum terdaftar -> ForeignKeyViolation - dua-duanya ditangani di
+    routes_provisioning.py."""
+    _run(
+        """
+        INSERT INTO devices (device_id, sector_name, latitude, longitude, max_lifespan)
+        VALUES (%s, %s, %s, %s, %s);
+        """,
+        (device_id, sector_name, lat, lng, max_lifespan),
+    )
+
+
 def insert_telemetry(
     device_id: str,
     volt: float,
@@ -337,6 +368,15 @@ def get_device_ids_by_sector(sector_name: str) -> list[str]:
     RTC ke tiap lampu lewat MQTT setelah jadwal sektornya disimpan."""
     rows = _fetch("SELECT device_id FROM devices WHERE sector_name = %s;", (sector_name,))
     return [r["device_id"] for r in rows]
+
+
+def delete_sector(sector_name: str) -> None:
+    """Hapus sektor - CASCADE otomatis hapus jadwal RTC-nya juga (FK
+    sector_schedules.sector_name ON DELETE CASCADE). Sektor yang masih punya lampu
+    DIBLOK di routes_provisioning.py SEBELUM sampai sini (guard
+    get_device_ids_by_sector) - devices.sector_name aslinya ON DELETE SET NULL,
+    tapi lampu diam-diam kehilangan sektor bukan hasil yang kita mau."""
+    _run("DELETE FROM sectors WHERE sector_name = %s;", (sector_name,))
 
 
 def get_user_by_username(username: str) -> dict[str, Any] | None:
