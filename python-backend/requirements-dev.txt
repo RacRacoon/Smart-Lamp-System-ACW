@@ -1,0 +1,5 @@
+# Dependency test - TERPISAH dari requirements.txt sengaja, supaya image Docker produksi
+# (Dockerfile cuma `pip install -r requirements.txt`) tidak ikut bawa tooling test yang
+# tidak pernah dipakai saat runtime. Install lokal: pip install -r requirements-dev.txt
+-r requirements.txt
+pytest==9.1.1

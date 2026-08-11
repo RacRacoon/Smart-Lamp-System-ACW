@@ -3564,3 +3564,12 @@ async function handleAiChatSubmit(event) {
         input.focus();
     }
 }
+
+// `module` cuma ada di Node (test runner), tidak pernah ada di browser - blok ini nol
+// efek saat dashboard dibuka user (guard-nya gagal, isinya dilewati). Satu-satunya
+// tujuan: biar tests/ (vitest, jalan di Node) bisa `require()` fungsi murni ini tanpa
+// script.js ditulis ulang jadi ES module (yang bakal matiin semua onclick="..." inline
+// yang masih dipakai luas di index.html - lihat catatan CSP soal itu).
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = { escapeHtml, escapeJsString, stripMarkdownNoise };
+}
