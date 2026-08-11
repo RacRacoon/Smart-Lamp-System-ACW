@@ -7,18 +7,44 @@ sesi - sama persis pola aksesnya dengan POST /api/lights/:id/command.
 import logging
 
 import psycopg2.errors
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 import auth
+import config
 import db
 import mqtt_ingest
+import rate_limit
 
 logger = logging.getLogger("acw.routes.schedules")
 router = APIRouter(prefix="/api", tags=["schedules"])
 
 MIN_PHASES = 3
 MAX_PHASES = 6
+
+
+def _enforce_public_rate_limit(request: Request) -> None:
+    allowed, retry_after = rate_limit.check(
+        "public_read", rate_limit.client_ip(request),
+        config.RATE_LIMIT_PUBLIC_MAX, config.RATE_LIMIT_PUBLIC_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"error": f"Terlalu banyak permintaan. Coba lagi dalam {retry_after} detik."},
+        )
+
+
+def _enforce_admin_write_rate_limit(x_acw_token: str | None) -> None:
+    allowed, retry_after = rate_limit.check(
+        "admin_write", x_acw_token,
+        config.RATE_LIMIT_ADMIN_WRITE_MAX, config.RATE_LIMIT_ADMIN_WRITE_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"error": f"Terlalu banyak permintaan. Coba lagi dalam {retry_after} detik."},
+        )
 
 
 class SchedulePhase(BaseModel):
@@ -33,9 +59,10 @@ class SectorScheduleUpdate(BaseModel):
 
 
 @router.get("/sector-schedules")
-def sector_schedules():
+def sector_schedules(request: Request):
     """Kelompokkan baris flat dari DB jadi {nama_sektor: [fase, ...]} - query sudah
     ORDER BY sector_name, schedule_time jadi tiap grup otomatis terurut kronologis."""
+    _enforce_public_rate_limit(request)
     rows = db.get_sector_schedules()
     grouped: dict[str, list[dict]] = {}
     for row in rows:
@@ -52,6 +79,7 @@ def update_sector_schedule(
 ):
     if not auth.is_admin(x_acw_token):
         raise HTTPException(status_code=403, detail={"error": "Forbidden: hanya admin yang bisa mengubah jadwal"})
+    _enforce_admin_write_rate_limit(x_acw_token)
 
     if not (MIN_PHASES <= len(body.schedules) <= MAX_PHASES):
         raise HTTPException(

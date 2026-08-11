@@ -12,7 +12,7 @@ Dokumentasi API otomatis: http://localhost:8000/docs (Swagger UI dari FastAPI).
 import asyncio
 import logging
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -49,6 +49,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Header keamanan langsung dari backend - Caddyfile di repo ini sudah pasang
+# HSTS/X-Content-Type-Options/X-Frame-Options, tapi itu cuma aktif kalau proses ini
+# memang dijalankan di belakang Caddy. Backend sering diakses langsung (dev, atau
+# port 8000 yang di-publish langsung di docker-compose) - tanpa header di sini,
+# akses langsung itu telanjang. Dua sumber boleh tumpang tindih, browser pakai yang
+# lebih ketat.
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    # API ini cuma JSON/WS, tidak pernah sengaja mengembalikan HTML - default-src 'none'
+    # aman total di sini (beda dengan CSP dashboard statis di index.html yang butuh
+    # allowlist buat MapLibre/Chart.js).
+    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    return response
 
 
 @app.exception_handler(HTTPException)

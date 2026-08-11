@@ -10,12 +10,13 @@ yang mengubah data.
 import logging
 
 import psycopg2.errors
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 import auth
 import config
 import db
+import rate_limit
 
 logger = logging.getLogger("acw.routes.provisioning")
 router = APIRouter(prefix="/api", tags=["provisioning"])
@@ -24,6 +25,46 @@ router = APIRouter(prefix="/api", tags=["provisioning"])
 # sungguhan yang wajar pakai spasi/kurung/tanda hubung ("Sektor 2 (Kertajaya - Depan
 # ITS)"). Yang dibatasi cuma panjangnya, sisanya diserahkan ke escaping saat render.
 MAX_SECTOR_NAME_LENGTH = 120
+
+
+def _enforce_public_rate_limit(request: Request) -> None:
+    allowed, retry_after = rate_limit.check(
+        "public_read", rate_limit.client_ip(request),
+        config.RATE_LIMIT_PUBLIC_MAX, config.RATE_LIMIT_PUBLIC_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"error": f"Terlalu banyak permintaan. Coba lagi dalam {retry_after} detik."},
+        )
+
+
+def _enforce_admin_write_rate_limit(x_acw_token: str | None) -> None:
+    allowed, retry_after = rate_limit.check(
+        "admin_write", x_acw_token,
+        config.RATE_LIMIT_ADMIN_WRITE_MAX, config.RATE_LIMIT_ADMIN_WRITE_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"error": f"Terlalu banyak permintaan. Coba lagi dalam {retry_after} detik."},
+        )
+
+
+def _enforce_login_rate_limit(request: Request) -> None:
+    # Dipakai KHUSUS di delete_sector(): step-up-nya verifikasi ulang password admin,
+    # jadi ini secara efektif titik tebak-password kedua di luar /api/login. Kunci &
+    # limitnya disamakan (bucket "login", per-IP) supaya tidak jadi jalan pintas
+    # brute-force yang lolos dari perlindungan /api/login.
+    allowed, retry_after = rate_limit.check(
+        "login", rate_limit.client_ip(request),
+        config.RATE_LIMIT_LOGIN_MAX, config.RATE_LIMIT_LOGIN_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"error": f"Terlalu banyak percobaan. Coba lagi dalam {retry_after} detik."},
+        )
 
 
 class CreateSectorRequest(BaseModel):
@@ -47,7 +88,8 @@ class DeleteSectorRequest(BaseModel):
 
 
 @router.get("/sectors")
-def list_sectors():
+def list_sectors(request: Request):
+    _enforce_public_rate_limit(request)
     return db.get_sector_names()
 
 
@@ -58,6 +100,7 @@ def add_sector(
 ):
     if not auth.is_admin(x_acw_token):
         raise HTTPException(status_code=403, detail={"error": "Forbidden: hanya admin yang bisa menambah sektor"})
+    _enforce_admin_write_rate_limit(x_acw_token)
 
     sector_name = body.sector_name.strip()
     if not sector_name:
@@ -86,6 +129,7 @@ def add_device(
 ):
     if not auth.is_admin(x_acw_token):
         raise HTTPException(status_code=403, detail={"error": "Forbidden: hanya admin yang bisa mendaftarkan lampu"})
+    _enforce_admin_write_rate_limit(x_acw_token)
 
     device_id = body.device_id.strip()
     if not device_id:
@@ -131,17 +175,27 @@ def add_device(
 def delete_sector(
     sector_name: str,
     body: DeleteSectorRequest,
+    request: Request,
     x_acw_token: str | None = Header(default=None, alias="X-ACW-Token"),
 ):
     if not auth.is_admin(x_acw_token):
         raise HTTPException(status_code=403, detail={"error": "Forbidden: hanya admin yang bisa menghapus sektor"})
 
+    # Step-up di bawah ini verifikasi ULANG password - titik tebak-password kedua di
+    # luar /api/login, jadi dilimit sama seperti login SEBELUM password-nya dicek,
+    # bukan sesudah (limit setelah cek tidak berguna, brute force-nya sudah kejadian).
+    _enforce_login_rate_limit(request)
+
     # Step-up: verifikasi ULANG username+password admin, bukan cuma percaya token
     # sesi yang sudah ada. Pesan error digabung (bukan "user tidak ada" vs "password
     # salah" terpisah) - sama alasannya dengan /api/login, jangan bocorin username
-    # mana yang valid.
+    # mana yang valid. verify_password() tetap dipanggil walau user tidak ketemu (pakai
+    # auth.DUMMY_HASH) - alasan sama dengan /api/login, cegah enumerasi username lewat
+    # timing respons.
     user = db.get_user_by_username(body.username.strip())
-    if not user or user["role"] != "admin" or not auth.verify_password(body.password, user["password_hash"]):
+    password_hash = user["password_hash"] if user else auth.DUMMY_HASH
+    password_ok = auth.verify_password(body.password, password_hash)
+    if not user or user["role"] != "admin" or not password_ok:
         raise HTTPException(status_code=401, detail={"error": "Username atau password admin salah"})
 
     # Blok kalau masih ada lampu di sektor ini - devices.sector_name FK-nya ON DELETE

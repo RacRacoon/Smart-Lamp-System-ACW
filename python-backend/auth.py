@@ -42,6 +42,17 @@ def hash_password(password: str) -> str:
     return _ph.hash(password)
 
 
+# Hash dummy buat menyamakan waktu respons /api/login saat username TIDAK ada. Tanpa
+# ini, `if not user or not verify_password(...)` di routes_auth.py pendek-sirkuit: kalau
+# user tidak ketemu, verify_password() tidak pernah dipanggil sama sekali, jadi respons
+# balik SANGAT cepat (tidak ada hashing argon2id yang makan puluhan-ratusan ms). Kalau
+# user ketemu tapi password salah, verify_password() tetap jalan penuh, respons jauh
+# lebih lambat. Bedanya kelihatan lewat stopwatch walau pesan errornya sama-sama
+# generik - attacker bisa enumerasi username yang valid cuma dari waktu respons.
+# Dihitung sekali saat modul di-import (buka biaya startup, bukan per-request).
+DUMMY_HASH = _ph.hash("_acw_dummy_hash_buat_samakan_waktu_login_")
+
+
 def _verify_legacy_scrypt(password: str, stored_hash: str) -> bool:
     if not stored_hash or ":" not in stored_hash:
         return False
@@ -116,3 +127,12 @@ def get_session(token: Optional[str]) -> Optional[Session]:
 def is_admin(token: Optional[str]) -> bool:
     session = get_session(token)
     return session is not None and session.role == "admin"
+
+
+def invalidate_session(token: Optional[str]) -> None:
+    """Cabut sesi di server saat logout. Tanpa ini token yang sudah dihapus dari
+    sessionStorage browser tetap valid di server sampai SESSION_DURATION_HOURS habis -
+    kalau token itu sempat bocor (XSS, riwayat proxy, dst), "logout" di browser tidak
+    benar-benar menutup akses."""
+    if token:
+        _sessions.pop(token, None)

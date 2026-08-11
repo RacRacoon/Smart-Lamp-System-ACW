@@ -62,7 +62,7 @@ def analyze_system(request: Request):
         raise HTTPException(status_code=503, detail={"error": "Asisten AI belum dikonfigurasi di server (GEMINI_API_KEY kosong)"})
 
     try:
-        overview = routes_overview.system_overview()
+        overview = routes_overview.compute_system_overview()
     except Exception:
         logger.exception("Gagal mengumpulkan ringkasan sistem buat analisis AI")
         raise HTTPException(status_code=500, detail={"error": "Gagal membaca data sistem dari database"})

@@ -193,6 +193,14 @@ def start() -> mqtt.Client:
 def publish_dim_command(device_id: str, dim: int) -> None:
     """Setara dengan node mqtt-out "Publish to MQTT" (POST /api/lights/:id/command).
     Pakai koneksi MQTT yang sama dengan subscriber telemetry, tidak buka koneksi baru."""
+    if not config.is_valid_device_id(device_id):
+        # device_id masuk mentah ke topic MQTT di bawah - kalau berisi "/", topic
+        # publish-nya BERUBAH (mis. device_id="a/../b" bikin topic keluar dari
+        # "iot/lights/X/command" yang dimaksud). Broker (broker.emqx.io) publik tanpa
+        # auth/namespace, jadi topic sembarangan bisa nyenggol pihak lain yang juga
+        # pakai broker itu. Endpoint pemanggil (routes_command.py) sudah cek ini duluan
+        # buat kasih pesan error yang jelas ke admin - baris ini gerbang kedua/terakhir.
+        raise ValueError(f"device_id tidak valid buat topic MQTT: {device_id!r}")
     if _client is None:
         raise RuntimeError("MQTT belum konek, panggil start() dulu")
     topic = config.MQTT_COMMAND_TOPIC_TEMPLATE.format(device_id=device_id)
@@ -210,6 +218,13 @@ def publish_schedule_command(device_id: str, phases: list[dict]) -> None:
     perintah sesaat, tapi jadwal ini konfigurasi yang harus tetap didapat device
     walau baru nyambung/reconnect setelah broker sempat kirim pesan ini - broker
     simpan pesan retained-nya dan langsung kirim ulang begitu device subscribe."""
+    if not config.is_valid_device_id(device_id):
+        # Sama alasannya dengan publish_dim_command() - device_id di sini datang dari
+        # db.get_device_ids_by_sector() (routes_schedules.py), harusnya sudah lolos
+        # gerbang provisioning, tapi tetap dicek ulang di sini sebagai jaring terakhir
+        # sebelum jadi topic MQTT. Exception ini ketangkep except Exception di pemanggil
+        # (satu device_id aneh tidak menggagalkan publish ke device lain di sektor sama).
+        raise ValueError(f"device_id tidak valid buat topic MQTT: {device_id!r}")
     if _client is None:
         raise RuntimeError("MQTT belum konek, panggil start() dulu")
     topic = config.MQTT_COMMAND_TOPIC_TEMPLATE.format(device_id=device_id)

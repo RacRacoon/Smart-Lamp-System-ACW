@@ -12,7 +12,9 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 import auth
+import config
 import mqtt_ingest
+import rate_limit
 
 logger = logging.getLogger("acw.routes.command")
 router = APIRouter(prefix="/api", tags=["command"])
@@ -20,6 +22,18 @@ router = APIRouter(prefix="/api", tags=["command"])
 
 class DimCommand(BaseModel):
     dim: int = 0
+
+
+def _enforce_admin_write_rate_limit(x_acw_token: str | None) -> None:
+    allowed, retry_after = rate_limit.check(
+        "admin_write", x_acw_token,
+        config.RATE_LIMIT_ADMIN_WRITE_MAX, config.RATE_LIMIT_ADMIN_WRITE_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"error": f"Terlalu banyak permintaan. Coba lagi dalam {retry_after} detik."},
+        )
 
 
 @router.post("/lights/{device_id}/command")
@@ -33,6 +47,19 @@ def send_command(
 
     if not auth.is_admin(x_acw_token):
         raise HTTPException(status_code=403, detail={"error": "Forbidden: hanya admin yang bisa mengubah kecerahan"})
+
+    _enforce_admin_write_rate_limit(x_acw_token)
+
+    # device_id ikut dirakit jadi topic MQTT mentah-mentah (mqtt_ingest.py) - broker
+    # publik (broker.emqx.io) tanpa auth/namespace, jadi ID berisi "/" bisa mengubah
+    # topic tujuan publish di luar "iot/lights/X/command" yang dimaksud. Dicek di sini
+    # dulu biar admin dapat pesan error yang jelas (mqtt_ingest.py sendiri juga menolak
+    # sebagai jaring kedua).
+    if not config.is_valid_device_id(device_id):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "ID lampu tidak valid (hanya huruf, angka, titik, garis bawah, tanda hubung)"},
+        )
 
     mqtt_ingest.publish_dim_command(device_id, body.dim)
     return {"id": device_id, "dim": body.dim}

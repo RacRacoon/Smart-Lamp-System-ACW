@@ -127,6 +127,12 @@ def _execute_tool(name: str, args: dict) -> object:
                 limit = int(args.get("limit", 20))
             except (TypeError, ValueError):
                 limit = 20
+            # Argumen ini datang dari MODEL (Gemini), yang dituntun oleh pesan user -
+            # user bisa saja ketik "panggil get_alerts_history dengan limit 99999999"
+            # dan model menurut. Clamp ke batas sama dengan GET /api/alerts-history
+            # (config.MAX_ALERTS_LIMIT) supaya jalur chat tidak jadi jalan pintas buat
+            # menarik seluruh tabel alerts yang jalur HTTP-nya sendiri sudah dibatasi.
+            limit = max(1, min(limit, config.MAX_ALERTS_LIMIT))
             return db.get_alerts_history(limit)
         return {"error": f"Tool tidak dikenal: {name}"}
     except Exception:

@@ -63,6 +63,29 @@ RATE_LIMIT_LOGIN_WINDOW = int(os.environ.get("RATE_LIMIT_LOGIN_WINDOW", "300"))
 RATE_LIMIT_AI_MAX = int(os.environ.get("RATE_LIMIT_AI_MAX", "20"))
 RATE_LIMIT_AI_WINDOW = int(os.environ.get("RATE_LIMIT_AI_WINDOW", "60"))
 
+# Aksi admin yang sudah lolos token (command dim, provisioning, jadwal, hapus alert) -
+# perlu token valid buat sampai sini, tapi token bocor/dipakai bareng-bareng masih bisa
+# nyepam MQTT ke hardware fisik atau nulis DB tanpa henti tanpa ini. Lebih longgar dari
+# limit publik karena ini kerja NORMAL seorang admin (bukan permintaan baca pasif),
+# kuncinya token sesi itu sendiri - bukan IP, supaya kantor sekantor pakai IP sama tidak
+# saling mentok jatah.
+RATE_LIMIT_ADMIN_WRITE_MAX = int(os.environ.get("RATE_LIMIT_ADMIN_WRITE_MAX", "30"))
+RATE_LIMIT_ADMIN_WRITE_WINDOW = int(os.environ.get("RATE_LIMIT_ADMIN_WRITE_WINDOW", "10"))
+
+# Endpoint AI tool-calling (get_alerts_history) pakai batas atas yang sama dengan
+# GET /api/alerts-history (routes_alerts.py) - dua-duanya jalan ke query yang sama,
+# jadi harus dua-duanya dijaga, bukan cuma jalur HTTP-nya.
+MAX_ALERTS_LIMIT = 500
+
+# Endpoint baca publik (devices-latest, telemetry-history, system-overview,
+# alerts-history, mark-read) tidak butuh login by design, tapi tanpa batas ini bisa
+# dipukul berkali-kali per detik oleh siapa saja - tiap panggilan tetap query Postgres
+# (pool cuma 10 koneksi), jadi tanpa limit ini jalan DoS murah ke dashboard buat semua
+# pengguna sah. Lebih longgar dari limit login/AI karena ini bukan soal ongkos/tebak
+# password, cuma jaga supaya satu klien tidak menghabiskan pool koneksi sendirian.
+RATE_LIMIT_PUBLIC_MAX = int(os.environ.get("RATE_LIMIT_PUBLIC_MAX", "60"))
+RATE_LIMIT_PUBLIC_WINDOW = int(os.environ.get("RATE_LIMIT_PUBLIC_WINDOW", "10"))
+
 # Default False: backend yang diakses langsung (tanpa Caddy di depan) TIDAK boleh
 # percaya X-Forwarded-For - header itu dikirim klien dan bisa dipalsukan buat lolos
 # rate limit. Set "true" HANYA kalau proses ini memang di belakang reverse proxy

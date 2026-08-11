@@ -5,7 +5,7 @@ biasa (tidak perlu lagi akal-akalan functionGlobalContext buat akses crypto).
 """
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
 import auth
@@ -46,9 +46,14 @@ def login(body: LoginRequest, request: Request):
 
     user = db.get_user_by_username(username)
 
-    # Pesan generik dibuat sama baik username tidak ada maupun password salah,
-    # supaya tidak bisa dipakai menebak username mana yang valid (username enumeration)
-    if not user or not auth.verify_password(password, user["password_hash"]):
+    # verify_password() SELALU dipanggil, walau username tidak ketemu (pakai
+    # auth.DUMMY_HASH) - kalau di-skip lewat "not user or ...", waktu respons jadi beda
+    # jauh antara username tidak ada (instan) vs username ada tapi password salah
+    # (nunggu argon2id selesai hashing). Pesan errornya sudah sama-sama generik dari
+    # dulu, tapi tanpa ini timing-nya sendiri jadi celah enumerasi username.
+    password_hash = user["password_hash"] if user else auth.DUMMY_HASH
+    password_ok = auth.verify_password(password, password_hash)
+    if not user or not password_ok:
         raise HTTPException(status_code=401, detail={"error": "Username atau password salah"})
 
     # Login berhasil pakai hash lama (scrypt) -> upgrade diam-diam ke argon2id.
@@ -59,3 +64,12 @@ def login(body: LoginRequest, request: Request):
 
     token = auth.issue_session(user["role"])
     return {"role": user["role"], "token": token}
+
+
+@router.post("/logout")
+def logout(x_acw_token: str | None = Header(default=None, alias="X-ACW-Token")):
+    # Cabut token di server, bukan cuma hapus di browser - lihat catatan di
+    # auth.invalidate_session(). Selalu 200 walau token sudah tidak valid/kosong,
+    # supaya klien tidak perlu bedakan "berhasil logout" vs "sesi sudah mati sendiri".
+    auth.invalidate_session(x_acw_token)
+    return {"ok": True}

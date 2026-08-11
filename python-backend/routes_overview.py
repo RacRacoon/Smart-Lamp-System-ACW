@@ -8,10 +8,12 @@ memang nol/array kosong, dan frontend yang menampilkan empty state.
 """
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 
 import alerts
+import config
 import db
+import rate_limit
 
 logger = logging.getLogger("acw.routes.overview")
 router = APIRouter(prefix="/api", tags=["overview"])
@@ -20,8 +22,28 @@ router = APIRouter(prefix="/api", tags=["overview"])
 AVG_TELEMETRY_BUCKETS = 48
 
 
+def _enforce_public_rate_limit(request: Request) -> None:
+    allowed, retry_after = rate_limit.check(
+        "public_read", rate_limit.client_ip(request),
+        config.RATE_LIMIT_PUBLIC_MAX, config.RATE_LIMIT_PUBLIC_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={"error": f"Terlalu banyak permintaan. Coba lagi dalam {retry_after} detik."},
+        )
+
+
 @router.get("/system-overview")
-def system_overview():
+def system_overview(request: Request):
+    _enforce_public_rate_limit(request)
+    return compute_system_overview()
+
+
+def compute_system_overview():
+    """Logika agregasi murni, dipisah dari handler HTTP supaya bisa dipanggil langsung
+    oleh routes_chat.py (analisis AI) tanpa lewat rate limit endpoint publik - jalur AI
+    sudah punya limitnya sendiri (bucket "ai" di config.RATE_LIMIT_AI_*)."""
     devices = db.get_devices_latest()
     lamp_states = db.get_sector_lamp_states()
     avg_telemetry = db.get_average_telemetry(AVG_TELEMETRY_BUCKETS)
