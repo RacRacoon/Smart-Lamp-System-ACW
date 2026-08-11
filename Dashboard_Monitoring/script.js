@@ -2,8 +2,16 @@
 // halaman ini sendiri (location.hostname), BUKAN hardcode "localhost" - kalau di-hardcode,
 // dashboard yang dibuka dari HP bakal manggil "localhost:8000" milik HP itu sendiri
 // (bukan PC server), jadi semua fetch/WS gagal diam-diam dan dashboard tampak kosong.
-const API_BASE_URL = `http://${location.hostname}:8000`;
-const TELEMETRY_WS_URL = `ws://${location.hostname}:8000/ws/telemetry`;
+//
+// Skema (http/https, ws/wss) ikut location.protocol halaman ini, TIDAK di-hardcode ke
+// http/ws polos - kalau di-hardcode, dashboard yang dibuka lewat https:// (mis. lewat
+// Caddy TLS di Caddyfile) bakal kena blokir "mixed content" oleh browser saat fetch/WS
+// ke http://.../ws://... dari halaman https://, dan kalaupun tidak diblokir, username +
+// password login serta token sesi ikut lewat jaringan tanpa enkripsi.
+const _API_PROTOCOL = location.protocol === "https:" ? "https:" : "http:";
+const _WS_PROTOCOL = location.protocol === "https:" ? "wss:" : "ws:";
+const API_BASE_URL = `${_API_PROTOCOL}//${location.hostname}:8000`;
+const TELEMETRY_WS_URL = `${_WS_PROTOCOL}//${location.hostname}:8000/ws/telemetry`;
 let socket;
 
 // Escape teks sebelum ditempel ke innerHTML. WAJIB dipakai untuk SEMUA nilai yang
@@ -685,6 +693,15 @@ function handleLogin(event) {
 }
 
 function logout() {
+    // Cabut token di server juga (bukan cuma hapus di browser) - fire-and-forget,
+    // reload di bawah jalan terus walau request-nya gagal/lambat. Tanpa ini token lama
+    // masih valid di server sampai SESSION_DURATION_HOURS habis walau sudah "logout".
+    if (authToken) {
+        fetch(`${API_BASE_URL}/api/logout`, {
+            method: 'POST',
+            headers: { 'X-ACW-Token': authToken },
+        }).catch(() => {});
+    }
     sessionStorage.removeItem("acw_role");
     sessionStorage.removeItem("acw_token");
     location.href = location.pathname; // reload bersih, hapus hash halaman terakhir

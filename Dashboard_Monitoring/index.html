@@ -5,6 +5,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#121824">
+    <!--
+        CSP lewat meta tag karena file ini dihosting statis (di luar kendali python-backend,
+        bukan di-serve lewat main.py) - server hosting-nya bisa apa saja, jadi header lewat
+        <meta> yang portable, bukan lewat konfigurasi server tertentu.
+
+        'unsafe-inline' di script-src/style-src TERPAKSA dipakai: dashboard ini pakai
+        onclick="..." dkk. langsung di 71+ elemen dan style="..." inline di banyak template
+        HTML (lihat script.js). CSP tanpa 'unsafe-inline' akan mematikan semua handler itu.
+        Ini bukan celah baru - browser modern sudah blokir eksekusi <script src="..."> asing
+        lewat allowlist origin di bawah; 'unsafe-inline' cuma menjaga event handler yang
+        MEMANG bagian dari halaman ini tetap jalan, sumber attacker eksternal tetap tidak
+        bisa muat skrip dari domain lain. Sink XSS (innerHTML alert/sektor/lampu) sudah
+        ditutup terpisah lewat escapeHtml()/escapeJsString() di script.js.
+
+        API_BASE_URL/TELEMETRY_WS_URL pakai port 8000 terpisah dari halaman ini (lihat
+        komentar di script.js), host-nya ikut location.hostname yang beda-beda per
+        deployment - makanya connect-src pakai wildcard host + port tetap (":8000"),
+        bukan domain spesifik. Kalau nanti backend selalu diakses lewat domain tetap
+        (mis. Caddy proxy path /api tanpa port terpisah), ganti ke domain itu langsung -
+        lebih ketat dari wildcard host ini.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline';
+        style-src 'self' https://unpkg.com 'unsafe-inline';
+        img-src 'self' data: https://tiles.openfreemap.org;
+        font-src 'self' data:;
+        connect-src 'self' https://tiles.openfreemap.org http://*:8000 https://*:8000 ws://*:8000 wss://*:8000;
+        worker-src 'self' blob:;
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+    ">
     <title>Manajemen Lampu Kota - Dasbor Lampu Pintar</title>
     <!-- Maplibre GL untuk OpenFreeMap Vektor 3D -->
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
