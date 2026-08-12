@@ -12,6 +12,7 @@ Dokumentasi API otomatis: http://localhost:8000/docs (Swagger UI dari FastAPI).
 import asyncio
 import logging
 
+import psycopg2.pool
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -77,6 +78,18 @@ async def http_exception_handler(request, exc: HTTPException):
     # bukan bentuk default FastAPI {"detail": ...}.
     content = exc.detail if isinstance(exc.detail, dict) else {"error": exc.detail}
     return JSONResponse(status_code=exc.status_code, content=content)
+
+
+@app.exception_handler(psycopg2.pool.PoolError)
+async def db_pool_exhausted_handler(request, exc: psycopg2.pool.PoolError):
+    # db._get_conn() sudah retry singkat sebelum sampai sini (lihat db.py) - kalau tetap
+    # ke sini, pool memang benar-benar penuh (beban tinggi bersamaan), bukan sekadar
+    # kontensi sesaat. 503 + pesan jelas, bukan 500 generik yang kelihatan kayak bug.
+    logger.warning("Pool koneksi Postgres penuh - request %s %s ditolak", request.method, request.url.path)
+    return JSONResponse(
+        status_code=503,
+        content={"error": "Server sedang sibuk, coba lagi sebentar lagi."},
+    )
 
 
 app.include_router(routes_devices.router)

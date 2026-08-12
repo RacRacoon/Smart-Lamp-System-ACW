@@ -9,9 +9,11 @@ Perbedaan yang disengaja dari versi Node-RED:
   langsung untuk INSERT alert - itu rawan SQL injection dan tidak diikuti di sini.
 """
 import logging
+import time
 from typing import Any
 
 import psycopg2.extras
+import psycopg2.pool
 from psycopg2.pool import ThreadedConnectionPool
 
 import config
@@ -20,8 +22,18 @@ logger = logging.getLogger("acw.db")
 
 _pool: ThreadedConnectionPool | None = None
 
+# ThreadedConnectionPool.getconn() GAGAL LANGSUNG (PoolError) kalau semua koneksi
+# sedang dipakai - beda dari pool lain yang menunggu giliran. Di beban tinggi (banyak
+# request nyaris bersamaan), itu jadi kegagalan 500 yang sebenarnya cuma butuh nunggu
+# sepersekian detik sampai request lain selesai dan mengembalikan koneksinya. Retry
+# pendek + jeda berlipat di bawah ini menutup celah race itu tanpa bikin request
+# nyangkut lama kalau pool memang benar-benar kehabisan kapasitas (percobaan habis ->
+# PoolError asli diteruskan ke caller, ditangkap handler di main.py jadi 503 rapi).
+_GETCONN_MAX_ATTEMPTS = 4
+_GETCONN_RETRY_DELAY = 0.05  # detik, dilipatgandakan tiap percobaan (50/100/150ms)
 
-def init_pool(minconn: int = 1, maxconn: int = 10) -> None:
+
+def init_pool(minconn: int = config.DB_POOL_MINCONN, maxconn: int = config.DB_POOL_MAXCONN) -> None:
     global _pool
     _pool = ThreadedConnectionPool(
         minconn,
@@ -32,14 +44,29 @@ def init_pool(minconn: int = 1, maxconn: int = 10) -> None:
         user=config.DB_USER,
         password=config.DB_PASSWORD,
     )
-    logger.info("Pool koneksi PostgreSQL siap (%s:%s/%s)", config.DB_HOST, config.DB_PORT, config.DB_NAME)
+    logger.info(
+        "Pool koneksi PostgreSQL siap (%s:%s/%s, minconn=%d maxconn=%d)",
+        config.DB_HOST, config.DB_PORT, config.DB_NAME, minconn, maxconn,
+    )
+
+
+def _get_conn():
+    if _pool is None:
+        raise RuntimeError("Panggil init_pool() dulu sebelum query")
+    delay = _GETCONN_RETRY_DELAY
+    for attempt in range(_GETCONN_MAX_ATTEMPTS):
+        try:
+            return _pool.getconn()
+        except psycopg2.pool.PoolError:
+            if attempt == _GETCONN_MAX_ATTEMPTS - 1:
+                raise
+            time.sleep(delay)
+            delay *= 2
 
 
 def _run(query: str, params: tuple) -> None:
     """Eksekusi query tanpa hasil baris (INSERT/UPDATE/DELETE polos)."""
-    if _pool is None:
-        raise RuntimeError("Panggil init_pool() dulu sebelum query")
-    conn = _pool.getconn()
+    conn = _get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(query, params)
@@ -53,9 +80,7 @@ def _run(query: str, params: tuple) -> None:
 
 def _fetch(query: str, params: tuple) -> list[dict[str, Any]]:
     """Eksekusi query yang mengembalikan baris (SELECT / ... RETURNING ...) sebagai list of dict."""
-    if _pool is None:
-        raise RuntimeError("Panggil init_pool() dulu sebelum query")
-    conn = _pool.getconn()
+    conn = _get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query, params)

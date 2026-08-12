@@ -46,6 +46,16 @@ API_PORT = int(os.environ.get("API_PORT", "8000"))
 # --- Sesi login (disimpan di memori proses, sama seperti global context Node-RED dulu) ---
 SESSION_DURATION_HOURS = int(os.environ.get("SESSION_DURATION_HOURS", "12"))
 
+# --- Pool koneksi Postgres ---
+# Default lama (maxconn=10) kebukti kehabisan di bawah beban wajar: uji beban pentest
+# (12 Agu 2026) - 50 request bersamaan ke satu endpoint publik bikin 86% gagal
+# "connection pool exhausted". Satu proses uvicorn lewat FastAPI run_in_threadpool bisa
+# sampai puluhan thread jalan bersamaan buat endpoint sync (default anyio ~40), jadi
+# pool 10 gampang telak. Postgres sendiri max_connections default 100 - 25 masih longgar
+# (sisa headroom buat psql debug manual dkk, lihat komentar port 5432 di docker-compose).
+DB_POOL_MINCONN = int(os.environ.get("DB_POOL_MINCONN", "2"))
+DB_POOL_MAXCONN = int(os.environ.get("DB_POOL_MAXCONN", "25"))
+
 # --- MQTT command (kendali dim dari dashboard, publish ke ESP32) ---
 MQTT_COMMAND_TOPIC_TEMPLATE = "iot/lights/{device_id}/command"
 
