@@ -1,0 +1,41 @@
+name: CI
+
+# Jalan otomatis tiap push/PR ke main - alasan ini ada: 13 Agu 2026, tiga sesi kerja
+# keamanan (XSS, rate limit, timing side-channel) di-commit ke git tapi container
+# produksi tetap jalan image lama SEBULAN lebih tuanya, karena rebuild-nya manual dan
+# gampang lupa. Pipeline ini sendiri tidak deploy apa-apa (deploy tetap manual, lihat
+# README) - tugasnya cuma satu: pastikan test yang sudah ada BENERAN dijalankan tiap
+# ada perubahan, bukan cuma nunggu seseorang ingat pytest/vitest di laptop sendiri.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"  # sama dengan Dockerfile produksi
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Dashboard_Monitoring
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm test

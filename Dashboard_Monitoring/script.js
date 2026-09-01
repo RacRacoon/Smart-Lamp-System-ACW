@@ -14,6 +14,50 @@ const API_BASE_URL = `${_API_PROTOCOL}//${location.hostname}:8000`;
 const TELEMETRY_WS_URL = `${_WS_PROTOCOL}//${location.hostname}:8000/ws/telemetry`;
 let socket;
 
+// ============================================================
+//  TEMA - Aurora (default) / Onyx
+// ============================================================
+// Attribute-nya sendiri sudah dipasang lebih dulu oleh <script> inline di <head>
+// index.html (sebelum body sempat kerender, cegah flash) - bagian ini cuma nyambungin
+// tombol toggle-nya (dua instance: sidebar & layar login, id beda tapi perilaku sama)
+// dan nyamain teks/status tombol itu ke tema yang aktif saat halaman dimuat.
+function _themeToggleButtons() {
+    return [
+        document.getElementById("theme-toggle-sidebar"),
+        document.getElementById("theme-toggle-login"),
+    ].filter(Boolean);
+}
+
+function _syncThemeToggleUI(isOnyx) {
+    const label = isOnyx ? "Ganti ke tema Aurora" : "Ganti ke tema Onyx";
+    _themeToggleButtons().forEach((btn) => {
+        btn.title = label;
+        btn.setAttribute("aria-label", label);
+        btn.setAttribute("aria-pressed", String(isOnyx));
+    });
+}
+
+function toggleTheme() {
+    const isOnyxNow = document.documentElement.getAttribute("data-theme") === "onyx";
+    const next = isOnyxNow ? null : "onyx";
+    if (next) {
+        document.documentElement.setAttribute("data-theme", next);
+    } else {
+        document.documentElement.removeAttribute("data-theme");
+    }
+    try {
+        localStorage.setItem("acw_theme", next || "aurora");
+    } catch (e) {
+        // localStorage diblokir (mode privat dkk) - toggle tetap jalan buat sesi ini,
+        // cuma tidak diingat pas reload. Bukan data sensitif, aman diam-diam gagal.
+    }
+    _syncThemeToggleUI(!!next);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    _syncThemeToggleUI(document.documentElement.getAttribute("data-theme") === "onyx");
+});
+
 // Escape teks sebelum ditempel ke innerHTML. WAJIB dipakai untuk SEMUA nilai yang
 // asalnya dari luar dashboard - terutama device_id, sector, dan message alert: broker
 // MQTT-nya publik (broker.emqx.io, tanpa auth), jadi siapa pun bisa publish payload
@@ -655,12 +699,25 @@ let currentRole = null;
 let authToken = null;
 let dashboardInitialized = false;
 
+// Interval hitung-mundur kunci tombol submit saat kena rate limit login (429) -
+// module-level (bukan di dalam handleLogin) supaya percobaan submit baru yang entah
+// bagaimana lolos guard bisa membatalkan hitung-mundur lama, bukan numpuk dua interval
+// jalan bareng.
+let _loginLockoutInterval = null;
+
 function handleLogin(event) {
     event.preventDefault();
     const usernameInput = document.getElementById("login-username");
     const passwordInput = document.getElementById("login-password");
     const errorEl = document.getElementById("login-error");
     const submitBtn = event.target.querySelector(".btn-login");
+
+    // Tombol disabled berarti masih nunggu respons fetch SEBELUMNYA, atau lagi dalam
+    // hitung-mundur rate limit - dua-duanya submit baru percuma (server tetap tolak),
+    // dan kalau tidak dijaga di sini, tekan Enter berulang bisa numpuk banyak fetch/
+    // interval sekaligus.
+    if (submitBtn.disabled) return;
+
     const username = usernameInput.value.trim();
     const password = passwordInput.value;
 
@@ -672,24 +729,64 @@ function handleLogin(event) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
     })
-        .then(res => {
-            if (!res.ok) throw new Error('unauthorized');
-            return res.json();
+        .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const err = new Error(data.error || "Username atau kata sandi salah. Silakan coba lagi.");
+                err.status = res.status;
+                err.retryAfterSeconds = data.retry_after_seconds;
+                throw err;
+            }
+            return data;
         })
         .then(data => {
             sessionStorage.setItem("acw_role", data.role);
             sessionStorage.setItem("acw_token", data.token);
             enterDashboard(data.role, data.token);
-        })
-        .catch(() => {
-            errorEl.textContent = "Username atau kata sandi salah. Silakan coba lagi.";
-            errorEl.style.display = "block";
-            passwordInput.value = "";
-            passwordInput.focus();
-        })
-        .finally(() => {
             submitBtn.disabled = false;
+        })
+        .catch((err) => {
+            // Pesan errornya sekarang APA ADANYA dari server (dulu di-hardcode di sini,
+            // jadi salah kalau yang sebenarnya terjadi itu kena rate limit (429) bukan
+            // password salah (401) - user dulu tidak pernah tahu dia sedang dikunci
+            // sementara, cuma dikira password-nya keliru terus.
+            errorEl.textContent = err.message;
+            errorEl.style.display = "block";
+
+            if (err.status === 429 && err.retryAfterSeconds > 0) {
+                // Kunci tombol sampai window rate limit lewat - submit ulang sebelum itu
+                // cuma nambah percobaan yang server tolak lagi, bukan mempercepat apapun.
+                _startLoginLockoutCountdown(submitBtn, err.retryAfterSeconds);
+            } else {
+                passwordInput.value = "";
+                passwordInput.focus();
+                submitBtn.disabled = false;
+            }
         });
+}
+
+function _startLoginLockoutCountdown(submitBtn, seconds) {
+    if (_loginLockoutInterval) clearInterval(_loginLockoutInterval);
+    const originalLabel = submitBtn.textContent;
+    let remaining = seconds;
+
+    const tick = () => {
+        submitBtn.textContent = `Coba lagi dalam ${remaining} detik`;
+        if (remaining <= 0) {
+            clearInterval(_loginLockoutInterval);
+            _loginLockoutInterval = null;
+            submitBtn.textContent = originalLabel;
+            submitBtn.disabled = false;
+            const errorEl = document.getElementById("login-error");
+            if (errorEl) errorEl.style.display = "none";
+            return;
+        }
+        remaining -= 1;
+    };
+
+    submitBtn.disabled = true;
+    tick();
+    _loginLockoutInterval = setInterval(tick, 1000);
 }
 
 function logout() {
@@ -835,6 +932,16 @@ function initDashboardData() {
             // halaman lama sudah tampil apa adanya dari HTML dan tidak perlu muat apa-apa.
             const initialPage = (location.hash || "#dashboard").replace("#", "");
             navigateToHash(initialPage);
+
+            // Sebelumnya fetchAlertsFromDB() CUMA kepanggil pas user buka halaman Kotak
+            // Peringatan (lihat navigateTo()) - alertsData kosong dari awal login sampai
+            // saat itu, jadi badge sidebar nampilin "0" walau kartu KPI "Peringatan Belum
+            // Dibaca" di Dashboard (sumber data beda, langsung dari /api/system-overview)
+            // sudah benar dari detik pertama. Ketauan lewat uji manual - dua angka beda
+            // di layar yang sama bikin user pertama kali login gampang salah kira nol
+            // peringatan padahal ada yang kritis. Panggil sekali di sini biar badge benar
+            // dari awal, bukan nunggu user kebetulan klik ke halaman itu duluan.
+            fetchAlertsFromDB();
         });
 }
 
@@ -3210,7 +3317,9 @@ function _getAlertTypeIcon(type) {
         current_high: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
         offline: '<circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>',
         power_high: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>',
-        command_failed: '<line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>'
+        command_failed: '<line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
+        repeated_login_failure: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+        unregistered_device: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>'
     };
     return _svgIcon(icons[type] || '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>', 16);
 }
@@ -3224,7 +3333,9 @@ function _formatAlertType(type) {
         current_high: 'Arus Tinggi',
         offline: 'Perangkat Padam',
         power_high: 'Konsumsi Daya Tinggi',
-        command_failed: 'Perintah Gagal Terkirim'
+        command_failed: 'Perintah Gagal Terkirim',
+        repeated_login_failure: 'Login Gagal Berulang',
+        unregistered_device: 'Perangkat Tidak Terdaftar'
     };
     return labels[type] || type;
 }
@@ -3310,7 +3421,9 @@ function fetchAlertsFromDB() {
                 'Perangkat Offline / Tegangan Low': 'offline',
                 'Perangkat Offline': 'offline',
                 'Konsumsi Daya Tinggi': 'power_high',
-                'Tes Manual': 'manual'
+                'Tes Manual': 'manual',
+                'Percobaan Login Gagal Berulang': 'repeated_login_failure',
+                'Perangkat Tidak Terdaftar': 'unregistered_device'
             };
 
             // Parse threshold_info (e.g. "V: 240V" atau "I: 1.5A") ke object

@@ -12,3 +12,13 @@
 -- asli kirim telemetry terus-terusan, tabel ini tumbuh cepat dan query jadi lambat.
 CREATE INDEX IF NOT EXISTS idx_telemetry_logs_device_created
 ON telemetry_logs (device_id, created_at DESC);
+
+-- alerts cuma punya index di primary key (id). get_alerts_history() (GET
+-- /api/alerts-history, publik, endpoint paling sering dipukul - lihat rate_limit.py)
+-- query "ORDER BY created_at DESC LIMIT %s" tanpa index ini - full table scan + sort
+-- SETIAP panggilan. Query lambat = koneksi pool ditahan lebih lama = pool 25 (lihat
+-- config.DB_POOL_MAXCONN) lebih gampang penuh lagi di beban tinggi. Ditemukan lewat
+-- audit langsung ke skema live (\d alerts), bukan cuma baca kode - schema_indexes.sql
+-- sendiri sempat kelewat nambahin index ini sejak awal.
+CREATE INDEX IF NOT EXISTS idx_alerts_created_at
+ON alerts (created_at DESC);

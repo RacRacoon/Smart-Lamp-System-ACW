@@ -11,8 +11,10 @@ tidak boleh hapus" yang sebelumnya dipasang di Node-RED - sekarang jadi bagian
 permanen dari API, bukan tempelan.
 """
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
+from pydantic import BaseModel
 
 import auth
 import config
@@ -21,6 +23,29 @@ import rate_limit
 
 logger = logging.getLogger("acw.routes.alerts")
 router = APIRouter(prefix="/api", tags=["alerts"])
+
+
+class AlertRow(BaseModel):
+    id: int
+    device_id: str | None = None
+    level: str
+    title: str
+    message: str
+    volt: float | None = None
+    current: float | None = None
+    power: float | None = None
+    threshold_info: str | None = None
+    is_read: bool
+    created_at: datetime
+
+
+class AlertReadResult(BaseModel):
+    id: int
+    is_read: bool
+
+
+class AlertIdResult(BaseModel):
+    id: int
 
 # Endpoint ini publik, jadi `limit` datang dari query string yang bisa diisi siapa saja.
 # Tanpa batas atas, satu request `?limit=100000000` cukup buat menarik seluruh tabel
@@ -64,33 +89,33 @@ def _enforce_public_rate_limit(request: Request) -> None:
         )
 
 
-@router.get("/alerts-history")
+@router.get("/alerts-history", response_model=list[AlertRow])
 def alerts_history(request: Request, limit: int = Query(default=50, ge=1, le=MAX_ALERTS_LIMIT)):
     _enforce_public_rate_limit(request)
     return db.get_alerts_history(limit)
 
 
-@router.patch("/alerts/{alert_id}/read")
+@router.patch("/alerts/{alert_id}/read", response_model=list[AlertReadResult])
 def alert_mark_read(alert_id: int, request: Request):
     _enforce_public_rate_limit(request)
     rows = db.mark_alert_read(alert_id)
     return rows
 
 
-@router.post("/alerts/mark-all-read")
+@router.post("/alerts/mark-all-read", response_model=list[AlertIdResult])
 def alerts_mark_all_read(request: Request):
     _enforce_public_rate_limit(request)
     return db.mark_all_alerts_read()
 
 
-@router.delete("/alerts/{alert_id}")
+@router.delete("/alerts/{alert_id}", response_model=list[AlertIdResult])
 def alert_delete_one(alert_id: int, x_acw_token: str | None = Header(default=None, alias="X-ACW-Token")):
     _require_admin(x_acw_token)
     _enforce_admin_write_rate_limit(x_acw_token)
     return db.delete_alert(alert_id)
 
 
-@router.delete("/alerts")
+@router.delete("/alerts", response_model=list[AlertIdResult])
 def alerts_delete_all(x_acw_token: str | None = Header(default=None, alias="X-ACW-Token")):
     _require_admin(x_acw_token)
     _enforce_admin_write_rate_limit(x_acw_token)

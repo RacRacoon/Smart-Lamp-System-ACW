@@ -5,6 +5,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#121824">
+    <script>
+        // Set tema SEBELUM body sempat kerender - kalau ditaruh di script.js (dimuat
+        // di ujung <body>), tema Onyx yang tersimpan baru kepasang SESUDAH tema Aurora
+        // sempat tampil sekejap (flash kelihatan tiap reload/navigasi). Inline sengaja,
+        // bukan file terpisah, biar tidak nunggu request tambahan pas render pertama.
+        (function () {
+            try {
+                if (localStorage.getItem("acw_theme") === "onyx") {
+                    document.documentElement.setAttribute("data-theme", "onyx");
+                }
+            } catch (e) { /* localStorage diblokir (mode privat dkk) - default Aurora, aman */ }
+        })();
+    </script>
     <!--
         CSP lewat meta tag karena file ini dihosting statis (di luar kendali python-backend,
         bukan di-serve lewat main.py) - server hosting-nya bisa apa saja, jadi header lewat
@@ -29,9 +42,9 @@
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
         script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline';
-        style-src 'self' https://unpkg.com 'unsafe-inline';
+        style-src 'self' https://unpkg.com https://fonts.googleapis.com 'unsafe-inline';
         img-src 'self' data: https://tiles.openfreemap.org;
-        font-src 'self' data:;
+        font-src 'self' data: https://fonts.gstatic.com;
         connect-src 'self' https://tiles.openfreemap.org http://*:8000 https://*:8000 ws://*:8000 wss://*:8000;
         worker-src 'self' blob:;
         object-src 'none';
@@ -54,6 +67,14 @@
          "login-form" yang dipegang enterDashboard() di script.js buat transisi tutup
          tidak perlu berubah - konten kiri murni dekoratif, tidak ganggu submit. -->
     <div id="login-overlay">
+        <button id="theme-toggle-login" class="btn-theme-toggle theme-toggle-login" type="button"
+            onclick="toggleTheme()" title="Ganti ke tema Onyx" aria-label="Ganti ke tema Onyx" aria-pressed="false">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 2a10 10 0 0 1 0 20z" fill="currentColor" stroke="none" />
+            </svg>
+        </button>
         <form id="login-form" class="login-card t-modal is-open" onsubmit="handleLogin(event)">
             <div class="login-brand-panel">
                 <div class="login-brand-row">
@@ -78,7 +99,7 @@
                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                             <polyline points="22 4 12 14.01 9 11.01" />
                         </svg>
-                        Telemetri langsung dari tiap ESP32
+                        Data sensor langsung dari tiap lampu
                     </li>
                     <li>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -86,7 +107,7 @@
                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                             <polyline points="22 4 12 14.01 9 11.01" />
                         </svg>
-                        Peringatan otomatis lampu bermasalah
+                        Peringatan otomatis saat lampu bermasalah
                     </li>
                     <li>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -94,7 +115,7 @@
                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                             <polyline points="22 4 12 14.01 9 11.01" />
                         </svg>
-                        Jadwal RTC &amp; kendali per sektor
+                        Jadwal kecerahan &amp; kendali per sektor
                     </li>
                 </ul>
             </div>
@@ -198,6 +219,14 @@
                 </div>
                 <div class="sidebar-footer-row">
                     <span id="role-badge" class="role-badge">-</span>
+                    <button id="theme-toggle-sidebar" class="btn-theme-toggle" type="button" onclick="toggleTheme()"
+                        title="Ganti ke tema Onyx" aria-label="Ganti ke tema Onyx" aria-pressed="false">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M12 2a10 10 0 0 1 0 20z" fill="currentColor" stroke="none" />
+                        </svg>
+                    </button>
                     <button class="btn-logout" onclick="logout()" title="Keluar" aria-label="Keluar">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -243,7 +272,7 @@
                                 stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
                             </svg></span>
-                        <h3>Rata-rata Telemetri Seluruh Lampu</h3>
+                        <h3>Rata-rata Data Sensor Seluruh Lampu</h3>
                         <span class="chart-scope-hint" id="avg-telemetry-hint"></span>
                     </div>
                     <div style="position: relative; height: 260px;">
@@ -877,9 +906,6 @@
         </div>
     </div>
 
-    <!-- Modal hapus sektor - beda dari confirm-modal generik di atas: butuh username+password
-         admin diketik ulang (step-up auth), bukan cuma klik Ya/Batal - dipicu lewat
-         openDeleteSectorModal() di script.js -->
     <div class="confirm-modal-backdrop" id="delete-sector-modal-backdrop"
         onclick="if (event.target === this) cancelDeleteSectorModal()">
         <div class="confirm-modal t-modal" id="delete-sector-modal" role="alertdialog" aria-modal="true"

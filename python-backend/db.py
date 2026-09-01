@@ -64,6 +64,28 @@ def _get_conn():
             delay *= 2
 
 
+def is_healthy() -> bool:
+    """Dipakai GET /health (main.py) - "server nyala" (uvicorn jawab) beda dari
+    "database beneran bisa diajak bicara". SELECT 1 murni tanpa lewat _get_conn()
+    punya retry - health check harus jawab CEPAT & JUJUR, bukan ikut nunggu retry
+    kalau pool lagi sesak (itu kondisi yang justru mau dilaporkan, bukan disembunyikan)."""
+    if _pool is None:
+        return False
+    try:
+        conn = _pool.getconn()
+    except psycopg2.pool.PoolError:
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1;")
+            cur.fetchone()
+        return True
+    except Exception:
+        return False
+    finally:
+        _pool.putconn(conn)
+
+
 def _run(query: str, params: tuple) -> None:
     """Eksekusi query tanpa hasil baris (INSERT/UPDATE/DELETE polos)."""
     conn = _get_conn()

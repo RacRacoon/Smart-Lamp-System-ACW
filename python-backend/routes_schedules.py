@@ -58,7 +58,12 @@ class SectorScheduleUpdate(BaseModel):
     schedules: list[SchedulePhase]
 
 
-@router.get("/sector-schedules")
+class SectorScheduleUpdateResponse(BaseModel):
+    sector: str
+    schedules: list[SchedulePhase]
+
+
+@router.get("/sector-schedules", response_model=dict[str, list[SchedulePhase]])
 def sector_schedules(request: Request):
     """Kelompokkan baris flat dari DB jadi {nama_sektor: [fase, ...]} - query sudah
     ORDER BY sector_name, schedule_time jadi tiap grup otomatis terurut kronologis."""
@@ -72,7 +77,7 @@ def sector_schedules(request: Request):
     return grouped
 
 
-@router.put("/sector-schedules")
+@router.put("/sector-schedules", response_model=SectorScheduleUpdateResponse)
 def update_sector_schedule(
     body: SectorScheduleUpdate,
     x_acw_token: str | None = Header(default=None, alias="X-ACW-Token"),

@@ -20,14 +20,16 @@ import main
 
 @pytest.fixture(autouse=True)
 def _reset_shared_state():
-    """auth._sessions dan rate_limit._hits itu dict module-level - tanpa reset ini,
-    test yang jalan duluan bisa nyisain sesi/hit-count yang bikin test SESUDAHNYA
-    gagal/lolos keliru (rate limit ke-trigger dari test lain, sesi lama masih valid)."""
+    """auth._sessions, rate_limit._hits, auth._consecutive_login_failures - semua dict
+    module-level. Tanpa reset ini, test yang jalan duluan bisa nyisain sesi/hit-count/
+    hitungan gagal yang bikin test SESUDAHNYA gagal/lolos keliru."""
     import rate_limit
     auth._sessions.clear()
+    auth._consecutive_login_failures.clear()
     rate_limit._hits.clear()
     yield
     auth._sessions.clear()
+    auth._consecutive_login_failures.clear()
     rate_limit._hits.clear()
 
 

@@ -87,13 +87,30 @@ class DeleteSectorRequest(BaseModel):
     password: str
 
 
-@router.get("/sectors")
+class SectorCreatedResponse(BaseModel):
+    sector_name: str
+
+
+class DeviceCreatedResponse(BaseModel):
+    device_id: str
+    sector_name: str
+    lat: float
+    lng: float
+    max_lifespan: int
+
+
+class SectorDeletedResponse(BaseModel):
+    sector_name: str
+    deleted: bool
+
+
+@router.get("/sectors", response_model=list[str])
 def list_sectors(request: Request):
     _enforce_public_rate_limit(request)
     return db.get_sector_names()
 
 
-@router.post("/sectors")
+@router.post("/sectors", response_model=SectorCreatedResponse)
 def add_sector(
     body: CreateSectorRequest,
     x_acw_token: str | None = Header(default=None, alias="X-ACW-Token"),
@@ -122,7 +139,7 @@ def add_sector(
     return {"sector_name": sector_name}
 
 
-@router.post("/devices")
+@router.post("/devices", response_model=DeviceCreatedResponse)
 def add_device(
     body: CreateDeviceRequest,
     x_acw_token: str | None = Header(default=None, alias="X-ACW-Token"),
@@ -171,7 +188,7 @@ def add_device(
     }
 
 
-@router.delete("/sectors/{sector_name}")
+@router.delete("/sectors/{sector_name}", response_model=SectorDeletedResponse)
 def delete_sector(
     sector_name: str,
     body: DeleteSectorRequest,

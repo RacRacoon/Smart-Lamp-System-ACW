@@ -50,7 +50,16 @@ class AnalyzeDeviceRequest(BaseModel):
     device_id: str
 
 
-@router.post("/chat/analyze-system")
+class SystemAnalysisResponse(BaseModel):
+    analysis: str
+
+
+class DeviceAnalysisResponse(BaseModel):
+    device_id: str
+    analysis: str
+
+
+@router.post("/chat/analyze-system", response_model=SystemAnalysisResponse)
 def analyze_system(request: Request):
     """Kartu "Ringkasan AI" di halaman Dashboard - analisis agregat seluruh sistem.
     Datanya diambil dari routes_overview.system_overview(), fungsi yang sama yang
@@ -82,7 +91,7 @@ def analyze_system(request: Request):
     return {"analysis": analysis}
 
 
-@router.post("/chat/analyze-device")
+@router.post("/chat/analyze-device", response_model=DeviceAnalysisResponse)
 def analyze_device(body: AnalyzeDeviceRequest, request: Request):
     """Tombol "Analisis AI" per kartu lampu di Riwayat Data - satu panggilan non-streaming,
     beda dari /api/chat (tidak ada histori percakapan, tidak ada tool-calling)."""

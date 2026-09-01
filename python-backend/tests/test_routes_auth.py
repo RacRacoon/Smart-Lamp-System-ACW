@@ -4,6 +4,7 @@ dipanggil, walau username tidak ada, supaya waktu respons tidak bisa dipakai
 enumerasi username."""
 import auth
 import config
+import ws_manager
 
 
 def test_login_sukses_dapat_token_dan_role(client, fake_users):
@@ -68,6 +69,12 @@ def test_login_dibatasi_rate_limit(client, fake_users):
         assert r.status_code == 401
     r = client.post("/api/login", json={"username": "x", "password": "y"})
     assert r.status_code == 429
+    body = r.json()
+    # retry_after_seconds angka murni (bukan cuma teks) - script.js handleLogin()
+    # pakai ini buat hitung-mundur kunci tombol submit, bukan parse teks pesan.
+    assert isinstance(body["retry_after_seconds"], int)
+    assert body["retry_after_seconds"] > 0
+    assert str(body["retry_after_seconds"]) in body["error"]
 
 
 def test_logout_mencabut_sesi_di_server(client, fake_users, admin_token):
@@ -90,3 +97,68 @@ def test_logout_mencabut_sesi_di_server(client, fake_users, admin_token):
 def test_logout_token_kosong_tetap_200(client):
     r = client.post("/api/logout")
     assert r.status_code == 200
+
+
+def test_alert_terpicu_tepat_di_kegagalan_ke_3(client, fake_users, monkeypatch):
+    """Regresi buat fitur peringatan login gagal berulang - dipicu TEPAT di kelipatan
+    3 (3, 6, ...), tidak lebih cepat, tidak lebih lambat."""
+    # Dinaikkan tinggi biar rate limit per-IP (fitur BEDA, lihat test_login_dibatasi_
+    # rate_limit) tidak ikut motong percobaan sebelum sempat kehitung di sini.
+    config.RATE_LIMIT_LOGIN_MAX = 100
+    import db
+    inserted = []
+    broadcasted = []
+    monkeypatch.setattr(db, "insert_alert", lambda *a, **kw: inserted.append(a))
+    monkeypatch.setattr(ws_manager, "broadcast", lambda payload: broadcasted.append(payload))
+
+    for i in range(1, 3):
+        client.post("/api/login", json={"username": "admin", "password": f"salah{i}"})
+        assert inserted == [], f"belum boleh terpicu di kegagalan ke-{i}"
+        assert broadcasted == []
+
+    client.post("/api/login", json={"username": "admin", "password": "salah3"})
+    assert len(inserted) == 1
+    assert len(broadcasted) == 1
+    assert broadcasted[0]["alertType"] == "repeated_login_failure"
+    assert broadcasted[0]["device_id"] == "admin"
+    assert "id" not in broadcasted[0]  # sengaja - "id" trigger dashboard daftarkan device baru
+    assert "3 percobaan" in broadcasted[0]["message"]
+
+
+def test_alert_tidak_terpicu_lagi_di_kegagalan_ke_4_dan_5(client, fake_users, monkeypatch):
+    config.RATE_LIMIT_LOGIN_MAX = 100
+    import db
+    inserted = []
+    monkeypatch.setattr(db, "insert_alert", lambda *a, **kw: inserted.append(a))
+    monkeypatch.setattr(ws_manager, "broadcast", lambda payload: None)
+
+    for i in range(1, 6):
+        client.post("/api/login", json={"username": "admin", "password": f"salah{i}"})
+    assert len(inserted) == 1  # cuma sekali (di kegagalan ke-3), belum lagi sampai ke-6
+
+
+def test_login_sukses_reset_hitungan_kegagalan(client, fake_users, monkeypatch):
+    config.RATE_LIMIT_LOGIN_MAX = 100
+    import db
+    inserted = []
+    monkeypatch.setattr(db, "insert_alert", lambda *a, **kw: inserted.append(a))
+    monkeypatch.setattr(ws_manager, "broadcast", lambda payload: None)
+
+    fake_users["admin"] = {
+        "username": "admin", "role": "admin",
+        "password_hash": auth.hash_password("rahasia123"),
+    }
+    client.post("/api/login", json={"username": "admin", "password": "salah1"})
+    client.post("/api/login", json={"username": "admin", "password": "salah2"})
+    r = client.post("/api/login", json={"username": "admin", "password": "rahasia123"})
+    assert r.status_code == 200
+
+    # Hitungan sudah di-reset - butuh 3 kegagalan BARU lagi, bukan lanjut dari 2 tadi
+    client.post("/api/login", json={"username": "admin", "password": "salah3"})
+    client.post("/api/login", json={"username": "admin", "password": "salah4"})
+    assert inserted == []
+
+
+def test_username_kepanjangan_ditolak_pydantic(client):
+    r = client.post("/api/login", json={"username": "a" * 101, "password": "x"})
+    assert r.status_code == 422

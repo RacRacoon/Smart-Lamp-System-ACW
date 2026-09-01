@@ -83,3 +83,29 @@ def test_invalidate_session_mencabut_token():
 def test_invalidate_session_token_kosong_tidak_meledak():
     auth.invalidate_session(None)
     auth.invalidate_session("tok_tidak_pernah_ada")  # tidak boleh raise
+
+
+def test_record_login_failure_bertambah_per_username():
+    auth._consecutive_login_failures.clear()
+    assert auth.record_login_failure("admin") == 1
+    assert auth.record_login_failure("admin") == 2
+    assert auth.record_login_failure("admin") == 3
+
+
+def test_record_login_failure_username_beda_tidak_saling_pengaruh():
+    auth._consecutive_login_failures.clear()
+    auth.record_login_failure("admin")
+    auth.record_login_failure("admin")
+    assert auth.record_login_failure("operator") == 1  # bukan 3 - username beda, hitungan sendiri-sendiri
+
+
+def test_record_login_success_reset_hitungan():
+    auth._consecutive_login_failures.clear()
+    auth.record_login_failure("admin")
+    auth.record_login_failure("admin")
+    auth.record_login_success("admin")
+    assert auth.record_login_failure("admin") == 1  # bukan 3 - sukses tadi me-reset ke 0
+
+
+def test_record_login_failure_username_kosong_tidak_meledak():
+    assert auth.record_login_failure("") == 0

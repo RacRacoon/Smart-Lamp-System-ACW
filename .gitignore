@@ -1,10 +1,13 @@
 node-red-flow-acw.json
 *.bundle
-python-backend/__pycache__/
-python-backend/.venv/
-python-backend/.pytest_cache/
-python-backend/tests/__pycache__/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
 .agents/
+.env
+*.env
+.DS_Store
 
 # tooling test front-end (Dashboard_Monitoring/package.json, ditambahkan buat nutup
 # celah "nol automated test" - lihat Dashboard_Monitoring/tests/)

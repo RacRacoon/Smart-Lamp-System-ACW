@@ -136,3 +136,39 @@ def invalidate_session(token: Optional[str]) -> None:
     benar-benar menutup akses."""
     if token:
         _sessions.pop(token, None)
+
+
+# Hitung kegagalan login BERTURUT-TURUT per username - beda dari rate_limit.py yang
+# sliding-window per IP (buat cegah brute-force). Ini murni buat SINYAL ke admin yang
+# sedang online ("akun X lagi dicoba dibobol"), lihat routes_auth.py & alerts.py
+# repeated_login_failure_alert(). Per USERNAME (bukan IP) sengaja - yang mau
+# diinformasikan itu "akun mana yang diincar", bukan "IP mana yang nyerang". Ini tidak
+# dipakai buat MEMBLOKIR apapun (beda dari rate_limit.py), jadi tidak ada risiko
+# lockout-DoS ke akun asli lewat sini.
+_MAX_TRACKED_LOGIN_FAILURES = 1000  # cegah dict membengkak kalau attacker coba banyak
+                                     # username acak berbeda-beda satu-satu
+_consecutive_login_failures: dict[str, int] = {}
+
+
+def record_login_failure(username: str) -> int:
+    """Tambah hitungan gagal berturut-turut buat username ini, balikin hitungan
+    SETELAH ditambah. Dipanggil routes_auth.py tiap password salah/username tidak ada."""
+    if not username:
+        return 0
+    if (
+        username not in _consecutive_login_failures
+        and len(_consecutive_login_failures) >= _MAX_TRACKED_LOGIN_FAILURES
+    ):
+        # Kejadian ini sendiri jarang (butuh 1000 username BEDA dicoba) - reset total
+        # lebih sederhana daripada LRU parsial, efek sampingnya cuma "notifikasi
+        # mungkin telat sekali kalau pas kena reset", bukan kebocoran data apapun.
+        _consecutive_login_failures.clear()
+    count = _consecutive_login_failures.get(username, 0) + 1
+    _consecutive_login_failures[username] = count
+    return count
+
+
+def record_login_success(username: str) -> None:
+    """Reset hitungan gagal buat username ini - dipanggil routes_auth.py tiap login
+    berhasil, supaya kegagalan lama sebelum sukses tidak ikut kehitung lagi."""
+    _consecutive_login_failures.pop(username, None)

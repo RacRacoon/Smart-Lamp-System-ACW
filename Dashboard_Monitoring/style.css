@@ -59,6 +59,38 @@
     --transition-base: 0.2s ease;
 }
 
+/* Tema "Onyx" - opsional, dipilih lewat tombol toggle (lihat #theme-toggle-*
+   di index.html, toggleTheme() di script.js). Attribute selector di :root supaya
+   spesifisitas otomatis kalahkan blok :root polos di atas - satu sumber token yang
+   sama dipakai semua komponen, cuma NILAI-nya beda, jadi tidak perlu duplikat CSS
+   komponen sama sekali. Warna semantik (success/warning/danger/info) SENGAJA tidak
+   diubah - alert merah harus tetap kebaca sebagai "bahaya" di tema manapun. */
+:root[data-theme="onyx"] {
+    --bg-dark: #050608;
+    --bg-card: rgba(20, 22, 27, 0.6);
+    --bg-card-solid: #14161b;
+    --surface-2: rgba(28, 30, 36, 0.65);
+    --border: rgba(79, 209, 255, 0.14);
+    --text-main: #f2f4f7;
+    --text-muted: #8b93a1;
+    --primary: #4fd1ff;
+    --primary-light: #8fe3ff;
+
+    --gradient-primary: linear-gradient(135deg, #0ea5e9 0%, #4fd1ff 100%);
+    --gradient-accent: linear-gradient(135deg, #4fd1ff 0%, #7ee8fa 100%);
+
+    /* Onyx jauh lebih matte - glow ambient direstrain drastis (bukan dihilangkan
+       total, body masih pakai 3 radial-gradient yang sama, cuma dikecilkan) dan
+       diseragamkan ke satu rona cyan, bukan campuran purple/blue kayak tema Aurora. */
+    --glow-purple: rgba(79, 209, 255, 0.10);
+    --glow-blue: rgba(79, 209, 255, 0.06);
+    --glow-purple-soft: rgba(79, 209, 255, 0.04);
+
+    --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(79, 209, 255, 0.05);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(79, 209, 255, 0.06);
+    --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.62), 0 0 0 1px rgba(79, 209, 255, 0.07);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -577,13 +609,26 @@ select:focus-visible,
     transition: filter 0.2s;
 }
 
-.btn-login:hover {
+.btn-login:hover:not(:disabled) {
     filter: brightness(1.1);
+}
+
+/* Sebelumnya tidak ada state disabled sama sekali - tombol kelihatan aktif normal
+   walau lagi dikunci (submit ditolak diam-diam sebelum ada hitung-mundur rate limit).
+   Pola opacity+cursor sama persis dengan .btn-analyze-ai/.ai-summary-refresh:disabled
+   di file ini, disamakan biar konsisten satu bahasa visual "tombol tidak bisa dipencet". */
+.btn-login:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 /* Sidebar Layout */
 .sidebar {
-    width: 260px;
+    /* 260px -> 300px: sidebar-footer-row sekarang nampung 3 item (role-badge + toggle
+       tema + logout), bukan 2 kayak sebelum tombol toggle ditambah - lebar lama bikin
+       tombol logout mepet ujung kanan, apalagi role "Petugas Monitoring" yang teksnya
+       lebih panjang dari "Admin". */
+    width: 300px;
     flex-shrink: 0;
     background-color: var(--bg-card);
     padding: 20px;
@@ -659,6 +704,44 @@ select:focus-visible,
 .btn-logout:hover {
     border-color: var(--danger);
     color: var(--danger);
+}
+
+/* Toggle tema Aurora/Onyx - dua instance (sidebar + layar login) pakai class sama,
+   ukuran & warna dasar disamakan dengan .btn-logout biar konsisten satu bahasa
+   ikon di seluruh dasbor. */
+.btn-theme-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color var(--transition-base), color var(--transition-base), transform var(--transition-fast);
+}
+
+.btn-theme-toggle:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.btn-theme-toggle:active {
+    transform: scale(0.94);
+}
+
+/* Instance di layar login - overlay-nya sendiri belum punya sidebar buat nampung
+   tombol, jadi mengambang di pojok kanan-atas. z-index di atas .login-card supaya
+   tetap kepencet walau posisinya numpuk di layar sempit. */
+.theme-toggle-login {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 20;
+    background: var(--bg-card-solid);
 }
 
 .sidebar h2 {

@@ -59,6 +59,33 @@ def evaluate_alert(device_id: str, volt: float, current: float):
     return None
 
 
+def repeated_login_failure_alert(username: str, consecutive_count: int, client_ip: str) -> dict:
+    """Alert saat satu username gagal login BERTURUT-TURUT (dihitung
+    auth.record_login_failure(), direset begitu username itu berhasil login - lihat
+    routes_auth.py). Dipicu tiap kelipatan 3 (3, 6, 9, ...) oleh pemanggil, bukan cuma
+    sekali di kegagalan ke-3, supaya admin yang online tetap dapat sinyal kalau
+    percobaannya terus berlanjut.
+
+    username & client_ip DUA-DUANYA data dari luar tanpa autentikasi (body request
+    login yang gagal) - message ini disimpan permanen ke tabel alerts lalu disiarkan
+    ke semua dashboard, PERSIS jalur yang jadi celah XSS device_id dulu (commit
+    01e8a3b). Aman di sini karena frontend escapeHtml() semua alert.message tanpa
+    kecuali (lihat _buildAlertCardHTML di script.js) - tapi LoginRequest di
+    routes_auth.py tetap dikasih max_length sebagai gerbang sumber juga, konsisten
+    dengan pola dua-lapis yang sama."""
+    return {
+        "level": "Critical",
+        "title": "Percobaan Login Gagal Berulang",
+        "alertType": "repeated_login_failure",
+        "message": (
+            f"{consecutive_count} percobaan login berturut-turut gagal untuk akun "
+            f"'{username}' dari IP {client_ip}. Kalau ini bukan kamu yang mencoba, "
+            f"pertimbangkan ganti password."
+        ),
+        "threshold_info": f"{consecutive_count}x berturut-turut",
+    }
+
+
 def unknown_device_alert(device_id: str) -> dict:
     """Alert saat telemetry ditolak karena device_id belum diinput manual ke tabel
     devices - lihat mqtt_ingest.py._handle_telemetry(). Level Critical: data dari

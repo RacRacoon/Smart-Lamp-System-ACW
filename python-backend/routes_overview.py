@@ -9,6 +9,7 @@ memang nol/array kosong, dan frontend yang menampilkan empty state.
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 import alerts
 import config
@@ -20,6 +21,44 @@ router = APIRouter(prefix="/api", tags=["overview"])
 
 # Jumlah bucket rata-rata per jam yang dikirim ke grafik telemetry Dashboard
 AVG_TELEMETRY_BUCKETS = 48
+
+
+class OverviewSummary(BaseModel):
+    total_devices: int
+    total_sectors: int
+    reporting_devices: int
+    total_power: float
+    avg_volt: float
+    avg_current: float
+    alerts_total: int
+    alerts_unread: int
+    # Kunci "Need Maintenance" ada spasi - tidak bisa jadi nama field Python langsung,
+    # dict[str, int] lebih jujur daripada field alias yang kaku buat 3 kunci tetap ini.
+    health_totals: dict[str, int]
+
+
+class SectorHealth(BaseModel):
+    sector: str
+    lamp_count: int
+    health: dict[str, int]
+
+
+class AvgTelemetryPoint(BaseModel):
+    # TIDAK ada field "bucket" - db.get_average_telemetry() sengaja pop() kolom itu
+    # sebelum dikembalikan (cuma dipakai buat ORDER BY internal, bukan buat frontend).
+    # Ketahuan langsung dari uji lawan data live (server 500, ResponseValidationError
+    # "bucket: Field required") - baru dibetulkan di sini, bukan skema baru diimprovisasi.
+    time_label: str
+    avg_volt: float
+    avg_current: float
+    avg_power: float
+    device_count: int
+
+
+class SystemOverviewResponse(BaseModel):
+    summary: OverviewSummary
+    sectors: list[SectorHealth]
+    avg_telemetry: list[AvgTelemetryPoint]
 
 
 def _enforce_public_rate_limit(request: Request) -> None:
@@ -34,7 +73,7 @@ def _enforce_public_rate_limit(request: Request) -> None:
         )
 
 
-@router.get("/system-overview")
+@router.get("/system-overview", response_model=SystemOverviewResponse)
 def system_overview(request: Request):
     _enforce_public_rate_limit(request)
     return compute_system_overview()

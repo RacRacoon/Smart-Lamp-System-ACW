@@ -24,6 +24,11 @@ class DimCommand(BaseModel):
     dim: int = 0
 
 
+class CommandResponse(BaseModel):
+    id: str
+    dim: int
+
+
 def _enforce_admin_write_rate_limit(x_acw_token: str | None) -> None:
     allowed, retry_after = rate_limit.check(
         "admin_write", x_acw_token,
@@ -36,7 +41,7 @@ def _enforce_admin_write_rate_limit(x_acw_token: str | None) -> None:
         )
 
 
-@router.post("/lights/{device_id}/command")
+@router.post("/lights/{device_id}/command", response_model=CommandResponse)
 def send_command(
     device_id: str,
     body: DimCommand,

@@ -17,6 +17,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 import config
 import db
@@ -89,6 +90,24 @@ async def db_pool_exhausted_handler(request, exc: psycopg2.pool.PoolError):
     return JSONResponse(
         status_code=503,
         content={"error": "Server sedang sibuk, coba lagi sebentar lagi."},
+    )
+
+
+class HealthResponse(BaseModel):
+    status: str
+    db: str
+
+
+@app.get("/health", response_model=HealthResponse)
+def health():
+    """Beda dari sekadar "uvicorn jawab" - cek koneksi Postgres beneran hidup
+    (db.is_healthy()), bukan cuma proses FastAPI-nya nyala. Dipakai health-check
+    orchestrator/monitoring uptime eksternal (belum ada sebelumnya - lihat audit
+    arsitektur sebelumnya, "nol endpoint /health")."""
+    db_ok = db.is_healthy()
+    return JSONResponse(
+        status_code=200 if db_ok else 503,
+        content={"status": "ok" if db_ok else "degraded", "db": "ok" if db_ok else "error"},
     )
 
 
