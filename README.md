@@ -138,6 +138,7 @@ python-backend/
 └── Dockerfile
 
 Caddyfile                # Reverse proxy TLS untuk deployment produksi (opsional)
+run-dashboard-windows.bat # Menjalankan backend + frontend di Windows tanpa Docker
 ```
 
 ---
@@ -147,7 +148,7 @@ Caddyfile                # Reverse proxy TLS untuk deployment produksi (opsional
 ### 1. Prasyarat
 * PostgreSQL dengan tabel `devices`, `sectors`, `telemetry_logs`, `alerts`, `users`, `sector_schedules` sudah dibuat.
 * Broker MQTT (mis. Mosquitto atau `broker.emqx.io` publik) untuk lalu lintas telemetri ESP32.
-* Python 3.11+.
+* Python 3.11 atau 3.12 - **bukan 3.13+**, karena `psycopg2-binary` belum menyediakan wheel untuk versi itu dan pemasangannya akan gagal saat mencoba kompilasi dari sumber.
 * (Opsional) API key Gemini dari [Google AI Studio](https://aistudio.google.com/apikey) untuk fitur asisten AI - tanpa ini, semua fitur non-AI tetap berjalan normal, endpoint chat/analisis akan balikin 503.
 
 ### 2. Konfigurasi Environment Variable
@@ -194,6 +195,134 @@ python3 -m http.server 5500
 ```
 
 Buka `http://localhost:5500`. Frontend otomatis menurunkan alamat backend dari hostname halaman itu sendiri (`http://<host>:8000`) - jadi kalau dashboard diakses dari perangkat lain di jaringan yang sama, tidak perlu ubah konfigurasi apa pun.
+
+### 5. Menjalankan di Windows (tanpa Docker)
+
+Docker tidak wajib. Semua bagian bisa jalan langsung di Windows: PostgreSQL sebagai layanan, backend di virtualenv, frontend lewat server statis bawaan Python. Setelah persiapan sekali di bawah selesai, cukup klik dua kali `run-dashboard-windows.bat` di akar repo.
+
+#### 5.1 Pasang prasyarat
+
+```powershell
+winget install --id PostgreSQL.PostgreSQL.17 --override "--mode unattended --superpassword ACW123 --serverport 5432"
+winget install --id Python.Python.3.11
+```
+
+Pemasangan PostgreSQL memunculkan prompt administrator. Setelah selesai, layanan `postgresql-x64-17` otomatis jalan dan ikut menyala tiap boot.
+
+**Python harus 3.11, bukan yang terbaru.** `psycopg2-binary` belum menyediakan wheel untuk Python 3.13+, sehingga `pip install` akan mencoba mengompilasi dari sumber dan gagal. Versi lain boleh tetap terpasang di mesin - skrip menjalankan `py -3.11` secara eksplisit.
+
+#### 5.2 Buat database dan tabelnya
+
+```powershell
+$env:PGPASSWORD = "ACW123"
+$psql = "C:\Program Files\PostgreSQL\17\bin\psql.exe"
+
+& $psql -U postgres -h 127.0.0.1 -c "CREATE ROLE admin LOGIN PASSWORD 'ACW123' SUPERUSER;"
+& $psql -U postgres -h 127.0.0.1 -c "CREATE DATABASE smart_lights OWNER admin;"
+& $psql -U admin -h 127.0.0.1 -d smart_lights -f python-backend\schema.sql
+& $psql -U admin -h 127.0.0.1 -d smart_lights -f python-backend\schema_indexes.sql
+```
+
+`schema_indexes.sql` akan memberi beberapa `NOTICE: relation ... already exists, skipping` - itu wajar, sebagian index sudah dibuat oleh `schema.sql`.
+
+#### 5.3 Buat akun login pertama
+
+`schema.sql` hanya memindahkan **bentuk** tabel, bukan isinya. Database yang baru dibuat kosong sama sekali, termasuk tabel `users` - jadi akun dari instalasi lama tidak ikut pindah, dan login apa pun akan ditolak sampai akun dibuat di sini.
+
+```powershell
+py -3.11 -m venv "$env:USERPROFILE\.venvs\acw"
+$vpy = "$env:USERPROFILE\.venvs\acw\Scripts\python.exe"
+& $vpy -m pip install -r python-backend\requirements.txt
+
+cd python-backend
+$hash = & $vpy -c "import auth; print(auth.hash_password('ACW123'))"
+cd ..
+
+$env:PGPASSWORD = "ACW123"
+& $psql -U admin -h 127.0.0.1 -d smart_lights -c "INSERT INTO users (username, password_hash, role) VALUES ('admin', '$hash', 'admin');"
+```
+
+Hasilnya: `admin` / `ACW123` dengan peran admin. Ganti kata sandinya sebelum dipakai di luar mesin pengembangan.
+
+#### 5.4 Jalankan
+
+```
+run-dashboard-windows.bat
+```
+
+Skrip ini menyalakan layanan PostgreSQL bila tertidur, membuat virtualenv beserta dependensinya bila belum ada, menjalankan backend di `:8000` dan frontend di `:5500`, lalu membuka browser. Dua jendela terminal akan terbuka - tutup keduanya untuk menghentikan.
+
+Semua variabel di [bagian 2](#2-konfigurasi-environment-variable) bisa ditimpa sebelum menjalankan:
+
+```powershell
+$env:MQTT_HOST = "broker-sendiri.local"
+.\run-dashboard-windows.bat
+```
+
+#### 5.5 Pastikan berjalan normal
+
+```powershell
+curl http://localhost:8000/health
+# {"status":"ok","db":"ok"}
+```
+
+Lalu buka `http://localhost:5500` dan login. Dashboard akan terbuka dalam keadaan kosong - belum ada sektor maupun lampu.
+
+#### 5.6 Daftarkan sektor dan perangkat
+
+Lewat menu onboarding di dashboard, atau lewat API:
+
+```powershell
+$tok = (Invoke-RestMethod -Uri http://localhost:8000/api/login -Method Post `
+        -ContentType "application/json" `
+        -Body '{"username":"admin","password":"ACW123"}').token
+
+$h = @{ "X-ACW-Token" = $tok; "Content-Type" = "application/json" }
+
+Invoke-RestMethod -Uri http://localhost:8000/api/sectors -Method Post -Headers $h `
+  -Body '{"sector_name":"Sektor 2 (Kertajaya - Depan ITS)"}'
+
+Invoke-RestMethod -Uri http://localhost:8000/api/devices -Method Post -Headers $h `
+  -Body '{"device_id":"NEMA-01","sector_name":"Sektor 2 (Kertajaya - Depan ITS)","lat":-7.279315,"lng":112.789253}'
+```
+
+Urutannya tidak bisa dibalik: `device_id` yang belum terdaftar **ditolak total** di ingest MQTT - datanya tidak disimpan, dan dashboard justru menerima peringatan "perangkat tak dikenal". Daftarkan perangkat sebelum ia mulai mengirim.
+
+#### 5.7 Uji jalur telemetri dari ujung ke ujung
+
+```powershell
+& $vpy -c @"
+import json, paho.mqtt.client as mqtt, time
+c = mqtt.Client(client_id='probe'); c.connect('broker.emqx.io', 1883, 30); c.loop_start()
+c.publish('iot/lights/NEMA-01/telemetry', json.dumps({
+    'id':'NEMA-01','volt':219.1,'current':0.756,'power':161.5,'uptime':3600,'dim':100}), qos=1)
+time.sleep(3); c.loop_stop(); c.disconnect()
+"@
+```
+
+Lampu akan muncul di peta dan dropdown Monitor Lampu tanpa perlu memuat ulang halaman - datanya didorong lewat WebSocket. Kalau muncul, berarti seluruh rantai broker -> ingest -> PostgreSQL -> WebSocket -> dashboard sudah hidup.
+
+#### 5.8 Kalau ada yang tidak beres
+
+| Gejala | Sebab | Tindakan |
+|---|---|---|
+| Login ditolak (401) padahal kata sandi benar | Database baru, tabel `users` kosong | Ulangi langkah 5.3 |
+| `pip install` gagal di `psycopg2-binary` | Dijalankan dengan Python 3.13+ | Pakai virtualenv Python 3.11 seperti di 5.3 |
+| Backend gagal konek database | Variabel `DB_HOST` masih `postgres_db`, nama container Docker | Jalankan lewat `run-dashboard-windows.bat` yang sudah menyetelnya ke `127.0.0.1` |
+| Dashboard terbuka tapi semua data kosong | Backend di `:8000` tidak jalan | Cek jendela "ACW backend", dan `curl http://localhost:8000/health` |
+| Telemetri terkirim tapi tidak muncul | `device_id` belum terdaftar | Ulangi langkah 5.6, lalu cek Kotak Peringatan |
+
+#### 5.9 Perbedaan dari penyiapan Docker
+
+| | Docker (Linux) | Windows |
+|---|---|---|
+| Alamat antar layanan | Nama container (`postgres_db`) | `127.0.0.1` dan nomor port |
+| Umur data | Hilang bila volume dihapus | Menetap di direktori data PostgreSQL |
+| Menyalakan | `docker compose up` | `run-dashboard-windows.bat` |
+| Frontend | Disajikan Caddy, satu port | Server statis terpisah di `:5500` |
+| Python | Dibawa image | Virtualenv 3.11 di `%USERPROFILE%\.venvs\acw` |
+
+Broker MQTT tidak berubah: bawaannya tetap `broker.emqx.io` yang publik, bukan Mosquitto lokal, baik di Docker maupun di sini. Broker publik itu tanpa autentikasi - siapa pun yang tahu sebuah `device_id` dapat mengirim perintah ke topik `iot/lights/<device_id>/command`. Cukup untuk pengembangan, tetapi ganti ke broker berautentikasi sebelum dipasang di lapangan; cukup lewat `MQTT_HOST` dan `MQTT_PORT`, tanpa mengubah kode.
 
 ---
 
