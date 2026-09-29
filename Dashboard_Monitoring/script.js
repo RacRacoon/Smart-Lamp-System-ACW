@@ -351,6 +351,13 @@ function initCustomSelect(selectId) {
     // Toggle .is-open / .is-closing dengan setTimeout cleanup persis pola dari skill -
     // tanpa cleanup ini, buka berikutnya bakal loncat dari skala closing, bukan dari
     // skala pre-open istirahat.
+    // Kartu pembungkus dropdown ini. Perlu dinaikkan selama menu terbuka: .card pakai
+    // backdrop-filter buat efek kaca, dan properti itu BIKIN STACKING CONTEXT BARU -
+    // artinya z-index menu (50) cuma berlaku di dalam kartunya sendiri, dan kartu
+    // berikutnya di DOM tetap menimpa menu yang lagi kebuka. Ketahuan di dropdown
+    // "Sektor Target" yang ketimpa kartu "Penjadwalan" di bawahnya.
+    const hostCard = wrap.closest(".card, .controls-section");
+
     function open() {
         Object.keys(customDropdowns).forEach(id => {
             if (id !== selectId) customDropdowns[id].close();
@@ -358,13 +365,19 @@ function initCustomSelect(selectId) {
         menu.classList.remove("is-closing");
         menu.classList.add("is-open");
         trigger.setAttribute("aria-expanded", "true");
+        hostCard?.classList.add("has-open-dropdown");
     }
     function close() {
         if (!menu.classList.contains("is-open")) return;
         menu.classList.remove("is-open");
         menu.classList.add("is-closing");
         trigger.setAttribute("aria-expanded", "false");
-        setTimeout(() => menu.classList.remove("is-closing"), closeMs());
+        // Turunkan lagi setelah animasi tutup selesai, bukan seketika - kalau langsung
+        // dilepas, menu yang masih menyusut kembali ketimpa kartu di bawahnya.
+        setTimeout(() => {
+            menu.classList.remove("is-closing");
+            hostCard?.classList.remove("has-open-dropdown");
+        }, closeMs());
     }
     function toggle() {
         if (menu.classList.contains("is-open")) close(); else open();

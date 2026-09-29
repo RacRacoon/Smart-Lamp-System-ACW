@@ -1181,6 +1181,16 @@ header h1 {
     outline: none;
 }
 
+/* Kartu yang sedang membuka dropdown. backdrop-filter di .card bikin tiap kartu jadi
+   stacking context sendiri, jadi z-index menu di dalamnya tidak bisa melewati kartu
+   tetangga - kartunya yang harus naik, bukan menunya. Angkanya di bawah modal (200)
+   supaya dialog konfirmasi tetap menang. */
+.card.has-open-dropdown,
+.controls-section.has-open-dropdown {
+    position: relative;
+    z-index: 60;
+}
+
 .t-dropdown-option {
     padding: 8px 12px;
     border-radius: 4px;
