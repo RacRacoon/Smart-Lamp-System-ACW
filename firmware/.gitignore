@@ -1,0 +1,18 @@
+# Keluaran kompilasi. Hex dan elf dibangun ulang dari sumber, dan ukurannya
+# belasan megabita - tidak ada gunanya disimpan di riwayat.
+/build/
+/Debug/
+/Release/
+/bin/
+/obj/
+/out/
+
+# Berkas khusus mesin, bukan bagian proyek.
+/.settings/
+/.vscode/launch.json
+/.eide/log/
+/.eide.usr.ctx.json
+
+# Templat EIDE
+*.ept
+*.eide-template
