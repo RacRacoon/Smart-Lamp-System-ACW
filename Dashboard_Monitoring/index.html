@@ -56,7 +56,13 @@
     <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <!-- ?v= dinaikkan setiap script.js atau style.css berubah. Server statis
+         bawaan Python tidak memberi header cache apa pun, dan browser memilih
+         memakai salinan lamanya: pernah terjadi index.html termuat baru sambil
+         script.js tetap lama, sehingga tombol yang baru ada di HTML memanggil
+         fungsi yang belum ada di JS. Penanda versi ini membuat URL-nya berbeda,
+         jadi tidak ada yang perlu menekan Ctrl+Shift+R. -->
+    <link rel="stylesheet" href="style.css?v=20261001b">
 </head>
 
 <body>
@@ -464,6 +470,18 @@
                 <div class="controls-section" id="quick-control-section">
                     <div class="section-header-row">
                         <h2>Kendali Cepat (Kontrol Manual)</h2>
+                        <!-- Mode otomatis: LDR di papan yang menentukan kecerahan.
+                             Terpisah dari kunci override karena artinya berbeda - kunci
+                             mengatur boleh-tidaknya dashboard ini menyetir, auto
+                             mengatur siapa yang menyetir saat tidak disetir tangan. -->
+                        <div class="field-inline">
+                            <span id="auto-status-text" class="lock-status-text">AUTO MATI</span>
+                            <label class="switch">
+                                <input type="checkbox" id="auto-mode-toggle"
+                                    onchange="sendAutoMode(this.checked)">
+                                <span class="slider-round"></span>
+                            </label>
+                        </div>
                         <!-- Switch Pengunci Manual Override -->
                         <div class="field-inline">
                             <span id="lock-status-text" class="lock-status-text">TERKUNCI</span>
@@ -934,7 +952,7 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=20261001b"></script>
 </body>
 
 </html>

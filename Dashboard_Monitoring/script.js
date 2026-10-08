@@ -121,8 +121,13 @@ function connectWebSocket() {
                         power: incomingData.power || 0,
                         volt: incomingData.volt || 0,
                         current: incomingData.current || 0,
-                        lat: incomingData.lat || -7.25000, // Koordinat default jika dari backend kosong
-                        lng: incomingData.lng || 112.75000,
+                        // Tanpa koordinat karangan. Dulu di sini ada titik bawaan
+                        // yang menempatkan lampu tak berposisi di tengah Surabaya -
+                        // penandanya muncul di peta dan terlihat sah, padahal letak
+                        // itu tidak pernah dilaporkan siapa pun. Lebih baik tidak
+                        // digambar sampai posisinya benar-benar diketahui.
+                        lat: incomingData.lat,
+                        lng: incomingData.lng,
                         alerts: incomingData.alerts || 0,
                         uptime: incomingData.uptime || 0,
                         dim: incomingData.dim !== undefined ? parseInt(incomingData.dim) : 8,
@@ -145,8 +150,13 @@ function connectWebSocket() {
                     // 2. Suntik opsi secara dinamis ke semua Dropdown HTML (Dashboard, Manage, Telemetry)
                     addDeviceToDropdowns(deviceId, devicesData[deviceId].sector);
 
-                    // 3. Gambar Pinpoint Lampu Baru secara otomatis ke peta MapLibre
-                    addNewMapMarker(devicesData[deviceId]);
+                    // 3. Gambar Pinpoint Lampu Baru ke peta - hanya kalau posisinya
+                    //    diketahui. Lampu tanpa koordinat tetap muncul di dropdown
+                    //    dan tetap terpantau, cuma belum punya titik di peta.
+                    if (Number.isFinite(devicesData[deviceId].lat)
+                        && Number.isFinite(devicesData[deviceId].lng)) {
+                        addNewMapMarker(devicesData[deviceId]);
+                    }
                 } else {
                     // Jika sudah ada, tinggal perbarui datanya secara real-time. incomingData
                     // dari broadcast MQTT tidak bawa timestamp sendiri - pesan ini SAMPAI
@@ -924,7 +934,7 @@ function initDashboardData() {
                 addNewMapMarker(devicesData[deviceId]);
             });
 
-            const defaultDevice = devicesData["L-107"] ? "L-107" : Object.keys(devicesData)[0];
+            const defaultDevice = Object.keys(devicesData)[0];
             if (defaultDevice) {
                 switchDevice(defaultDevice);
             }
@@ -934,7 +944,6 @@ function initDashboardData() {
         })
         .catch(err => {
             console.error("Gagal memuat data awal dari database:", err);
-            switchDevice("L-102");
             fetchSectorSettings();
             connectWebSocket();
         })
@@ -967,84 +976,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// 1. Data Koordinat Lampu dengan Atribut Sektor Baru (Sektor 1 & Sektor 2)
-let devicesData = {
-    // === SEKTOR 1: JALAN TUNJUNGAN ===
-    "L-101": {
-        id: "L-101",
-        sector: "Sektor 1 (Jalan Tunjungan)",
-        uptime: 4500,
-        volt: 221.2,
-        current: 0.45,
-        power: 99.5,
-        lat: -7.25782,
-        lng: 112.73797,
-        alerts: 0,
-        dim: 80
-    },
-    "L-102": {
-        id: "L-102",
-        sector: "Sektor 1 (Jalan Tunjungan)",
-        uptime: 8200,
-        volt: 220.5,
-        current: 0.45,
-        power: 99.2,
-        lat: -7.25828,
-        lng: 112.73823,
-        alerts: 1,
-        dim: 80
-    },
-    "L-103": {
-        id: "L-103",
-        sector: "Sektor 1 (Jalan Tunjungan)",
-        uptime: 2100,
-        volt: 222.0,
-        current: 0.46,
-        power: 102.1,
-        lat: -7.25870,
-        lng: 112.73850,
-        alerts: 0,
-        dim: 80
-    },
-
-    // === SEKTOR 2: KERTAJAYA (DEPAN ITS) ===
-    "L-104": {
-        id: "L-104",
-        sector: "Sektor 2 (Kertajaya - Depan ITS)",
-        uptime: 10350,
-        volt: 195.0,
-        current: 0.00,
-        power: 0.0,
-        lat: -7.279236,
-        lng: 112.78966,
-        alerts: 2,
-        dim: 80
-    },
-    "L-105": {
-        id: "L-105",
-        sector: "Sektor 2 (Kertajaya - Depan ITS)",
-        uptime: 3100,
-        volt: 218.4,
-        current: 0.44,
-        power: 96.1,
-        lat: -7.27936,
-        lng: 112.78868,
-        alerts: 0,
-        dim: 80
-    },
-    "L-106": {
-        id: "L-106",
-        sector: "Sektor 2 (Kertajaya - Depan ITS)",
-        uptime: 8900,
-        volt: 215.1,
-        current: 0.40,
-        power: 86.0,
-        lat: -7.27945,
-        lng: 112.78804,
-        alerts: 1,
-        dim: 80
-    }
-};
+// Lampu yang sedang ditampilkan, diisi dari PostgreSQL lewat initDashboardData()
+// dan ditambah lagi oleh pesan WebSocket. Mulai KOSONG dengan sengaja.
+//
+// Sebelumnya di sini ada enam lampu contoh (L-101..L-106) dari masa sebelum ada
+// database. Isinya tidak pernah dibersihkan saat data asli masuk - fetch hanya
+// menambahkan entri baru - jadi lampu karangan itu ikut muncul di peta, di
+// dropdown, dan ikut dihitung ke ringkasan sektor seolah perangkat sungguhan.
+let devicesData = {};
 
 // State Management Konfigurasi Default Sektor
 let sectorSettings = {
@@ -1344,10 +1283,10 @@ const STALE_DANGER_MS = 24 * 60 * 60 * 1000;
 // dipakai renderLastUpdateNote() dan bisa dipakai ulang di tempat lain yang nanti
 // juga perlu nampilin "terakhir lapor" (mis. Riwayat Data, Dashboard per-sektor)
 function formatRelativeTime(isoString) {
-    if (!isoString) return { text: "Belum pernah lapor telemetry", tier: "danger" };
+    if (!isoString) return { text: "Belum pernah lapor telemetry", stamp: "", tier: "danger" };
 
     const then = new Date(isoString);
-    if (isNaN(then.getTime())) return { text: "Belum pernah lapor telemetry", tier: "danger" };
+    if (isNaN(then.getTime())) return { text: "Belum pernah lapor telemetry", stamp: "", tier: "danger" };
 
     const diffMs = Date.now() - then.getTime();
     let text;
@@ -1361,8 +1300,17 @@ function formatRelativeTime(isoString) {
         text = `${Math.floor(diffMs / 86400000)} hari lalu`;
     }
 
+    // Waktu mutlaknya ikut, bukan cuma yang relatif. "3 hari lalu" tidak cukup
+    // buat menelusuri: yang perlu diketahui saat sebuah lampu berhenti lapor
+    // adalah JAM BERAPA dia berhenti, supaya bisa dicocokkan dengan pemadaman,
+    // hujan, atau jadwal perawatan. Format yang sama dengan Kotak Peringatan.
+    const stamp = then.toLocaleString('id-ID', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+
     const tier = diffMs >= STALE_DANGER_MS ? "danger" : diffMs >= STALE_WARNING_MS ? "warning" : "fresh";
-    return { text, tier };
+    return { text, stamp, tier };
 }
 
 // Render badge "terakhir lapor" di kartu Status Perangkat (Monitor Lampu)
@@ -1370,8 +1318,8 @@ function renderLastUpdateNote(isoString) {
     const el = document.getElementById("last-update-note");
     if (!el) return;
 
-    const { text, tier } = formatRelativeTime(isoString);
-    el.textContent = `Diperbarui ${text}`;
+    const { text, stamp, tier } = formatRelativeTime(isoString);
+    el.textContent = stamp ? `Diperbarui ${text} · ${stamp}` : `Diperbarui ${text}`;
     el.classList.remove("is-stale-warning", "is-stale-danger");
     if (tier === "warning") el.classList.add("is-stale-warning");
     if (tier === "danger") el.classList.add("is-stale-danger");
@@ -1422,6 +1370,14 @@ function switchDevice(deviceId) {
 
         const dimSlider = document.getElementById("dim-slider");
         if (dimSlider) dimSlider.value = data.dim;
+    }
+
+    // Saklar AUTO mencerminkan keadaan papan, bukan klik terakhir di sini: mode
+    // ini juga bisa diubah langsung dari konsol UART papan, dan saklar yang
+    // menunjukkan keinginan dashboard alih-alih kenyataan lebih buruk daripada
+    // tidak ada saklar sama sekali.
+    if (data.auto !== undefined) {
+        renderAutoToggle(data.auto);
     }
 
     // Badge count dikelola oleh updateAlertBadge() dari sistem alert terpusat
@@ -2288,45 +2244,13 @@ window.addEventListener("popstate", () => {
     navigateToHash(pageId);
 });
 
-// DATA HISTORIS PZEM (Mock Data 12 Jam Terakhir)
-const telemetryHistory = {
-    "L-101": {
-        labels: ["02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00"],
-        volt: [218.4, 219.1, 220.5, 221.8, 220.1, 219.5, 220.2],
-        ampere: [0.82, 0.79, 0.41, 0.12, 0.05, 0.05, 0.38],
-        watt: [179.1, 173.0, 90.4, 26.6, 11.0, 11.0, 83.6]
-    },
-    "L-102": {
-        labels: ["02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00"],
-        volt: [221.2, 220.8, 222.1, 223.0, 221.5, 220.9, 221.4],
-        ampere: [0.91, 0.88, 0.45, 0.15, 0.08, 0.08, 0.42],
-        watt: [201.2, 194.3, 99.9, 33.4, 17.7, 17.7, 92.9]
-    },
-    "L-103": {
-        labels: ["02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00"],
-        volt: [220.1, 221.4, 219.8, 220.5, 221.2, 220.7, 221.1],
-        ampere: [0.45, 0.45, 0.35, 0.10, 0.02, 0.02, 0.25],
-        watt: [99.5, 99.5, 76.9, 22.0, 4.4, 4.4, 55.2]
-    },
-    "L-104": {
-        labels: ["02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00"],
-        volt: [195.0, 194.8, 195.2, 195.0, 194.5, 195.1, 195.0],
-        ampere: [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00],
-        watt: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    },
-    "L-105": {
-        labels: ["02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00"],
-        volt: [217.5, 218.0, 218.4, 219.1, 218.8, 218.2, 218.5],
-        ampere: [0.78, 0.75, 0.40, 0.10, 0.04, 0.04, 0.35],
-        watt: [169.6, 163.5, 87.4, 21.9, 8.8, 8.8, 76.5]
-    },
-    "L-106": {
-        labels: ["02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00"],
-        volt: [214.8, 215.1, 215.5, 216.0, 215.3, 214.9, 215.2],
-        ampere: [0.70, 0.68, 0.38, 0.09, 0.03, 0.03, 0.32],
-        watt: [150.4, 146.3, 81.9, 19.4, 6.5, 6.5, 68.9]
-    }
-};
+// Riwayat telemetri per lampu untuk grafik. Diisi initDashboardData() dari
+// baris telemetry_logs yang sebenarnya, dan kosong sampai itu terjadi.
+//
+// Dulu berisi angka karangan 12 jam untuk L-101..L-106. Grafiknya terlihat
+// meyakinkan justru karena itu - kurva yang rapi, tanpa penanda bahwa tak satu
+// pun pernah terjadi.
+const telemetryHistory = {};
 
 // Satu instance Chart.js per lampu (bukan satu global lagi) karena sekarang semua lampu
 // dalam sektor terpilih ditampilkan sekaligus, bukan gantian lewat dropdown.
@@ -2706,26 +2630,98 @@ function analyzeLampAI(deviceId) {
 }
 
 // Fungsi untuk mengaktifkan/menonaktifkan input manual override
-function toggleManualOverride(isUnlocked) {
+// Dua keadaan yang bersama-sama menentukan boleh-tidaknya slider digerakkan.
+// Disimpan di sini karena keduanya datang dari arah berbeda: kunci dari klik
+// operator, auto dari laporan papan.
+let autoModeOn = false;
+let manualUnlocked = false;
+
+// LDR lebih kuat daripada tangan. Selama auto menyala, slider dimatikan - papan
+// akan menolak perintah kecerahan, dan slider yang bisa digeser tapi tidak
+// berefek lebih membingungkan daripada slider yang jelas-jelas mati.
+function applyControlAvailability() {
     const dimSlider = document.getElementById("dim-slider");
     const cctSlider = document.getElementById("cct-slider");
     const lockStatusText = document.getElementById("lock-status-text");
+    const allowManual = manualUnlocked && !autoModeOn;
 
-    if (isUnlocked) {
-        // Jika kunci dibuka, aktifkan slider
-        dimSlider.removeAttribute("disabled");
-        cctSlider.removeAttribute("disabled");
+    [dimSlider, cctSlider].forEach(el => {
+        if (!el) return;
+        if (allowManual) el.removeAttribute("disabled");
+        else el.setAttribute("disabled", "true");
+    });
 
-        lockStatusText.innerText = "AKTIF (SIAP DIKONTROL)";
-        lockStatusText.style.color = "var(--success)";
-    } else {
-        // Jika dikunci kembali, matikan slider
-        dimSlider.setAttribute("disabled", "true");
-        cctSlider.setAttribute("disabled", "true");
-
+    if (!lockStatusText) return;
+    if (!manualUnlocked) {
         lockStatusText.innerText = "TERKUNCI";
         lockStatusText.style.color = "var(--text-muted)";
+    } else if (autoModeOn) {
+        lockStatusText.innerText = "DIKUNCI AUTO (MATIKAN AUTO DULU)";
+        lockStatusText.style.color = "var(--warning, #e0a800)";
+    } else {
+        lockStatusText.innerText = "AKTIF (SIAP DIKONTROL)";
+        lockStatusText.style.color = "var(--success)";
     }
+}
+
+// Gambar ulang saklar AUTO dari keadaan yang dilaporkan papan.
+function renderAutoToggle(isOn) {
+    autoModeOn = !!isOn;
+    const toggle = document.getElementById("auto-mode-toggle");
+    const text = document.getElementById("auto-status-text");
+    if (toggle) toggle.checked = autoModeOn;
+    if (text) {
+        text.innerText = autoModeOn ? "AUTO (LDR MENYETIR)" : "AUTO MATI";
+        text.style.color = autoModeOn ? "var(--success)" : "var(--text-muted)";
+    }
+    applyControlAvailability();
+}
+
+// Nyalakan/matikan mode otomatis di papan. Payload hanya berisi "auto" - kalau
+// "dim" ikut terkirim, papan akan sekalian mengubah kecerahan ke angka yang
+// tidak pernah diminta siapa pun.
+function sendAutoMode(wantOn) {
+    const currentDeviceId = document.getElementById("current-device-id")?.innerText;
+    if (!currentDeviceId || currentDeviceId === "-") return;
+
+    renderAutoToggle(wantOn);
+
+    fetch(`${API_BASE_URL}/api/lights/${currentDeviceId}/command`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-ACW-Token': authToken || ''
+        },
+        body: JSON.stringify({ auto: !!wantOn })
+    })
+        .then(res => {
+            if (res.status === 403) throw new Error('forbidden');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
+            console.log(`[HTTP] Mode otomatis ${wantOn ? "ON" : "OFF"} dikirim ke ${currentDeviceId}:`, data);
+        })
+        .catch(err => {
+            // Kembalikan saklar ke posisi semula: perintahnya tidak sampai, jadi
+            // papan masih dalam mode yang lama.
+            renderAutoToggle(!wantOn);
+            const isForbidden = err.message === 'forbidden';
+            console.error("[HTTP] Gagal mengirim mode otomatis:", err);
+            addAlert({
+                nodeId: currentDeviceId,
+                severity: 'warning',
+                type: 'command_failed',
+                message: isForbidden
+                    ? 'Hanya admin yang bisa mengubah mode otomatis.'
+                    : 'Perintah mode otomatis gagal terkirim ke perangkat.'
+            });
+        });
+}
+
+function toggleManualOverride(isUnlocked) {
+    manualUnlocked = !!isUnlocked;
+    applyControlAvailability();
 }
 
 // Ambil jadwal RTC sungguhan dari database (GET /api/sector-schedules, publik - dipakai
@@ -2994,11 +2990,11 @@ function openDeleteSectorModal() {
     modal.classList.remove("is-closing");
     modal.classList.add("is-open");
 
-    // Hitung jumlah lampu LANGSUNG dari backend (bukan devicesData lokal) - devicesData
-    // masih nyimpen 6 lampu contoh dari jaman sebelum migrasi (L-101..L-106, lihat
-    // deklarasi awalnya) yang gak pernah kehapus, jadi kalau dipakai buat cek ini bisa
-    // salah blokir sektor yang aslinya di DB sudah kosong. system-overview query
-    // langsung ke tabel devices, jadi pasti akurat.
+    // Hitung jumlah lampu LANGSUNG dari backend, bukan dari devicesData lokal.
+    // Enam lampu contoh yang dulu mengotori devicesData sudah dihapus, tapi
+    // alasannya tetap berlaku: devicesData itu cerminan yang bisa tertinggal -
+    // lampu yang dihapus di tab lain masih ada di sini sampai halaman dimuat
+    // ulang. system-overview query langsung ke tabel devices, jadi pasti akurat.
     fetch(`${API_BASE_URL}/api/system-overview`)
         .then(res => res.json())
         .then(data => {

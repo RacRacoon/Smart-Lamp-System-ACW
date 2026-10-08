@@ -21,12 +21,17 @@ router = APIRouter(prefix="/api", tags=["command"])
 
 
 class DimCommand(BaseModel):
-    dim: int = 0
+    # Keduanya opsional, dan minimal satu harus ada. Dulu dim bernilai bawaan 0,
+    # jadi perintah yang hanya ingin mengubah mode otomatis akan ikut mengirim
+    # "dim: 0" dan memadamkan lampu tanpa diminta.
+    dim: int | None = None
+    auto: bool | None = None
 
 
 class CommandResponse(BaseModel):
     id: str
-    dim: int
+    dim: int | None = None
+    auto: bool | None = None
 
 
 def _enforce_admin_write_rate_limit(x_acw_token: str | None) -> None:
@@ -47,7 +52,13 @@ def send_command(
     body: DimCommand,
     x_acw_token: str | None = Header(default=None, alias="X-ACW-Token"),
 ):
-    if body.dim < 0 or body.dim > 100:
+    if body.dim is None and body.auto is None:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "Perintah kosong: sertakan 'dim' (0-100) dan/atau 'auto' (true/false)"},
+        )
+
+    if body.dim is not None and (body.dim < 0 or body.dim > 100):
         raise HTTPException(status_code=400, detail={"error": "Invalid id or dim (0-100)"})
 
     if not auth.is_admin(x_acw_token):
@@ -66,5 +77,11 @@ def send_command(
             detail={"error": "ID lampu tidak valid (hanya huruf, angka, titik, garis bawah, tanda hubung)"},
         )
 
-    mqtt_ingest.publish_dim_command(device_id, body.dim)
-    return {"id": device_id, "dim": body.dim}
+    payload: dict = {}
+    if body.dim is not None:
+        payload["dim"] = body.dim
+    if body.auto is not None:
+        payload["auto"] = body.auto
+
+    mqtt_ingest.publish_control_command(device_id, payload)
+    return {"id": device_id, "dim": body.dim, "auto": body.auto}
