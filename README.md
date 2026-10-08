@@ -135,11 +135,24 @@ python-backend/
 ├── schema.sql                         # Cetak biru struktur database - lihat SCHEMA_README.md
 ├── SCHEMA_README.md                    # Cara pakai schema.sql & cara menjaganya tetap akurat
 ├── requirements.txt
-└── Dockerfile
+├── Dockerfile
+└── tools/
+    ├── nema_serial_bridge.py   # Jembatan dua arah papan NEMA <-> MQTT lewat UART
+    ├── simulate_light.py        # Lampu tiruan untuk menguji sistem tanpa perangkat
+    └── TESTING.md
+
+firmware/                # Program papan kontroler NEMA (APM32F103CBT6)
+├── Core/Src/main.c       # Seluruh logika: peredup, relai, LDR, meter, sensor, GPS
+├── Core/Src/stm32f1xx_it.c  # Empat penangan interupsi UART & power factor
+├── STM32F104.ioc            # Berkas CubeMX
+├── STM32F103CBTX_FLASH.ld    # 127K - satu halaman disisakan untuk setelan
+└── README.md                  # Peta kaki, susunan program, cara flash
 
 Caddyfile                # Reverse proxy TLS untuk deployment produksi (opsional)
-run-dashboard-windows.bat # Menjalankan backend + frontend di Windows tanpa Docker
+run-dashboard-windows.bat # Menjalankan PostgreSQL + backend + frontend + jembatan
 ```
+
+Repo ini memuat **kedua sisi** sistem: perangkat di tiang dan dashboard yang memantaunya. Keduanya berbagi satu bentuk muatan MQTT, jadi perubahan di salah satu sisi bisa ditelusuri berdampingan dengan pasangannya.
 
 ---
 
@@ -353,7 +366,14 @@ Endpoint yang mengubah data (kendali, jadwal, hapus peringatan) memvalidasi pera
 
 ## 📡 Alur Data Real-Time
 
-1. ESP32 publish telemetri ke topic MQTT `iot/lights/{device_id}/telemetry`.
+1. Perangkat publish telemetri ke topic MQTT `iot/lights/{device_id}/telemetry`.
 2. `mqtt_ingest.py` menyimpannya ke PostgreSQL, mengevaluasi status kesehatan & threshold peringatan, lalu broadcast ke semua dashboard yang terhubung lewat WebSocket.
 3. Perangkat dengan `device_id` yang belum terdaftar di tabel `devices` **ditolak** (bukan auto-register) dan memicu peringatan kritis "Perangkat Tidak Terdaftar".
 4. Frontend menerima update lewat WebSocket dan menyinkronkan kartu status, peta, grafik, serta badge peringatan tanpa perlu refresh halaman.
+5. Perintah dari dashboard mengalir berlawanan arah lewat `iot/lights/{device_id}/command` - kecerahan dan mode otomatis LDR.
+
+**Yang menerbitkan telemetri saat ini.** Modem 4G di papan NEMA belum punya kartu SIM aktif, jadi untuk sementara PC yang menjembatani: `nema_serial_bridge.py` menanyai konsol UART papan tiap 10 detik, menguraikan jawabannya, lalu menerbitkannya. Ke arah sebaliknya ia berlangganan topic command dan menerjemahkan perintah dashboard jadi ketikan konsol.
+
+Bentuk muatannya sengaja sama persis dengan yang nanti dikirim papan sendiri lewat `AT+QMTPUB`. Begitu kartu baru terpasang, jembatan dimatikan (`NEMA_BRIDGE=0`) dan backend tidak perlu diubah sama sekali.
+
+**Usia pakai lampu tidak diambil dari perangkat.** Field `uptime` di payload melaporkan lamanya pengirim hidup, bukan umur lampu, dan ikut ter-reset tiap pengirimnya dinyalakan ulang. Backend yang menjumlahkannya sendiri ke kolom `devices.lamp_hours`, menghitung hanya waktu saat lampu menyala.
