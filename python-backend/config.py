@@ -104,14 +104,21 @@ TRUST_PROXY_HEADERS = os.environ.get("TRUST_PROXY_HEADERS", "false").lower() == 
 
 # --- Nilai default kalau field tidak dikirim ESP32 (identik dengan fallback di flow lama) ---
 DEFAULT_SECTOR = "Sektor 2 (Kertajaya - Depan ITS)"
-DEFAULT_LAT = -7.279315
-DEFAULT_LNG = 112.789253
+DEFAULT_LAT = float(os.environ.get("DEFAULT_LAT", "-7.314990"))
+DEFAULT_LNG = float(os.environ.get("DEFAULT_LNG", "112.789501"))
 DEFAULT_DIM = 80
 DEFAULT_MAX_LIFESPAN = 10000
 
 # --- Ambang batas health & alert (identik dengan Parse & Generate SQL Query + Evaluasi & Build Query Alert) ---
 UPTIME_NEED_MAINTENANCE_HOURS = 10000
 UPTIME_WARNING_HOURS = 8000
+
+# Jeda minimum antara dua alert SEJENIS dari lampu yang sama. Tanpa ini,
+# gangguan yang bertahan - lampu terlepas, tegangan hilang - menulis satu baris
+# tiap telemetri masuk, enam per menit, dan Kotak Peringatan jadi tidak terbaca
+# justru saat paling dibutuhkan. Gangguan yang sama tetap dilaporkan ulang
+# setelah jeda ini, jadi yang berkepanjangan tidak hilang diam-diam.
+ALERT_COOLDOWN_SECONDS = int(os.environ.get("ALERT_COOLDOWN_SECONDS", "300"))
 
 VOLT_SPIKE_THRESHOLD = 240
 VOLT_OFFLINE_THRESHOLD = 200

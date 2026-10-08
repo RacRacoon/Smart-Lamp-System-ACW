@@ -14,7 +14,8 @@ def classify_health(uptime_hours: float) -> str:
     return "Healthy"
 
 
-def evaluate_alert(device_id: str, volt: float, current: float):
+def evaluate_alert(device_id: str, volt: float, current: float,
+                   volt_reported: bool = False):
     """
     Cek 3 aturan berurutan, cuma satu yang bisa terpicu per pesan (persis if/else-if
     di flow lama) — bukan cek semua aturan independen kayak _checkAndTriggerAlert()
@@ -34,12 +35,21 @@ def evaluate_alert(device_id: str, volt: float, current: float):
             "threshold_info": f"V: {config.VOLT_SPIKE_THRESHOLD}V",
         }
 
-    if 0 < volt < config.VOLT_OFFLINE_THRESHOLD:
+    # Nol dulu dikecualikan lewat "0 < volt", sehingga justru kasus paling jelas -
+    # lampu terlepas, jala listrik hilang - tidak memicu apa pun. Pengecualian itu
+    # ada alasannya: payload yang sama sekali tidak membawa medan "volt" juga dibaca
+    # sebagai 0, dan itu bukan gangguan. Jadi yang dibedakan sekarang bukan angkanya,
+    # melainkan apakah angkanya memang dilaporkan.
+    if volt < config.VOLT_OFFLINE_THRESHOLD and (volt > 0 or volt_reported):
+        no_power = volt <= 0
         return {
             "level": "Critical",
-            "title": "Perangkat Offline / Tegangan Low",
+            "title": "Tanpa Tegangan Jala" if no_power else "Perangkat Offline / Tegangan Low",
             "alertType": "offline",
             "message": (
+                f"Lampu {device_id} tidak mendapat tegangan jala sama sekali (0V) - "
+                f"periksa sambungan atau pemutus arusnya."
+                if no_power else
                 f"Lampu {device_id} terdeteksi tegangan jauh di bawah batas operasional ({volt}V)."
             ),
             "threshold_info": f"V: {config.VOLT_OFFLINE_THRESHOLD}V",
