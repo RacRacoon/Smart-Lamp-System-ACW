@@ -22,3 +22,10 @@ ON telemetry_logs (device_id, created_at DESC);
 -- sendiri sempat kelewat nambahin index ini sejak awal.
 CREATE INDEX IF NOT EXISTS idx_alerts_created_at
 ON alerts (created_at DESC);
+
+-- Usia pakai lampu yang menetap. Database yang dibuat sebelum kolom ini ada
+-- (schema.sql versi lama) tetap bisa dipakai setelah menjalankan berkas ini:
+-- tanpa kedua kolom itu, ingest MQTT akan menolak menghitung usia lampu dan
+-- angkanya berhenti di nol.
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS lamp_hours DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS lamp_seen  TIMESTAMP;

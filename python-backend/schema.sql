@@ -79,6 +79,19 @@ CREATE TABLE devices (
                                              -- Maintenance" (lihat
                                              -- config.UPTIME_NEED_MAINTENANCE_HOURS
                                              -- & alerts.classify_health())
+    lamp_hours   DOUBLE PRECISION NOT NULL DEFAULT 0,
+                                             -- USIA PAKAI LAMPU, akumulatif dan
+                                             -- hanya boleh naik. Dulu angka ini
+                                             -- diambil mentah dari field "uptime"
+                                             -- payload telemetri, yang berarti ia
+                                             -- ikut ter-reset tiap pengirimnya
+                                             -- dinyalakan ulang - tidak bisa dipakai
+                                             -- memutuskan kapan lampu diganti.
+                                             -- Sekarang backend yang menjumlahkan,
+                                             -- lihat db.accrue_lamp_hours()
+    lamp_seen    TIMESTAMP,                  -- telemetri terakhir yang dihitung ke
+                                             -- lamp_hours; jarak ke yang berikutnya
+                                             -- itulah yang ditambahkan
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

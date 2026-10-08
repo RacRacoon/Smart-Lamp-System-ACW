@@ -155,6 +155,40 @@ def create_device(device_id: str, sector_name: str, lat: float, lng: float, max_
     )
 
 
+def accrue_lamp_hours(device_id: str, lamp_on: bool, max_gap_seconds: int = 900) -> float:
+    """Tambahkan waktu sejak telemetri terakhir ke usia pakai lampu, lalu kembalikan
+    totalnya.
+
+    Angka ini tidak boleh berasal dari perangkat. Sebelumnya ia diambil dari field
+    "uptime" di payload, dan pengirim mana pun yang dinyalakan ulang - jembatan PC,
+    modem, papan itu sendiri - mengembalikannya ke nol. Sebagai dasar keputusan
+    "kapan lampu diganti", angka yang bisa ter-reset sama saja dengan tidak ada.
+
+    Yang dihitung hanya waktu saat lampu MENYALA: lampu padam tidak menua.
+
+    Celah panjang (backend mati, jaringan putus, jembatan belum dinyalakan) dibatasi
+    max_gap_seconds lalu tetap dihitung sebanyak batas itu, bukan dibuang. Selama
+    diam kita memang tidak tahu, tapi dua kesalahan itu tidak setara: menghitung
+    lebih berarti lampu diganti lebih awal, menghitung kurang berarti jalan gelap
+    lebih dulu. Dipilih yang pertama.
+    """
+    rows = _fetch(
+        """
+        UPDATE devices
+        SET lamp_hours = lamp_hours + CASE
+                WHEN %s AND lamp_seen IS NOT NULL
+                THEN LEAST(EXTRACT(EPOCH FROM (NOW() - lamp_seen)), %s) / 3600.0
+                ELSE 0
+            END,
+            lamp_seen = NOW()
+        WHERE device_id = %s
+        RETURNING lamp_hours;
+        """,
+        (lamp_on, max_gap_seconds, device_id),
+    )
+    return float(rows[0]["lamp_hours"]) if rows else 0.0
+
+
 def insert_telemetry(
     device_id: str,
     volt: float,
@@ -204,7 +238,7 @@ def get_devices_latest() -> list[dict[str, Any]]:
             COALESCE(t.volt, 0) AS volt,
             COALESCE(t.current, 0) AS current,
             COALESCE(t.power, 0) AS power,
-            COALESCE(t.uptime, 0) AS uptime,
+            COALESCE(d.lamp_hours, 0) AS uptime,
             COALESCE(t.dim, 80) AS dim,
             t.created_at AS last_update
         FROM devices d
@@ -225,7 +259,7 @@ def get_device_latest(device_id: str) -> dict[str, Any] | None:
             COALESCE(t.volt, 0) AS volt,
             COALESCE(t.current, 0) AS current,
             COALESCE(t.power, 0) AS power,
-            COALESCE(t.uptime, 0) AS uptime,
+            COALESCE(d.lamp_hours, 0) AS uptime,
             COALESCE(t.dim, 80) AS dim,
             t.created_at AS last_update
         FROM devices d
@@ -310,15 +344,9 @@ def get_sector_lamp_states() -> list[dict[str, Any]]:
         SELECT
             s.sector_name,
             d.device_id,
-            COALESCE(t.uptime, 0) AS uptime
+            COALESCE(d.lamp_hours, 0) AS uptime
         FROM sectors s
         LEFT JOIN devices d ON d.sector_name = s.sector_name
-        LEFT JOIN LATERAL (
-            SELECT uptime FROM telemetry_logs
-            WHERE device_id = d.device_id
-            ORDER BY created_at DESC
-            LIMIT 1
-        ) t ON TRUE
         ORDER BY s.sector_name, d.device_id;
     """
     return _fetch(query, ())
