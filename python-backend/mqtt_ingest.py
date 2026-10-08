@@ -9,6 +9,7 @@ begitu pesan MQTT diterima.
 """
 import json
 import logging
+import time
 import uuid
 
 import paho.mqtt.client as mqtt
@@ -20,14 +21,38 @@ import ws_manager
 
 logger = logging.getLogger("acw.mqtt")
 
+# Kapan tiap (device_id, jenis alert) terakhir dicatat. Di memori saja: hilang
+# saat backend dinyalakan ulang, dan itu justru yang diinginkan - setelah
+# restart, gangguan yang masih berlangsung layak dilaporkan sekali lagi.
+_alert_seen: dict[tuple[str, str], float] = {}
+
+
+def _alert_due(device_id: str, alert_type: str) -> bool:
+    """1 kalau alert sejenis dari lampu ini sudah boleh dicatat lagi."""
+    key = (device_id, alert_type)
+    now = time.monotonic()
+    last = _alert_seen.get(key)
+    if last is not None and (now - last) < config.ALERT_COOLDOWN_SECONDS:
+        return False
+    _alert_seen[key] = now
+    return True
+
 
 def _parse_payload(topic: str, raw: dict) -> dict:
     topic_parts = topic.split("/")
     device_id = raw.get("id") or raw.get("device_id") or (topic_parts[2] if len(topic_parts) > 2 else "UNKNOWN")
 
     sector = raw.get("sector") or config.DEFAULT_SECTOR
-    lat = float(raw.get("lat") or config.DEFAULT_LAT)
-    lng = float(raw.get("lng") or config.DEFAULT_LNG)
+    # Dibedakan dari "tidak dikirim": lihat alerts.evaluate_alert().
+    volt_reported = raw.get("volt") is not None
+
+    # None kalau perangkat tidak melaporkannya, BUKAN sebuah angka bawaan.
+    # Menambal dengan konstanta global berarti lampu yang kebetulan tidak
+    # mengirim posisi akan tertarik ke titik yang sama di peta, menimpa
+    # koordinat yang didaftarkan admin - kesalahan yang terlihat meyakinkan
+    # karena penandanya tetap muncul, hanya saja di tempat yang salah.
+    lat = float(raw["lat"]) if raw.get("lat") is not None else None
+    lng = float(raw["lng"]) if raw.get("lng") is not None else None
     volt = float(raw.get("volt") or 0)
     current = float(raw.get("current") or 0)
     power = float(raw.get("power") or (volt * current))
@@ -41,6 +66,11 @@ def _parse_payload(topic: str, raw: dict) -> dict:
     except (TypeError, ValueError):
         dim = config.DEFAULT_DIM
 
+    # Lampu dianggap menyala kalau peredupnya di atas nol DAN relainya tidak
+    # dilaporkan padam. Perangkat yang tidak mengirim "relay" cukup dinilai dari
+    # dim saja - itu yang menentukan apakah lampu benar-benar menua.
+    lamp_on = dim > 0 and str(raw.get("relay", "on")).lower() != "off"
+
     return {
         "device_id": device_id,
         "sector": sector,
@@ -50,6 +80,8 @@ def _parse_payload(topic: str, raw: dict) -> dict:
         "current": current,
         "power": power,
         "uptime_hours": uptime_hours,
+        "lamp_on": lamp_on,
+        "volt_reported": volt_reported,
         "dim": dim,
     }
 
@@ -100,6 +132,14 @@ def _handle_telemetry(data: dict) -> None:
         })
         return
 
+    # Usia pakai diambil dari database, BUKAN dari yang dikirim perangkat. Field
+    # "uptime" di payload ikut ter-reset tiap pengirimnya dinyalakan ulang, dan
+    # indikator umur lampu tidak boleh punya sifat itu.
+    try:
+        data["uptime_hours"] = round(db.accrue_lamp_hours(device_id, data["lamp_on"]), 2)
+    except Exception:
+        logger.exception("Gagal memperbarui usia pakai lampu untuk %s", device_id)
+
     health = alerts.classify_health(data["uptime_hours"])
 
     try:
@@ -118,13 +158,20 @@ def _handle_telemetry(data: dict) -> None:
         "volt": data["volt"],
         "current": data["current"],
         "power": data["power"],
-        "lat": data["lat"],
-        "lng": data["lng"],
         "dim": data["dim"],
+        # Posisi hanya ikut kalau memang dilaporkan. Tanpa kunci ini, dashboard
+        # menerima lat/lng kosong lalu menggambar penanda di koordinat nol.
+        **({"lat": data["lat"], "lng": data["lng"]}
+           if data["lat"] is not None and data["lng"] is not None else {}),
     })
 
-    alert = alerts.evaluate_alert(device_id, data["volt"], data["current"])
+    alert = alerts.evaluate_alert(device_id, data["volt"], data["current"],
+                                  data["volt_reported"])
     if not alert:
+        return
+
+    # Gangguan yang bertahan hanya dicatat sekali per jeda, bukan tiap telemetri.
+    if not _alert_due(device_id, alert["alertType"]):
         return
 
     try:
@@ -188,6 +235,21 @@ def start() -> mqtt.Client:
     client.loop_start()
     _client = client
     return client
+
+
+def publish_control_command(device_id: str, payload: dict) -> None:
+    """Terbitkan satu perintah kendali ke topic command sebuah device.
+
+    Isinya bebas - {"dim": 60}, {"auto": true}, atau keduanya - dan hanya field
+    yang memang diminta yang ikut, supaya perintah mode otomatis tidak
+    membawa-bawa kecerahan yang tidak dimaksud.
+    """
+    if not config.is_valid_device_id(device_id):
+        raise ValueError(f"device_id tidak valid buat topic MQTT: {device_id!r}")
+    if _client is None:
+        raise RuntimeError("MQTT belum konek, panggil start() dulu")
+    topic = config.MQTT_COMMAND_TOPIC_TEMPLATE.format(device_id=device_id)
+    _client.publish(topic, json.dumps(payload), qos=1, retain=False)
 
 
 def publish_dim_command(device_id: str, dim: int) -> None:

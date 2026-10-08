@@ -97,6 +97,23 @@ echo [*] Menyalakan frontend di port %WEB_PORT%
 start "ACW frontend (port %WEB_PORT%)" cmd /k ^
     "cd /d "%~dp0Dashboard_Monitoring" && "%VPY%" -m http.server %WEB_PORT% --bind 127.0.0.1"
 
+REM --- 5. Jembatan papan NEMA ---------------------------------------------------
+REM Sementara, selama modem di papan belum punya kartu SIM aktif: papan ditanya
+REM lewat konsol UART dari PC, lalu jawabannya diterbitkan ke broker. Begitu
+REM kartu baru terpasang, papan menerbitkan sendiri dan bagian ini dimatikan
+REM dengan  set NEMA_BRIDGE=0  sebelum menjalankan skrip ini.
+if not defined NEMA_BRIDGE set "NEMA_BRIDGE=1"
+if not defined NEMA_PORT   set "NEMA_PORT=COM6"
+if not defined NEMA_DEVICE set "NEMA_DEVICE=NEMA-01"
+
+if "%NEMA_BRIDGE%"=="1" (
+    echo [*] Menyalakan jembatan papan NEMA di %NEMA_PORT%
+    start "ACW jembatan NEMA (%NEMA_PORT%)" cmd /k ^
+        "cd /d "%~dp0python-backend" && "%VPY%" tools\nema_serial_bridge.py --port %NEMA_PORT% --device %NEMA_DEVICE%"
+) else (
+    echo [-] Jembatan papan NEMA dilewati ^(NEMA_BRIDGE=%NEMA_BRIDGE%^)
+)
+
 REM Beri backend waktu membuka pool database sebelum browser meminta data.
 timeout /t 5 /nobreak >nul
 
@@ -105,8 +122,9 @@ echo === Siap ===
 echo   Dashboard   http://localhost:%WEB_PORT%
 echo   API docs    http://localhost:%API_PORT%/docs
 echo   Broker MQTT %MQTT_HOST%:%MQTT_PORT%
+if "%NEMA_BRIDGE%"=="1" echo   Papan NEMA  %NEMA_PORT% -^> %NEMA_DEVICE%
 echo.
-echo   Hentikan dengan menutup dua jendela "ACW backend" dan "ACW frontend".
+echo   Hentikan dengan menutup jendela-jendela "ACW ..." yang terbuka.
 echo.
 
 start "" "http://localhost:%WEB_PORT%"

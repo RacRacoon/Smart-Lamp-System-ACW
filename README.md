@@ -283,7 +283,7 @@ Invoke-RestMethod -Uri http://localhost:8000/api/sectors -Method Post -Headers $
   -Body '{"sector_name":"Sektor 2 (Kertajaya - Depan ITS)"}'
 
 Invoke-RestMethod -Uri http://localhost:8000/api/devices -Method Post -Headers $h `
-  -Body '{"device_id":"NEMA-01","sector_name":"Sektor 2 (Kertajaya - Depan ITS)","lat":-7.279315,"lng":112.789253}'
+  -Body '{"device_id":"NEMA-01","sector_name":"Sektor 2 (Kertajaya - Depan ITS)","lat":-7.314997,"lng":112.789502}'
 ```
 
 Urutannya tidak bisa dibalik: `device_id` yang belum terdaftar **ditolak total** di ingest MQTT - datanya tidak disimpan, dan dashboard justru menerima peringatan "perangkat tak dikenal". Daftarkan perangkat sebelum ia mulai mengirim.
