@@ -26,12 +26,18 @@ class DimCommand(BaseModel):
     # "dim: 0" dan memadamkan lampu tanpa diminta.
     dim: int | None = None
     auto: bool | None = None
+    # "on" atau "off". Tanpa ini lampu tidak bisa dinyalakan dari dashboard
+    # sama sekali - peredup boleh disetel berapa pun, tapi selama relai terbuka
+    # tidak ada listrik yang sampai ke lampu dan layar terlihat seperti tidak
+    # merespons.
+    relay: str | None = None
 
 
 class CommandResponse(BaseModel):
     id: str
     dim: int | None = None
     auto: bool | None = None
+    relay: str | None = None
 
 
 def _enforce_admin_write_rate_limit(x_acw_token: str | None) -> None:
@@ -52,10 +58,16 @@ def send_command(
     body: DimCommand,
     x_acw_token: str | None = Header(default=None, alias="X-ACW-Token"),
 ):
-    if body.dim is None and body.auto is None:
+    if body.dim is None and body.auto is None and body.relay is None:
         raise HTTPException(
             status_code=400,
-            detail={"error": "Perintah kosong: sertakan 'dim' (0-100) dan/atau 'auto' (true/false)"},
+            detail={"error": "Perintah kosong: sertakan 'dim' (0-100), 'auto' (true/false), dan/atau 'relay' (on/off)"},
+        )
+
+    if body.relay is not None and body.relay not in ("on", "off"):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "relay hanya boleh 'on' atau 'off'"},
         )
 
     if body.dim is not None and (body.dim < 0 or body.dim > 100):
@@ -82,6 +94,20 @@ def send_command(
         payload["dim"] = body.dim
     if body.auto is not None:
         payload["auto"] = body.auto
+    if body.relay is not None:
+        payload["relay"] = body.relay
 
-    mqtt_ingest.publish_control_command(device_id, payload)
-    return {"id": device_id, "dim": body.dim, "auto": body.auto}
+    # 503, bukan 500: perintahnya sah dan server sehat, cuma jalur ke perangkat
+    # yang sedang terputus - dan itu keadaan yang akan pulih sendiri. Pesannya
+    # dikirim apa adanya ke dashboard supaya operator tahu bedanya "perintahku
+    # salah" dari "perintahku tidak bisa dikirim sekarang".
+    try:
+        mqtt_ingest.publish_control_command(device_id, payload)
+    except RuntimeError as e:
+        logger.error("Perintah untuk %s tidak bisa diterbitkan: %s", device_id, e)
+        raise HTTPException(
+            status_code=503,
+            detail={"error": f"Perintah tidak terkirim: {e}"},
+        )
+
+    return {"id": device_id, "dim": body.dim, "auto": body.auto, "relay": body.relay}

@@ -66,4 +66,4 @@ def admin_token(fake_users):
         "role": "admin",
         "password_hash": auth.hash_password("admin-secret-123"),
     }
-    return auth.issue_session("admin")
+    return auth.issue_session("admin", "admin")

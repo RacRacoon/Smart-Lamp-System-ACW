@@ -79,6 +79,10 @@ class CreateDeviceRequest(BaseModel):
     max_lifespan: int = Field(default=config.DEFAULT_MAX_LIFESPAN, ge=1)
 
 
+class MoveDeviceRequest(BaseModel):
+    sector_name: str
+
+
 class DeleteSectorRequest(BaseModel):
     # Step-up auth: sesi admin yang masih hidup (X-ACW-Token) TIDAK cukup buat aksi
     # sedestruktif ini - harus buktikan tahu password admin lagi SAAT ITU JUGA (mis.
@@ -97,6 +101,11 @@ class DeviceCreatedResponse(BaseModel):
     lat: float
     lng: float
     max_lifespan: int
+
+
+class DeviceMovedResponse(BaseModel):
+    device_id: str
+    sector_name: str
 
 
 class SectorDeletedResponse(BaseModel):
@@ -186,6 +195,64 @@ def add_device(
         "lng": lng,
         "max_lifespan": body.max_lifespan,
     }
+
+
+@router.patch("/devices/{device_id}", response_model=DeviceMovedResponse)
+def move_device(
+    device_id: str,
+    body: MoveDeviceRequest,
+    x_acw_token: str | None = Header(default=None, alias="X-ACW-Token"),
+):
+    """Pindahkan lampu ke sektor lain.
+
+    Sebelumnya tidak ada jalan untuk ini sama sekali: sektor hanya bisa dipilih
+    SEKALI saat lampu didaftarkan, dan satu-satunya cara memperbaiki pilihan yang
+    salah adalah UPDATE manual lewat psql - atau menghapus lampunya, yang ikut
+    menghapus seluruh riwayat telemetri dan alert-nya (ON DELETE CASCADE).
+    Memindahkan tiang lampu itu pekerjaan lapangan yang biasa, bukan kejadian
+    luar biasa, jadi ia tidak boleh menuntut akses database.
+
+    PATCH, bukan POST: ini mengubah sebagian satu lampu yang sudah ada.
+    """
+    if not auth.is_admin(x_acw_token):
+        raise HTTPException(status_code=403, detail={"error": "Forbidden: hanya admin yang bisa memindahkan lampu"})
+    _enforce_admin_write_rate_limit(x_acw_token)
+
+    device_id = device_id.strip()
+    # Gerbang bentuk yang sama dengan pintu masuk device_id lainnya. Di sini ia
+    # berperan ganda: ID yang tidak lolos pasti juga tidak ada di tabel devices,
+    # jadi ia ditolak sebelum menyentuh database sama sekali.
+    if not config.is_valid_device_id(device_id):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "ID lampu hanya boleh huruf, angka, titik, garis bawah, dan tanda hubung (maks 64 karakter)"},
+        )
+
+    sector_name = body.sector_name.strip()
+    if not sector_name:
+        raise HTTPException(status_code=400, detail={"error": "Sektor tujuan wajib dipilih"})
+    if len(sector_name) > MAX_SECTOR_NAME_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": f"Nama sektor terlalu panjang (maks {MAX_SECTOR_NAME_LENGTH} karakter)"},
+        )
+
+    try:
+        moved = db.update_device_sector(device_id, sector_name)
+    except psycopg2.errors.ForeignKeyViolation:
+        raise HTTPException(status_code=400, detail={"error": f"Sektor '{sector_name}' tidak ditemukan"})
+    except Exception:
+        logger.exception("Gagal memindahkan lampu '%s' ke sektor '%s'", device_id, sector_name)
+        raise HTTPException(status_code=500, detail={"error": "Gagal memindahkan lampu di database"})
+
+    # Dibedakan dari sektor yang tidak ada (400 di atas): yang ini ID lampunya
+    # yang tidak terdaftar, dan jawabannya harus berbeda supaya admin tahu mana
+    # dari dua isian itu yang salah.
+    if moved is None:
+        raise HTTPException(status_code=404, detail={"error": f"Lampu '{device_id}' tidak terdaftar"})
+
+    logger.info("Lampu '%s' dipindahkan ke sektor '%s'", device_id, sector_name)
+    return {"device_id": moved["device_id"], "sector_name": moved["sector_name"]}
 
 
 @router.delete("/sectors/{sector_name}", response_model=SectorDeletedResponse)

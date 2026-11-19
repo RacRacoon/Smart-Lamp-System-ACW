@@ -274,10 +274,68 @@ $env:MQTT_HOST = "broker-sendiri.local"
 
 #### 5.5 Pastikan berjalan normal
 
+Cara paling singkat - klik dua kali `cek-sistem-windows.bat`, atau:
+
+```powershell
+.\cek-sistem-windows.bat
+```
+
+Ia memeriksa empat hal sekaligus: layanan PostgreSQL, backend di port 8000,
+server halaman di port 5500, dan **broker MQTT mana** yang sedang dipakai.
+
+Pemeriksaan yang sama secara manual:
+
 ```powershell
 curl http://localhost:8000/health
-# {"status":"ok","db":"ok"}
+# {"status":"ok","db":"ok","mqtt":"ok","broker":"broker.hivemq.com:1883"}
 ```
+
+Perhatikan `broker`. "Backend jalan" bukan jawaban yang cukup di proyek ini:
+bentuk kegagalan yang paling mahal justru backend yang jalan sempurna tapi
+tersambung ke broker yang salah - HTTP menjawab 200, log menulis "terhubung",
+perintah terbit tanpa error, dan papan tidak pernah menerimanya. Sudah dua kali
+terjadi (13 Okt 2026), dan dari luar gejalanya terbaca seperti papan yang
+membandel. Penyebabnya selalu sama: backend dijalankan tanpa `MQTT_HOST`, lalu
+memakai broker publik sebagai bawaan. Bawaannya kini broker proyek sendiri, dan
+`/health` wajib menyebut broker itu.
+
+Dua jebakan lain yang sudah dipasangi penjaga:
+
+- **Dua backend sekaligus.** Windows mengizinkan `0.0.0.0:8000` dan
+  `127.0.0.1:8000` hidup berdampingan, dan permintaan `localhost` mendarat di
+  yang `127.0.0.1` - jadi backend yang kamu lihat di layar belum tentu yang
+  menjawab dashboard. `main.py` sekarang menolak menyala kalau port itu sudah
+  ada yang mendengar, dan `cek-sistem-windows.bat` ikut menghitung pendengarnya.
+- **Status 503.** `/health` mengembalikan 503 kalau Postgres **atau** MQTT
+  putus, bukan cuma kalau prosesnya mati.
+
+#### 5.5b Memeriksa papan NEMA, bukan cuma PC
+
+`cek-sistem-windows.bat` memeriksa sisi PC. Papan itu urusan terpisah, dan di
+sini letak kesalahpahaman yang paling sering: **papan tidak pernah menyambung ke
+backend.** Keduanya menyambung ke broker, dan broker yang meneruskan.
+
+```
+papan  --(telemetri)-->  broker  --(telemetri)-->  backend --> dashboard
+papan  <--(perintah)---  broker  <--(perintah)---  backend <-- dashboard
+```
+
+Dua arah itu bisa gagal sendiri-sendiri. Dashboard yang menampilkan angka
+terbaru hanya membuktikan arah PERTAMA jalan; arah kedua - perintah sampai ke
+papan - tidak terbukti oleh apa pun yang terlihat di layar. Itulah arah yang
+gagal diam-diam, dan itulah yang terbaca sebagai "kadang menjawab kadang
+tidak".
+
+```powershell
+python python-backend\tools\cek_nema.py
+```
+
+Alat itu menguji keduanya dengan ukuran waktu: berapa lama sampai telemetri
+berikutnya datang, lalu - setelah tahu keadaan relai papan - ia mengirim
+perintah yang isinya keadaan itu sendiri dan menghitung berapa lama balasannya
+datang. Perintahnya sampai, diterapkan, dan tidak mengubah apa pun, jadi lampu
+tidak berkedip. Bisa begitu karena papan selalu melaporkan keadaannya segera
+setiap kali menerima perintah yang ia pahami.
 
 Lalu buka `http://localhost:5500` dan login. Dashboard akan terbuka dalam keadaan kosong - belum ada sektor maupun lampu.
 
@@ -349,7 +407,12 @@ Broker MQTT tidak berubah: bawaannya tetap `broker.emqx.io` yang publik, bukan M
 | GET | `/api/system-overview` | Publik | Agregat sistem untuk halaman Dashboard |
 | GET | `/api/sector-schedules` | Publik | Jadwal RTC semua sektor |
 | PUT | `/api/sector-schedules` | Admin | Simpan jadwal sektor + push MQTT |
-| POST | `/api/lights/{id}/command` | Admin | Kendali cepat (dim) |
+| POST | `/api/lights/{id}/command` | Admin | Kendali cepat (dim, relai, mode auto LDR) |
+| GET | `/api/sectors` | Publik | Daftar nama sektor (dipakai dropdown non-admin juga) |
+| POST | `/api/sectors` | Admin | Buat sektor baru |
+| DELETE | `/api/sectors/{name}` | Admin | Hapus sektor (step-up: password admin) |
+| POST | `/api/devices` | Admin | Daftarkan lampu baru |
+| PATCH | `/api/devices/{id}` | Admin | Pindahkan lampu ke sektor lain |
 | GET | `/api/alerts-history` | Publik | Riwayat peringatan |
 | PATCH | `/api/alerts/{id}/read` | Publik | Tandai satu peringatan dibaca |
 | POST | `/api/alerts/mark-all-read` | Publik | Tandai semua dibaca |
@@ -358,7 +421,7 @@ Broker MQTT tidak berubah: bawaannya tetap `broker.emqx.io` yang publik, bukan M
 | POST | `/api/chat/analyze-device` | Publik | Analisis AI satu lampu |
 | POST | `/api/chat/analyze-system` | Publik | Analisis AI seluruh sistem |
 | WS | `/ws/telemetry` | Publik | Broadcast real-time ke dashboard |
-| GET | `/health` | Publik | Status server & koneksi database |
+| GET | `/health` | Publik | Status server, koneksi database, sambungan MQTT + nama broker |
 
 Endpoint yang mengubah data (kendali, jadwal, hapus peringatan) memvalidasi peran admin lewat header `X-ACW-Token`, bukan sekadar disembunyikan di UI.
 

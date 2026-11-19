@@ -28,17 +28,17 @@ def test_command_device_id_invalid_ditolak_sebelum_publish_mqtt(client, admin_to
 
 def test_command_device_id_sah_diteruskan_ke_mqtt(client, admin_token, monkeypatch):
     dipanggil = []
-    monkeypatch.setattr(mqtt_ingest, "publish_dim_command", lambda *a: dipanggil.append(a))
+    monkeypatch.setattr(mqtt_ingest, "publish_control_command", lambda *a: dipanggil.append(a))
 
     r = client.post("/api/lights/L-101/command", json={"dim": 50},
                      headers={"X-ACW-Token": admin_token})
 
     assert r.status_code == 200
-    assert dipanggil == [("L-101", 50)]
+    assert dipanggil == [("L-101", {"dim": 50})]
 
 
 def test_command_dibatasi_rate_limit_per_token(client, admin_token, monkeypatch):
-    monkeypatch.setattr(mqtt_ingest, "publish_dim_command", lambda *a: None)
+    monkeypatch.setattr(mqtt_ingest, "publish_control_command", lambda *a: None)
     config.RATE_LIMIT_ADMIN_WRITE_MAX = 2
     config.RATE_LIMIT_ADMIN_WRITE_WINDOW = 60
 

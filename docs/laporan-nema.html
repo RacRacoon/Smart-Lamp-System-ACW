@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Laporan Teknis NEMA</title>
+<style>
+  @page { size: A4; margin: 22mm 20mm 20mm 20mm; }
+
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  body {
+    font-family: "Times New Roman", Georgia, serif;
+    font-size: 11pt;
+    line-height: 1.55;
+    color: #000;
+    background: #fff;
+    margin: 0;
+  }
+
+  /* Teks, tabel, dan diagram dicetak hitam-putih. Tangkapan layar dashboard
+     TIDAK: warnanya membawa keterangan yang hilang kalau diabukan - penanda
+     merah "papan tidak terjangkau", saklar hijau yang aktif, dan garis grafik
+     yang dibedakan hanya oleh warna. */
+  img { border: 1px solid #000; }
+
+  h1, h2, h3 { font-weight: bold; page-break-after: avoid; }
+  h1 { font-size: 16pt; margin: 0 0 4pt; }
+  h2 { font-size: 12.5pt; margin: 20pt 0 6pt; border-bottom: 1px solid #000; padding-bottom: 3pt; }
+  h3 { font-size: 11pt; margin: 13pt 0 4pt; }
+  p { margin: 0 0 7pt; text-align: justify; }
+
+  .sampul { text-align: center; padding-top: 55mm; page-break-after: always; }
+  .sampul .lembaga { font-size: 10.5pt; letter-spacing: 2px; text-transform: uppercase; }
+  .sampul .judul { font-size: 20pt; font-weight: bold; margin: 16pt 0 6pt; line-height: 1.3; }
+  .sampul .anak { font-size: 12pt; font-style: italic; margin-bottom: 36pt; }
+  .sampul table { margin: 0 auto; border: none; width: auto; }
+  .sampul td { border: none; padding: 2pt 10pt; font-size: 10.5pt; }
+  .sampul td:first-child { text-align: right; color: #333; }
+  .sampul td:last-child { text-align: left; font-weight: bold; }
+
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0 10pt; font-size: 9.5pt; }
+  th, td { border: 1px solid #000; padding: 3.5pt 5pt; text-align: left; vertical-align: top; }
+  th { background: #e6e6e6; font-weight: bold; }
+  td.angka { text-align: right; font-family: Consolas, "Courier New", monospace; }
+
+  code, pre { font-family: Consolas, "Courier New", monospace; }
+  code { font-size: 9.5pt; }
+  pre {
+    font-size: 8.8pt; line-height: 1.4;
+    border: 1px solid #000; padding: 6pt 8pt; margin: 6pt 0 10pt;
+    white-space: pre-wrap; background: #f4f4f4;
+    page-break-inside: avoid;
+  }
+
+  figure { margin: 10pt 0 14pt; page-break-inside: avoid; text-align: center; }
+  figure img { width: 100%; }
+  figcaption { font-size: 9pt; margin-top: 4pt; text-align: left; }
+  figcaption b { font-weight: bold; }
+
+  .alur {
+    border: 1px solid #000; padding: 8pt 10pt; margin: 8pt 0 12pt;
+    font-family: Consolas, "Courier New", monospace; font-size: 8.6pt;
+    line-height: 1.5; white-space: pre; page-break-inside: avoid;
+  }
+
+  ul, ol { margin: 0 0 8pt; padding-left: 18pt; }
+  li { margin-bottom: 3pt; text-align: justify; }
+
+  .catatan {
+    border-left: 3px solid #000; padding: 5pt 10pt; margin: 8pt 0 10pt;
+    font-size: 10pt; background: #f4f4f4; page-break-inside: avoid;
+  }
+
+  .putus { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<div class="sampul">
+  <div class="lembaga">Laporan Teknis Pengembangan</div>
+  <div class="judul">Pengendali Lampu Jalan Pintar NEMA<br>dan Alur Data menuju Dashboard Pemantauan</div>
+  <div class="anak">Smart Lamp System &mdash; ACW</div>
+  <table>
+    <tr><td>Perangkat</td><td>NEMA-01 &middot; APM32F103CBT6</td></tr>
+    <tr><td>Modem seluler</td><td>Quectel EG800K (LTE Cat&nbsp;1)</td></tr>
+    <tr><td>Broker MQTT</td><td>broker.hivemq.com</td></tr>
+    <tr><td>Periode pengembangan</td><td>12 &ndash; 22 Oktober 2026</td></tr>
+    <tr><td>Tanggal laporan</td><td>22 Oktober 2026</td></tr>
+  </table>
+</div>
+
+<h1>1. Ringkasan</h1>
+<p>Laporan ini mendokumentasikan pengembangan pengendali lampu jalan NEMA berbasis mikrokontroler APM32F103CBT6 beserta jalur datanya menuju dashboard pemantauan berbasis web. Pembahasan menitikberatkan dua hal: cara kerja perangkat NEMA itu sendiri, dan bagaimana data bergerak dua arah antara perangkat dan dashboard melalui jaringan seluler.</p>
+<p>Sistem terdiri atas tiga bagian yang berjalan terpisah dan tidak pernah saling menghubungi secara langsung: papan NEMA di lapangan, broker MQTT publik sebagai perantara, dan proses <i>backend</i> FastAPI yang menulis ke PostgreSQL serta menyiarkan pembaruan ke browser melalui WebSocket. Pemisahan ini penting untuk dipahami sejak awal, sebab sebagian besar kegagalan yang ditemukan selama pengembangan berasal dari salah satu dari tiga sambungan tersebut, bukan dari perangkatnya.</p>
+<p>Selama periode pengembangan, enam belas berkas sumber diubah pada tiga lapisan (firmware, backend, antarmuka), dua perkakas diagnostik baru dibuat, dan dua kolom basis data ditambahkan. Seluruh perubahan diverifikasi dengan pengukuran langsung, bukan dengan asumsi; angka hasil pengukuran disajikan pada Bab 9.</p>
+
+<h2>2. Arsitektur dan Alur Data</h2>
+<p>Papan NEMA tidak menyambung ke backend. Keduanya menyambung ke broker MQTT, dan broker yang meneruskan pesan di antara mereka. Konsekuensinya, terdapat dua arah aliran yang dapat gagal secara mandiri.</p>
+
+<figure>
+<svg viewBox="0 0 820 600" width="74%" xmlns="http://www.w3.org/2000/svg"
+     font-family="Times New Roman, Georgia, serif" fill="#000">
+  <defs>
+    <marker id="panah" markerWidth="9" markerHeight="7" refX="8.5" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="#000"/>
+    </marker>
+  </defs>
+
+  <!-- judul kedua arah -->
+  <text x="150" y="20" font-size="13" font-weight="bold" text-anchor="middle">ARAH NAIK</text>
+  <text x="150" y="36" font-size="11" text-anchor="middle">telemetri, tiap 60 detik</text>
+  <text x="670" y="20" font-size="13" font-weight="bold" text-anchor="middle">ARAH TURUN</text>
+  <text x="670" y="36" font-size="11" text-anchor="middle">perintah kendali</text>
+
+  <!-- kotak node -->
+  <g stroke="#000" stroke-width="1.6" fill="none">
+    <rect x="260" y="55"  width="300" height="58"/>
+    <rect x="260" y="175" width="300" height="58"/>
+    <rect x="260" y="295" width="300" height="58"/>
+    <rect x="260" y="415" width="300" height="58"/>
+    <rect x="260" y="535" width="300" height="58"/>
+  </g>
+
+  <g text-anchor="middle">
+    <text x="410" y="80"  font-size="13" font-weight="bold">NEMA-01</text>
+    <text x="410" y="99"  font-size="11">APM32F103CBT6 &middot; LDR, relai, HLW8032</text>
+
+    <text x="410" y="200" font-size="13" font-weight="bold">Modem Quectel EG800K</text>
+    <text x="410" y="219" font-size="11">LTE Cat 1 &middot; TLS port 8883</text>
+
+    <text x="410" y="320" font-size="13" font-weight="bold">Broker MQTT</text>
+    <text x="410" y="339" font-size="11">broker.hivemq.com</text>
+
+    <text x="410" y="440" font-size="13" font-weight="bold">Backend FastAPI</text>
+    <text x="410" y="459" font-size="11">paho-mqtt &middot; PostgreSQL &middot; WebSocket</text>
+
+    <text x="410" y="560" font-size="13" font-weight="bold">Browser</text>
+    <text x="410" y="579" font-size="11">dashboard pemantauan</text>
+  </g>
+
+  <!-- arah naik: panah turun di kiri -->
+  <g stroke="#000" stroke-width="1.6" marker-end="url(#panah)">
+    <line x1="340" y1="113" x2="340" y2="173"/>
+    <line x1="340" y1="233" x2="340" y2="293"/>
+    <line x1="340" y1="353" x2="340" y2="413"/>
+    <line x1="340" y1="473" x2="340" y2="533"/>
+  </g>
+  <g font-size="10.5" text-anchor="end" font-family="Consolas, Courier New, monospace">
+    <text x="330" y="138">rakit JSON, AT+QMTPUB</text>
+    <text x="330" y="152">payload 1 baris</text>
+    <text x="330" y="258">iot/lights/NEMA-01/</text>
+    <text x="330" y="272">telemetry &middot; QoS 0</text>
+    <text x="330" y="378">on_message()</text>
+    <text x="330" y="392">validasi, simpan, peringatan</text>
+    <text x="330" y="498">/ws/telemetry</text>
+    <text x="330" y="512">siaran WebSocket</text>
+  </g>
+
+  <!-- arah turun: panah naik di kanan -->
+  <g stroke="#000" stroke-width="1.6" marker-end="url(#panah)">
+    <line x1="480" y1="533" x2="480" y2="473"/>
+    <line x1="480" y1="413" x2="480" y2="353"/>
+    <line x1="480" y1="293" x2="480" y2="233"/>
+    <line x1="480" y1="173" x2="480" y2="113"/>
+  </g>
+  <g font-size="10.5" text-anchor="start" font-family="Consolas, Courier New, monospace">
+    <text x="490" y="498">POST /api/lights/</text>
+    <text x="490" y="512">{id}/command</text>
+    <text x="490" y="378">publish retain=True</text>
+    <text x="490" y="392">hapus otomatis 300 s</text>
+    <text x="490" y="258">iot/lights/NEMA-01/</text>
+    <text x="490" y="272">command &middot; QoS 1</text>
+    <text x="490" y="138">+QMTRECV</text>
+    <text x="490" y="152">mq_apply_command()</text>
+  </g>
+</svg>
+<figcaption><b>Gambar 1.</b> Arsitektur dan dua arah aliran data. Papan NEMA dan backend tidak pernah saling menghubungi; broker MQTT yang meneruskan. Kedua arah dapat gagal secara mandiri, dan dashboard yang menampilkan angka terbaru hanya membuktikan arah naik hidup.</figcaption>
+</figure>
+
+<p>Payload telemetri berbentuk JSON tunggal yang dirakit di dalam firmware dengan <code>snprintf</code> ke buffer statis. Bentuk persisnya:</p>
+<pre>{"id":"NEMA-01","volt":207.219,"current":0.313,"power":61.731,
+ "dim":46,"relay":"on","auto":false,
+ "lat":-7.314997,"lng":112.789502,"uptime":2072}</pre>
+
+<p>Nilai pecahan dirakit dengan pembagian bilangan bulat, bukan dengan <code>%f</code>. Pustaka <i>newlib-nano</i> yang dipakai pada proyek ini tidak menyertakan dukungan pencetakan bilangan pecahan; memakai <code>%f</code> akan menghasilkan keluaran kosong tanpa pesan kesalahan apa pun. Karena itu tegangan 207,219&nbsp;V dikirim sebagai pasangan <code>volt_mv/1000</code> dan <code>volt_mv%1000</code>.</p>
+
+<h2>3. Perangkat Keras NEMA</h2>
+<p>Pengendali dibangun di atas APM32F103CBT6, mikrokontroler Cortex-M3 buatan Geehy yang pin dan periferalnya kompatibel dengan STM32F103CB. Kapasitas memorinya 128&nbsp;KB flash dan 20&nbsp;KB RAM.</p>
+
+<table>
+  <tr><th style="width:26%">Periferal</th><th style="width:22%">Pin / Antarmuka</th><th>Fungsi</th></tr>
+  <tr><td>USART3</td><td>PB10 / PB11</td><td>Konsol <i>debug</i> dan antarmuka perintah manual</td></tr>
+  <tr><td>USART2</td><td>PA2 / PA3</td><td>Modem Quectel EG800K, perintah AT</td></tr>
+  <tr><td>USART1</td><td>PA9 / PA10</td><td>Meter daya HLW8032, 4800&nbsp;8N1</td></tr>
+  <tr><td>EXTI15_10</td><td>PB12</td><td>Deteksi tepi sinyal faktor daya HLW8032</td></tr>
+  <tr><td>ADC</td><td>PA0</td><td>Sensor cahaya LDR</td></tr>
+  <tr><td>PWM</td><td>TIM3</td><td>Pengaturan kecerahan lampu (0&ndash;1000 per mil)</td></tr>
+  <tr><td>GPIO keluaran</td><td>PB9</td><td>Relai pemutus jala listrik lampu</td></tr>
+</table>
+
+<h3>3.1 Pengukuran daya</h3>
+<p>HLW8032 mengirimkan frame 24 bita secara terus-menerus pada 4800&nbsp;baud. Tegangan dihitung sebagai <code>V = Vpar/Vreg &times; Kv</code> dengan Kv berasal dari pembagi tegangan pada papan. Faktor daya dihitung sebagai <code>PF = P/(V&middot;I)</code>; bentuk ini sengaja dipilih karena tidak memerlukan kalibrasi apa pun, seluruh faktor skala saling meniadakan.</p>
+
+<h3>3.2 Penyimpanan pengaturan</h3>
+<p>Pengaturan tetap disimpan pada satu halaman flash di alamat <code>0x0801FC00</code>, ditandai dengan <code>CFG_MAGIC</code> bernilai <code>'NEMA'</code> dan <code>CFG_VERSION</code> 4. Versi 4 menambahkan <code>site_lat</code>, <code>site_lon</code>, dan <code>site_set</code> sehingga koordinat hasil penguncian GPS tetap bertahan setelah daya dimatikan.</p>
+
+<h2>4. Firmware: Kendali Otomatis LDR</h2>
+<p>Ketika mode otomatis aktif, kecerahan lampu ditentukan oleh pembacaan LDR. Dua peredam dipasang di antara sensor dan lampu.</p>
+<p>Pertama, rata-rata bergerak yang menyerap gangguan sesaat seperti lampu kendaraan yang lewat atau bayangan sekilas:</p>
+<pre>ldr_avg = (ldr_avg * 3 + raw) / 4;
+target  = ldr_to_level(ldr_avg);</pre>
+<p>Kedua, pembatas laju perubahan sebesar <code>AUTO_STEP</code> = 20 per mil per detik, setara 2&nbsp;% per detik. Pembatas ini wajib ada karena lampu menyinari sel LDR yang mengendalikannya; koreksi seketika akan menimbulkan osilasi. Dengan pembatas tersebut, satu sapuan penuh dari 0&nbsp;% ke 100&nbsp;% memerlukan sekitar lima puluh detik, jauh lebih lambat daripada peralihan senja yang sesungguhnya.</p>
+<p>Perintah kecerahan manual dari dashboard ditolak selama mode otomatis aktif. Penolakan ini disengaja: bila keduanya boleh menulis ke variabel yang sama, kecerahan akan berkedip antara nilai yang diminta operator dan nilai yang diminta LDR.</p>
+
+<h2>5. Firmware: Mesin Keadaan MQTT</h2>
+<p>Seluruh komunikasi dengan modem dijalankan oleh mesin keadaan tak memblokir dengan tujuh belas keadaan, dari <code>MQ_BOOT</code> hingga <code>MQ_WAIT</code>. Rancangan ini dipilih agar lampu, LDR, dan meter daya tetap terlayani selama modem menunggu jawaban jaringan yang dapat memakan puluhan detik.</p>
+
+<table>
+  <tr><th style="width:24%">Keadaan</th><th style="width:34%">Perintah AT</th><th>Tujuan</th></tr>
+  <tr><td>MQ_PING</td><td><code>AT</code></td><td>Memastikan modem menjawab</td></tr>
+  <tr><td>MQ_NET</td><td><code>AT+CEREG?</code></td><td>Menunggu terdaftar di jaringan</td></tr>
+  <tr><td>MQ_RADIO</td><td><code>AT+CFUN=1</code></td><td>Menyalakan ulang radio bila berhenti mencari</td></tr>
+  <tr><td>MQ_APN</td><td><code>AT+QICSGP</code></td><td>Menyetel titik akses</td></tr>
+  <tr><td>MQ_PDP / MQ_PDPCHK</td><td><code>AT+QIACT</code>, <code>AT+QIACT?</code></td><td>Mengaktifkan dan memverifikasi konteks data</td></tr>
+  <tr><td>MQ_SSL</td><td><code>AT+QMTCFG</code>, <code>AT+QSSLCFG</code></td><td>Menyetel TLS dan sesi</td></tr>
+  <tr><td>MQ_CLOSE / MQ_SETTLE</td><td><code>AT+QMTCLOSE</code></td><td>Melepas sesi lama, memberi jeda 3 detik</td></tr>
+  <tr><td>MQ_OPEN</td><td><code>AT+QMTOPEN</code></td><td>Membuka soket ke broker, port 8883</td></tr>
+  <tr><td>MQ_CONN</td><td><code>AT+QMTCONN</code></td><td>Mendaftar sebagai klien MQTT</td></tr>
+  <tr><td>MQ_SUB</td><td><code>AT+QMTSUB</code></td><td>Berlangganan topik perintah</td></tr>
+  <tr><td>MQ_IDLE</td><td>&mdash;</td><td>Menunggu giliran menerbitkan telemetri</td></tr>
+  <tr><td>MQ_PROMPT / MQ_ACK</td><td><code>AT+QMTPUB</code></td><td>Mengirim payload setelah tanda <code>&gt;</code>, menunggu pengakuan</td></tr>
+</table>
+
+<p>Dua pelajaran penting diperoleh saat membangun mesin keadaan ini. Pertama, perpindahan keadaan harus dipicu oleh penanda akhir perintah (<code>OK</code> atau <code>ERROR</code>), bukan oleh baris data seperti <code>+CEREG: 0,1</code>. Pada rancangan awal, perpindahan dilakukan begitu baris data terlihat, sehingga <code>OK</code> penutupnya datang belakangan dan dibaca sebagai jawaban perintah berikutnya; seluruh rantai bergeser satu langkah. Kedua, ring buffer penerima harus cukup besar. Ukuran awal 64 bita memotong baris AT sepanjang 67 karakter secara diam-diam dan ditingkatkan menjadi 256 bita.</p>
+
+<h2>6. Pemrosesan di Backend</h2>
+<p>Satu proses FastAPI menangani REST API, WebSocket, penyerapan MQTT, dan penulisan ke PostgreSQL. Setiap telemetri yang masuk melewati rangkaian pemeriksaan berikut, dengan urutan yang disengaja:</p>
+<ol>
+  <li><b>Validasi bentuk <code>device_id</code></b> terhadap pola <code>[A-Za-z0-9._-]{1,64}</code>. Pemeriksaan ini mendahului segalanya karena pesan peringatan memuat <code>device_id</code> dan disimpan permanen lalu dirender ulang di dashboard.</li>
+  <li><b>Pemeriksaan whitelist</b> melalui <code>device_exists()</code>. Perangkat yang belum terdaftar ditolak seluruhnya dan dicatat sebagai peringatan, bukan dibuang diam-diam.</li>
+  <li><b>Akumulasi usia pakai lampu</b> melalui <code>accrue_lamp_hours()</code>.</li>
+  <li><b>Penyimpanan keadaan relai dan mode otomatis</b> melalui <code>save_reported_state()</code>.</li>
+  <li><b>Penulisan baris telemetri</b> ke tabel <code>telemetry_logs</code>.</li>
+  <li><b>Evaluasi peringatan</b> dengan jeda minimum 300 detik antar peringatan sejenis.</li>
+  <li><b>Penyiaran WebSocket</b> ke seluruh dashboard yang sedang terbuka.</li>
+</ol>
+
+<h3>6.1 Usia pakai lampu</h3>
+<p>Indikator usia pakai tidak boleh berasal dari perangkat. Pada rancangan awal, angka ini diambil langsung dari medan <code>uptime</code> di payload telemetri, dan setiap kali pengirimnya dinyalakan ulang angkanya kembali ke nol. Sebagai dasar keputusan penggantian lampu, angka yang dapat tereset sama saja dengan tidak ada.</p>
+<p>Backend kini menjumlahkan sendiri selisih waktu antar telemetri dan menyimpannya di kolom <code>devices.lamp_hours</code>:</p>
+<pre>UPDATE devices
+SET lamp_hours = lamp_hours + CASE
+        WHEN %s AND lamp_seen IS NOT NULL
+        THEN LEAST(EXTRACT(EPOCH FROM (NOW() - lamp_seen)), %s) / 3600.0
+        ELSE 0
+    END,
+    lamp_seen = NOW()
+WHERE device_id = %s
+RETURNING lamp_hours;</pre>
+<p>Hanya waktu saat lampu menyala yang dihitung; lampu padam tidak menua. Celah panjang akibat backend mati atau jaringan putus dibatasi 900 detik lalu tetap dihitung sebanyak batas itu. Dua kesalahan ini tidak setara: menghitung lebih berarti lampu diganti lebih awal, menghitung kurang berarti jalan gelap lebih dahulu.</p>
+
+<h3>6.2 Persistensi keadaan papan</h3>
+<p>Dua kolom ditambahkan pada tabel <code>devices</code> selama periode ini:</p>
+<pre>ALTER TABLE devices ADD COLUMN IF NOT EXISTS relay_on  BOOLEAN;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS auto_mode BOOLEAN;</pre>
+<p>Sebelumnya, medan <code>relay</code> dan <code>auto</code> pada telemetri hanya dipakai sesaat untuk menilai apakah lampu menyala, lalu dibuang. Akibatnya dashboard tidak memiliki sumber data apa pun untuk memasang posisi saklarnya, sehingga seluruh saklar tampil dalam keadaan mati setiap kali halaman dimuat ulang, apa pun yang sedang terjadi pada lampu.</p>
+<p>Yang disimpan adalah pengakuan papan, bukan klik terakhir operator. Perbedaan ini penting karena mode otomatis juga dapat diubah dari konsol UART papan, dan perintah kecerahan ditolak papan selama mode otomatis aktif. Saklar yang menampilkan keinginan dashboard justru lebih menyesatkan daripada tidak ada saklar sama sekali. Nilai <code>NULL</code> berarti papan belum pernah melaporkan medan tersebut dan kolomnya tidak ditimpa tebakan.</p>
+
+<h2>7. Perintah dari Dashboard</h2>
+<p>Perintah diterbitkan dengan <code>retain=True</code>. Perangkat pada jaringan seluler putus-sambung secara berkala; perintah yang kebetulan terbit saat perangkat sedang menyambung ulang akan hilang tanpa jejak. Dengan retained message, broker menyimpan perintah terakhir dan mengirimkannya begitu perangkat berlangganan kembali.</p>
+<p>Sifat retained itu sendiri menimbulkan masalah baru: dalam MQTT, &quot;retained&quot; berarti selamanya. Lampu yang dimatikan dari dashboard pada malam hari akan menerima perintah mati itu lagi setiap kali ia menyala, berminggu-minggu kemudian. Protokolnya tidak mengenal kedaluwarsa, dan retained message tidak membawa stempel waktu sehingga perangkat tidak punya cara menilai umurnya.</p>
+<p>Penyelesaiannya ditempatkan pada pihak yang mengetahui kapan ia menerbitkan, yaitu backend. Setiap penerbitan menjadwalkan penghapusan setelah 300 detik, dan penerbitan berikutnya membatalkan jadwal lama lalu memulai hitungan baru.</p>
+
+<div class="catatan">
+<b>Celah yang ditemukan dan ditutup.</b> Penjadwal penghapusan hidup di memori proses. Backend yang berhenti &mdash; karena restart, mati listrik, atau pergantian kode &mdash; membawa timer-nya mati bersamanya, sementara retained message-nya tetap hidup di broker tanpa ada lagi yang berniat menghapusnya. Satu pesan <code>{"relay":"off"}</code> yang tertinggal berarti lampu dipaksa padam setiap kali ia kembali tersambung. Keadaan ini benar-benar terjadi pada 13 Oktober 2026 setelah restart backend biasa. Backend kini membersihkan retained message yang tidak dijaga timer mana pun setiap kali ia tersambung ke broker; perangkat yang masih memiliki timer hidup dilewati.
+</div>
+
+<h2 class="putus">8. Antarmuka Dashboard</h2>
+<p>Seluruh tangkapan layar berikut diambil langsung dari sistem yang berjalan pada 22 Oktober 2026 melalui otomasi browser, bukan dari gambar rancangan.</p>
+
+<figure>
+  <img src="gambar/01-dashboard.jpg" alt="Halaman Dashboard">
+  <figcaption><b>Gambar 2.</b> Halaman ringkasan sistem. Kartu indikator menampilkan jumlah lampu terdaftar, total daya aktif, rata-rata tegangan, dan jumlah peringatan belum dibaca. Grafik di bawahnya merupakan rata-rata data sensor seluruh lampu. Nilai daya dan tegangan menunjukkan nol karena papan NEMA sedang tidak terhubung ke broker pada saat tangkapan layar diambil.</figcaption>
+</figure>
+
+<figure>
+  <img src="gambar/02-monitor-ringkasan.jpg" alt="Halaman Monitor Lampu">
+  <figcaption><b>Gambar 3.</b> Ringkasan perangkat NEMA-01. Usia pakai tercatat 6.219 dari 10.000 jam, angka yang berasal dari kolom <code>devices.lamp_hours</code> dan karena itu bertahan melewati restart perangkat maupun backend. Keterangan &quot;Diperbarui 8 hari lalu&quot; dicetak merah oleh penanda keusangan. Koordinat GPS merupakan hasil penguncian satelit yang tersimpan di flash papan.</figcaption>
+</figure>
+
+<figure>
+  <img src="gambar/03-kendali-cepat.jpg" alt="Panel Kendali Cepat">
+  <figcaption><b>Gambar 4.</b> Panel kendali manual. Penanda <b>PAPAN TIDAK TERJANGKAU (12695 menit)</b> ditempatkan tepat di samping tombol-tombolnya, bukan di halaman lain. Posisi saklar &mdash; lampu mati, mode otomatis aktif &mdash; dibaca dari kolom <code>relay_on</code> dan <code>auto_mode</code>, sehingga mencerminkan keadaan papan yang terakhir dilaporkan, bukan klik terakhir operator.</figcaption>
+</figure>
+
+<figure>
+  <img src="gambar/04-kelola-pindah-sektor.jpg" alt="Formulir pindah sektor">
+  <figcaption><b>Gambar 5.</b> Formulir pemindahan lampu antar sektor pada halaman Kelola Lampu. Sebelum fasilitas ini ada, sektor hanya dapat dipilih satu kali pada saat pendaftaran lampu; memperbaiki pilihan yang keliru menuntut perintah <code>UPDATE</code> manual melalui psql, atau penghapusan lampu yang akan ikut menghapus seluruh riwayat telemetri dan peringatannya melalui <code>ON DELETE CASCADE</code>.</figcaption>
+</figure>
+
+<figure>
+  <img src="gambar/05-pindah-berhasil.jpg" alt="Hasil pemindahan sektor">
+  <figcaption><b>Gambar 6.</b> Hasil uji pemindahan yang dijalankan saat penyusunan laporan ini. NEMA-01 dipindahkan dari Sektor Testing ke Sektor 2 (Kertajaya &ndash; Depan ITS). Keterangan di bawah formulir memperbarui diri, dan pemilih Sektor Target ikut berubah tanpa pepayload ulang halaman.</figcaption>
+</figure>
+
+<figure>
+  <img src="gambar/06-riwayat-data.jpg" alt="Halaman Riwayat Data">
+  <figcaption><b>Gambar 7.</b> Riwayat data per sektor. NEMA-01 kini tampil di bawah Sektor 2 sebagai akibat pemindahan pada Gambar 6, yang membuktikan perubahan tersebut merambat ke seluruh halaman. Rata-rata tegangan 194,3&nbsp;V berada di bawah ambang normal dan menjadi dasar peringatan tegangan rendah.</figcaption>
+</figure>
+
+<figure>
+  <img src="gambar/07-kotak-peringatan.jpg" alt="Kotak Peringatan">
+  <figcaption><b>Gambar 8.</b> Kotak peringatan dalam keadaan kosong. Penapis tersedia menurut tingkat keparahan, lampu, dan kata kunci. Riwayat peringatan menunjuk ID lampu dan karena itu tidak terpengaruh oleh pemindahan sektor.</figcaption>
+</figure>
+
+<h2>9. Pengukuran dan Hasil Uji</h2>
+
+<h3>9.1 Waktu tanggap perintah</h3>
+<p>Diukur dengan <code>tools/cek_nema.py</code>, yang mengirim perintah berisi keadaan relai papan saat itu sehingga tidak mengubah apa pun, lalu menghitung selang hingga telemetri balasan tiba.</p>
+<table>
+  <tr><th>Pengukuran</th><th style="width:22%">Hasil</th><th>Keterangan</th></tr>
+  <tr><td>Waktu tanggap perintah, papan tersambung</td><td class="angka">0,7 &ndash; 0,8 s</td><td>Tiga kali pengukuran terpisah</td></tr>
+  <tr><td>Jeda telemetri berkala</td><td class="angka">60 s</td><td>Sesuai <code>MQTT_PERIOD_MS</code></td></tr>
+  <tr><td>Padam jaringan terpanjang yang teramati</td><td class="angka">&gt; 10 menit</td><td>Pulih sendiri tanpa intervensi</td></tr>
+</table>
+
+<h3>9.2 Pelaporan cepat saat mode otomatis bergerak</h3>
+<p>Mode otomatis dinyalakan setelah kecerahan dipaksa ke 99&nbsp;%, sehingga papan menyapu turun menuju target LDR. Hasil pengamatan:</p>
+<table>
+  <tr><th style="width:20%">Waktu</th><th style="width:22%">Jeda</th><th>Kecerahan dilaporkan</th></tr>
+  <tr><td>10:55:04</td><td class="angka">&mdash;</td><td class="angka">99 %</td></tr>
+  <tr><td>10:55:14</td><td class="angka">10,1 s</td><td class="angka">79 %</td></tr>
+  <tr><td>10:55:24</td><td class="angka">9,9 s</td><td class="angka">59 %</td></tr>
+  <tr><td>10:55:35</td><td class="angka">10,4 s</td><td class="angka">39 %</td></tr>
+  <tr><td colspan="3">Setelah kecerahan tenang, jeda kembali ke 68,7 detik.</td></tr>
+</table>
+<p>Penurunan 20&nbsp;% setiap sepuluh detik sesuai dengan <code>AUTO_STEP</code> 2&nbsp;% per detik. Tanpa perubahan ini, dashboard menampilkan 99&nbsp;% selama satu menit penuh &mdash; yaitu nilai manual terakhir sebelum mode otomatis dinyalakan &mdash; karena papan menerbitkan telemetri seketika saat menerima perintah, pada detik ketika LDR belum sempat bergerak sama sekali.</p>
+
+<h3>9.3 Pemakaian sumber daya mikrokontroler</h3>
+<table>
+  <tr><th>Wilayah</th><th style="width:22%">Terpakai</th><th style="width:20%">Kapasitas</th><th style="width:16%">Persentase</th></tr>
+  <tr><td>FLASH</td><td class="angka">55.180 B</td><td class="angka">127 KB</td><td class="angka">42,43 %</td></tr>
+  <tr><td>RAM</td><td class="angka">4.808 B</td><td class="angka">20 KB</td><td class="angka">23,48 %</td></tr>
+</table>
+
+<h2>10. Kegagalan yang Ditemukan dan Diperbaiki</h2>
+<p>Bagian ini mencatat kegagalan yang ditemukan melalui pengukuran, beserta penyebab yang terbukti. Beberapa di antaranya tampak seperti kesalahan perangkat padahal berasal dari perangkat lunak di sisi PC.</p>
+
+<table>
+  <tr><th style="width:26%">Gejala</th><th style="width:34%">Penyebab terbukti</th><th>Perbaikan</th></tr>
+  <tr>
+    <td>Perintah dashboard tidak sampai ke papan</td>
+    <td>Dua proses backend berjalan bersamaan. Windows mengizinkan <code>0.0.0.0:8000</code> dan <code>127.0.0.1:8000</code> hidup berdampingan, dan permintaan <code>localhost</code> mendarat pada yang kedua, yang tersambung ke broker publik berbeda.</td>
+    <td>Backend menolak menyala bila port sudah dipakai; log sambungan menyebut nama dan port broker.</td>
+  </tr>
+  <tr>
+    <td>Perintah kadang diabaikan papan</td>
+    <td>Langganan topik perintah memakai QoS 0. Broker mengirim sekali tanpa pengakuan dan tanpa pengulangan, sehingga gangguan radio sesaat menghilangkan perintah tanpa jejak di mana pun.</td>
+    <td>Langganan dinaikkan ke QoS 1, disertai <code>AT+QMTCFG="session",0,1</code> agar perintah basi tidak mengantre selama papan offline.</td>
+  </tr>
+  <tr>
+    <td>Backend gagal menyala sama sekali</td>
+    <td><code>client.connect()</code> bersifat memblokir dan melempar saat broker tak terjangkau. Karena dipanggil dari peristiwa <i>startup</i> FastAPI, satu broker mati menjatuhkan seluruh proses beserta dashboard, login, dan riwayat yang sebenarnya tidak memerlukan MQTT.</td>
+    <td>Beralih ke <code>connect_async()</code> dengan jeda ulang menanjak 1&ndash;60 detik.</td>
+  </tr>
+  <tr>
+    <td>Broker berhenti menjawab</td>
+    <td>Alamat broker dipaku sebagai IP <code>18.153.87.221</code>, satu node publik HiveMQ. IP node publik berganti; pada 21 Oktober 2026 alamat itu berhenti menjawab sepenuhnya.</td>
+    <td>Seluruh rujukan diganti menjadi nama domain <code>broker.hivemq.com</code>, termasuk di firmware. <code>AT+QMTOPEN</code> menerima nama domain dan modem menyelesaikan DNS sendiri.</td>
+  </tr>
+  <tr>
+    <td>Perintah dilaporkan terkirim padahal tidak</td>
+    <td>Hasil <code>publish()</code> tidak diperiksa, sehingga penerbitan yang gagal saat MQTT terputus tetap menghasilkan HTTP 200.</td>
+    <td>Kode hasil diperiksa; kegagalan menjadi HTTP 503 dengan pesan yang dapat dibaca operator.</td>
+  </tr>
+  <tr>
+    <td>Lampu padam sendiri setiap tersambung</td>
+    <td>Retained message <code>{"relay":"off"}</code> menjadi yatim setelah restart backend dan tidak ada lagi yang menghapusnya.</td>
+    <td>Pembersihan retained message tak bertuan setiap kali backend tersambung ke broker.</td>
+  </tr>
+  <tr>
+    <td>Padamnya sambungan tidak terlihat di dashboard</td>
+    <td>Ambang keusangan 15 menit, sementara papan melapor tiap 60 detik. Padam sepuluh menit tampil sepenuhnya sehat.</td>
+    <td>Penanda sambungan terpisah di panel kendali dengan ambang 2,5 menit dan 5 menit, diperbarui tiap 5 detik.</td>
+  </tr>
+</table>
+
+<h2>11. Perkakas Diagnostik</h2>
+<p>Dua perkakas dibuat untuk memisahkan kegagalan sisi PC dari kegagalan sisi papan.</p>
+
+<h3>11.1 cek-sistem-windows.bat</h3>
+<p>Memeriksa layanan PostgreSQL, keberadaan proses backend beserta PID-nya, jumlah pendengar pada port API, nama broker yang sedang dipakai, keberadaan kunci API asisten, dan server halaman statis. Contoh keluaran saat seluruh komponen sehat:</p>
+<pre>[ok] PostgreSQL : postgresql-x64-17 jalan
+[ok] Backend    : menjawab di port 8000 (PID 2140)
+     {"status":"ok","db":"ok","mqtt":"ok","broker":"broker.hivemq.com:1883","ai":"ok"}
+[ok] Database   : terhubung
+[ok] MQTT       : tersambung
+[ok] Broker     : broker.hivemq.com:1883
+[ok] Dashboard  : http://localhost:5500</pre>
+
+<h3>11.2 tools/cek_nema.py</h3>
+<p>Menguji kedua arah aliran data dengan ukuran waktu. Perintah uji yang dikirim berisi keadaan relai papan saat itu, sehingga sampai, diterapkan, dan tidak mengubah keadaan apa pun.</p>
+<pre>[1] Menunggu telemetri (batas 90 detik)...
+[ok] Telemetri datang setelah 41.6 detik - arah NAIK hidup.
+     dim 26 %   relay off   auto True   volt 199.71   power 19.899
+
+[2] Mengirim perintah uji {"relay": "off"}
+[ok] Papan menjawab dalam 0.8 detik - arah TURUN hidup.</pre>
+
+<h2>12. Keterbatasan dan Langkah Lanjut</h2>
+<ol>
+  <li><b>Broker publik tanpa autentikasi.</b> Siapa pun yang mengetahui nama topik dapat menerbitkan perintah ke relai yang memutus jala listrik lampu. Keadaan ini memadai untuk purwarupa, tetapi pemasangan sesungguhnya menuntut broker sendiri dengan kredensial.</li>
+  <li><b>Modul GPS dan modem berbagi satu kanal.</b> Saat ini GPS dinonaktifkan agar USART3 dapat dipakai sebagai konsol. Mengembalikan GPS menuntut pemindahan seluruh keluaran diagnostik ke dalam payload telemetri.</li>
+  <li><b>Kestabilan sambungan seluler.</b> Padam beberapa menit masih terjadi secara berkala. QoS 1 mengurangi kehilangan perintah selama papan tersambung, tetapi tidak mencegah padamnya sambungan itu sendiri. Penambahan kapasitor curah 470&ndash;1000&nbsp;&micro;F di dekat modem dan verifikasi kemampuan catu daya menyuplai 2&nbsp;A masih berstatus saran yang belum dikerjakan.</li>
+</ol>
+
+<h2>13. Lampiran: Berkas yang Diubah</h2>
+<table>
+  <tr><th style="width:38%">Berkas</th><th>Perubahan utama</th></tr>
+  <tr><td><code>firmware/Core/Src/main.c</code></td><td>Pelaporan cepat saat mode otomatis bergerak; langganan QoS 1; sesi bersih; alamat broker menjadi nama domain</td></tr>
+  <tr><td><code>python-backend/mqtt_ingest.py</code></td><td>Penguraian dan penyimpanan <code>relay</code>/<code>auto</code>; penyiaran keduanya; <code>connect_async</code>; pemeriksaan hasil penerbitan; pembersihan retained message yatim; status sambungan</td></tr>
+  <tr><td><code>python-backend/db.py</code></td><td><code>save_reported_state()</code>, <code>update_device_sector()</code>, <code>get_all_device_ids()</code>; kolom baru pada kueri status terkini</td></tr>
+  <tr><td><code>python-backend/main.py</code></td><td>Penjaga port ganda; <code>/health</code> melaporkan MQTT, nama broker, dan kunci asisten</td></tr>
+  <tr><td><code>python-backend/routes_devices.py</code></td><td>Medan <code>relay_on</code> dan <code>auto_mode</code> pada <code>response_model</code></td></tr>
+  <tr><td><code>python-backend/routes_provisioning.py</code></td><td><code>PATCH /api/devices/{id}</code> untuk pemindahan sektor</td></tr>
+  <tr><td><code>python-backend/routes_command.py</code></td><td>HTTP 503 beserta pesan saat penerbitan gagal</td></tr>
+  <tr><td><code>python-backend/config.py</code></td><td>Broker bawaan; <code>GEMINI_BASE_URL</code> dapat ditimpa env; umur retained message</td></tr>
+  <tr><td><code>python-backend/schema.sql</code>, <code>schema_indexes.sql</code></td><td>Kolom <code>relay_on</code>, <code>auto_mode</code> beserta migrasinya</td></tr>
+  <tr><td><code>Dashboard_Monitoring/script.js</code></td><td>Saklar mengikuti keadaan papan; penanda sambungan; formulir pindah sektor</td></tr>
+  <tr><td><code>Dashboard_Monitoring/index.html</code>, <code>style.css</code></td><td>Penanda sambungan, formulir pindah sektor, perbaikan jalur penggeser</td></tr>
+  <tr><td><code>run-dashboard-windows.bat</code></td><td>Broker bawaan; jembatan serial dimatikan; blok konfigurasi asisten AI</td></tr>
+  <tr><td><code>cek-sistem-windows.bat</code></td><td>Berkas baru &mdash; pemeriksa sisi PC</td></tr>
+  <tr><td><code>python-backend/tools/cek_nema.py</code></td><td>Berkas baru &mdash; pemeriksa dua arah sisi papan</td></tr>
+</table>
+
+</body>
+</html>

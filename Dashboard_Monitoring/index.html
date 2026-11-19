@@ -62,7 +62,7 @@
          script.js tetap lama, sehingga tombol yang baru ada di HTML memanggil
          fungsi yang belum ada di JS. Penanda versi ini membuat URL-nya berbeda,
          jadi tidak ada yang perlu menekan Ctrl+Shift+R. -->
-    <link rel="stylesheet" href="style.css?v=20261001b">
+    <link rel="stylesheet" href="style.css?v=20261119a">
 </head>
 
 <body>
@@ -215,6 +215,20 @@
                             </svg></span>
                         <span class="nav-label">Kotak Peringatan</span>
                         <span class="badge" id="alert-badge">0</span>
+                    </a>
+                </li>
+                <!-- Tanpa data-role: kedua role boleh membuka halaman ini. Ganti
+                     password bukan pengaturan sistem, melainkan pengaturan akun
+                     sendiri, dan petugas monitoring juga punya akun. -->
+                <li data-page="account" onclick="navigateTo('account', this)">
+                    <a href="javascript:void(0)">
+                        <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg></span>
+                        <span class="nav-label">Pengaturan Akun</span>
                     </a>
                 </li>
             </ul>
@@ -470,6 +484,28 @@
                 <div class="controls-section" id="quick-control-section">
                     <div class="section-header-row">
                         <h2>Kendali Cepat (Kontrol Manual)</h2>
+                        <!-- Penanda sambungan papan, DI SINI - di tempat tombolnya ditekan,
+                             bukan di halaman lain. Papan ini kadang hilang beberapa menit
+                             lalu pulih sendiri; tanpa penanda ini panel kendali terlihat
+                             sama saja di kedua keadaan, dan perintah yang hilang di udara
+                             terbaca sebagai lampu yang membandel. Ambangnya ikut irama
+                             lapor papan (60 detik), bukan ambang "lampu rusak" 15 menit
+                             milik halaman Monitor - dua pertanyaan yang berbeda. -->
+                        <div class="field-inline">
+                            <span id="link-status-text" class="lock-status-text">MEMERIKSA SAMBUNGAN...</span>
+                        </div>
+                        <!-- Nyala/mati lampu. Memutus jala listrik ke lampu lewat relai -
+                             beda dari kecerahan 0%, yang tetap mengalirkan listrik ke
+                             driver. Tanpa tombol ini lampu tidak bisa dinyalakan dari
+                             dashboard sama sekali. -->
+                        <div class="field-inline">
+                            <span id="relay-status-text" class="lock-status-text">LAMPU MATI</span>
+                            <label class="switch">
+                                <input type="checkbox" id="relay-toggle"
+                                    onchange="sendRelay(this.checked)">
+                                <span class="slider-round"></span>
+                            </label>
+                        </div>
                         <!-- Mode otomatis: LDR di papan yang menentukan kecerahan.
                              Terpisah dari kunci override karena artinya berbeda - kunci
                              mengatur boleh-tidaknya dashboard ini menyetir, auto
@@ -645,6 +681,41 @@
                         </form>
                         <div class="provision-msg" id="provision-device-msg"></div>
                     </div>
+                </div>
+
+                <!-- Pindah sektor. Sebelum ini ada, sektor cuma bisa dipilih SEKALI saat lampu
+                 didaftarkan: memperbaiki pilihan yang salah menuntut UPDATE manual lewat psql,
+                 atau menghapus lampunya - dan menghapus lampu ikut menghapus SELURUH riwayat
+                 telemetri & peringatannya (ON DELETE CASCADE). Memindahkan tiang itu pekerjaan
+                 lapangan yang biasa, jadi tidak boleh menuntut akses database. -->
+                <div class="controls-section" style="margin-bottom: 30px;">
+                    <h2>Pindahkan Lampu ke Sektor Lain</h2>
+                    <p class="provision-hint">Jadwal kecerahan RTC berlaku per sektor, jadi lampu yang dipindahkan akan
+                        mengikuti jadwal sektor tujuan. Riwayat telemetri dan peringatannya tetap utuh - keduanya
+                        menunjuk ID lampu, bukan sektor.</p>
+                    <form id="move-device-form" onsubmit="handleMoveDevice(event)"
+                        style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <select id="move-device-id" class="select-control" onchange="renderMoveDeviceCurrent()"
+                            style="flex: 1 1 220px; min-width: 200px;">
+                            <option value="">Pilih lampu</option>
+                        </select>
+                        <select id="move-device-sector" class="select-control"
+                            style="flex: 1 1 260px; min-width: 200px;">
+                            <option value="">Pilih sektor tujuan</option>
+                        </select>
+                        <button type="submit" class="btn-alert-action btn-save-schedule" id="move-device-submit">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                                <polyline points="12 5 19 12 12 19" />
+                            </svg>
+                            Pindahkan
+                        </button>
+                    </form>
+                    <span id="move-device-current"
+                        style="color: var(--text-muted); font-size: 13px; display: block; margin-top: 8px;"></span>
+                    <div class="provision-msg" id="move-device-msg"></div>
                 </div>
 
                 <!-- Bagian Pilihan Sektor - jadwal SELALU berlaku per sektor (semua lampu di
@@ -829,6 +900,75 @@
 
             </div>
 
+            <!-- Halaman 6: Pengaturan Akun - terbuka untuk admin maupun petugas monitoring -->
+            <div id="page-account" style="display: none;">
+
+                <div class="page-header">
+                    <div>
+                        <span class="page-eyebrow">Akun</span>
+                        <h1>Pengaturan Akun</h1>
+                    </div>
+                </div>
+
+                <div class="controls-section" style="margin-bottom: 30px;">
+                    <h2>Akun Ini</h2>
+                    <div class="account-info-grid">
+                        <div class="account-info-item">
+                            <span class="account-info-label">Username</span>
+                            <span class="account-info-value" id="account-username">-</span>
+                        </div>
+                        <div class="account-info-item">
+                            <span class="account-info-label">Role</span>
+                            <span class="account-info-value" id="account-role">-</span>
+                        </div>
+                        <div class="account-info-item">
+                            <span class="account-info-label">Hak akses</span>
+                            <span class="account-info-value" id="account-access">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="controls-section" style="margin-bottom: 30px;">
+                    <h2>Ganti Password</h2>
+                    <p class="provision-hint">Password lama wajib diisi: token sesi saja tidak cukup, supaya
+                        perangkat yang ditinggalkan dalam keadaan login tidak bisa dipakai mengunci pemilik
+                        akunnya sendiri. Setelah berhasil, semua sesi lain milik akun ini dicabut dan perangkat
+                        lain harus login ulang.</p>
+                    <form id="change-password-form" onsubmit="handleChangePassword(event)"
+                        style="display: flex; flex-direction: column; gap: 12px; max-width: 420px;">
+                        <input type="text" id="change-password-username" autocomplete="username"
+                            style="display: none;" tabindex="-1" aria-hidden="true">
+                        <label class="account-field">
+                            <span class="account-info-label">Password lama</span>
+                            <input type="password" id="current-password" class="input-control"
+                                autocomplete="current-password" required>
+                        </label>
+                        <label class="account-field">
+                            <span class="account-info-label">Password baru</span>
+                            <input type="password" id="new-password" class="input-control"
+                                autocomplete="new-password" minlength="8" required>
+                        </label>
+                        <label class="account-field">
+                            <span class="account-info-label">Ulangi password baru</span>
+                            <input type="password" id="confirm-password" class="input-control"
+                                autocomplete="new-password" minlength="8" required>
+                        </label>
+                        <button type="submit" class="btn-alert-action btn-save-schedule"
+                            id="change-password-submit" style="align-self: flex-start;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                            Simpan Password
+                        </button>
+                    </form>
+                    <div class="provision-msg" id="change-password-msg"></div>
+                </div>
+
+            </div>
+
         </div>
 
         <!-- Widget Chat AI - mengambang di semua halaman, terpisah dari page-* -->
@@ -952,7 +1092,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=20261001b"></script>
+    <script src="script.js?v=20261119a"></script>
 </body>
 
 </html>

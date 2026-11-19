@@ -52,26 +52,26 @@ def test_dummy_hash_dipakai_buat_samakan_waktu_login():
 
 
 def test_session_issue_get_dan_expire():
-    token = auth.issue_session("admin")
+    token = auth.issue_session("admin", "admin")
     session = auth.get_session(token)
     assert session is not None
     assert session.role == "admin"
     assert auth.is_admin(token) is True
 
     # Sesi role "user" bukan admin
-    user_token = auth.issue_session("user")
+    user_token = auth.issue_session("monitoring", "user")
     assert auth.is_admin(user_token) is False
 
 
 def test_session_expired_tidak_valid_lagi():
-    token = auth.issue_session("admin")
+    token = auth.issue_session("admin", "admin")
     auth._sessions[token].expires_at = time.time() - 1  # paksa kedaluwarsa
     assert auth.get_session(token) is None
     assert auth.is_admin(token) is False
 
 
 def test_invalidate_session_mencabut_token():
-    token = auth.issue_session("admin")
+    token = auth.issue_session("admin", "admin")
     assert auth.is_admin(token) is True
 
     auth.invalidate_session(token)

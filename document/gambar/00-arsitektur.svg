@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 820 600" width="74%" xmlns="http://www.w3.org/2000/svg"
+     font-family="Times New Roman, Georgia, serif" fill="#000">
+  <rect x="0" y="0" width="820" height="600" fill="#fff"/>
+  <defs>
+    <marker id="panah" markerWidth="9" markerHeight="7" refX="8.5" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="#000"/>
+    </marker>
+  </defs>
+
+  <!-- judul kedua arah -->
+  <text x="150" y="20" font-size="13" font-weight="bold" text-anchor="middle">ARAH NAIK</text>
+  <text x="150" y="36" font-size="11" text-anchor="middle">telemetri, tiap 60 detik</text>
+  <text x="670" y="20" font-size="13" font-weight="bold" text-anchor="middle">ARAH TURUN</text>
+  <text x="670" y="36" font-size="11" text-anchor="middle">perintah kendali</text>
+
+  <!-- kotak node -->
+  <g stroke="#000" stroke-width="1.6" fill="none">
+    <rect x="260" y="55"  width="300" height="58"/>
+    <rect x="260" y="175" width="300" height="58"/>
+    <rect x="260" y="295" width="300" height="58"/>
+    <rect x="260" y="415" width="300" height="58"/>
+    <rect x="260" y="535" width="300" height="58"/>
+  </g>
+
+  <g text-anchor="middle">
+    <text x="410" y="80"  font-size="13" font-weight="bold">NEMA-01</text>
+    <text x="410" y="99"  font-size="11">APM32F103CBT6 · LDR, relai, HLW8032</text>
+
+    <text x="410" y="200" font-size="13" font-weight="bold">Modem Quectel EG800K</text>
+    <text x="410" y="219" font-size="11">LTE Cat 1 · TLS port 8883</text>
+
+    <text x="410" y="320" font-size="13" font-weight="bold">Broker MQTT</text>
+    <text x="410" y="339" font-size="11">broker.hivemq.com</text>
+
+    <text x="410" y="440" font-size="13" font-weight="bold">Backend FastAPI</text>
+    <text x="410" y="459" font-size="11">paho-mqtt · PostgreSQL · WebSocket</text>
+
+    <text x="410" y="560" font-size="13" font-weight="bold">Browser</text>
+    <text x="410" y="579" font-size="11">dashboard pemantauan</text>
+  </g>
+
+  <!-- arah naik: panah turun di kiri -->
+  <g stroke="#000" stroke-width="1.6" marker-end="url(#panah)">
+    <line x1="340" y1="113" x2="340" y2="173"/>
+    <line x1="340" y1="233" x2="340" y2="293"/>
+    <line x1="340" y1="353" x2="340" y2="413"/>
+    <line x1="340" y1="473" x2="340" y2="533"/>
+  </g>
+  <g font-size="10.5" text-anchor="end" font-family="Consolas, Courier New, monospace">
+    <text x="330" y="138">rakit JSON, AT+QMTPUB</text>
+    <text x="330" y="152">payload 1 baris</text>
+    <text x="330" y="258">iot/lights/NEMA-01/</text>
+    <text x="330" y="272">telemetry · QoS 0</text>
+    <text x="330" y="378">on_message()</text>
+    <text x="330" y="392">validasi, simpan, peringatan</text>
+    <text x="330" y="498">/ws/telemetry</text>
+    <text x="330" y="512">siaran WebSocket</text>
+  </g>
+
+  <!-- arah turun: panah naik di kanan -->
+  <g stroke="#000" stroke-width="1.6" marker-end="url(#panah)">
+    <line x1="480" y1="533" x2="480" y2="473"/>
+    <line x1="480" y1="413" x2="480" y2="353"/>
+    <line x1="480" y1="293" x2="480" y2="233"/>
+    <line x1="480" y1="173" x2="480" y2="113"/>
+  </g>
+  <g font-size="10.5" text-anchor="start" font-family="Consolas, Courier New, monospace">
+    <text x="490" y="498">POST /api/lights/</text>
+    <text x="490" y="512">{id}/command</text>
+    <text x="490" y="378">publish retain=True</text>
+    <text x="490" y="392">hapus otomatis 300 s</text>
+    <text x="490" y="258">iot/lights/NEMA-01/</text>
+    <text x="490" y="272">command · QoS 1</text>
+    <text x="490" y="138">+QMTRECV</text>
+    <text x="490" y="152">mq_apply_command()</text>
+  </g>
+</svg>

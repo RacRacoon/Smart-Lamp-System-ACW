@@ -89,6 +89,17 @@ CREATE TABLE devices (
                                              -- memutuskan kapan lampu diganti.
                                              -- Sekarang backend yang menjumlahkan,
                                              -- lihat db.accrue_lamp_hours()
+    relay_on     BOOLEAN,                     -- KEADAAN TERAKHIR YANG DILAPORKAN papan,
+                                             -- bukan perintah terakhir dari dashboard.
+                                             -- NULL = belum pernah melapor. Tanpa kolom
+                                             -- ini, dashboard yang baru dimuat ulang
+                                             -- tidak punya sumber apa pun untuk posisi
+                                             -- saklarnya, dan semuanya tampil MATI -
+                                             -- apa pun yang sedang terjadi pada lampu.
+    auto_mode    BOOLEAN,                     -- idem untuk mode otomatis LDR. Mode ini
+                                             -- juga bisa diubah dari konsol UART papan,
+                                             -- jadi papan - bukan dashboard - yang jadi
+                                             -- sumber kebenarannya
     lamp_seen    TIMESTAMP,                  -- telemetri terakhir yang dihitung ke
                                              -- lamp_hours; jarak ke yang berikutnya
                                              -- itulah yang ditambahkan

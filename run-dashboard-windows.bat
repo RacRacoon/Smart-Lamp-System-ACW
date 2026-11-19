@@ -24,8 +24,26 @@ if not defined DB_NAME     set "DB_NAME=smart_lights"
 if not defined DB_USER     set "DB_USER=admin"
 if not defined DB_PASSWORD set "DB_PASSWORD=ACW123"
 
-if not defined MQTT_HOST   set "MQTT_HOST=broker.emqx.io"
+REM Broker milik proyek ini. JANGAN dikembalikan ke broker.emqx.io: broker itu
+REM publik, dan backend yang tersambung ke sana tetap menyala mulus, tetap
+REM melaporkan "terhubung", lalu menerbitkan perintah relai/dim ke broker orang
+REM lain - papan tidak pernah menerimanya dan tidak ada satu pun error muncul.
+REM Sudah kejadian 13 Okt 2026: gejalanya terbaca seperti NEMA yang membandel.
+if not defined MQTT_HOST   set "MQTT_HOST=broker.hivemq.com"
 if not defined MQTT_PORT   set "MQTT_PORT=1883"
+
+REM --- Asisten AI (opsional) ---------------------------------------------------
+REM Tanpa kunci, fitur analisis & chat AI menjawab 503 dan SISA dashboard tetap
+REM jalan normal. Isi kuncinya di sini, atau pasang sebagai variabel lingkungan
+REM Windows supaya tidak ikut tersimpan di berkas yang masuk git.
+REM
+REM Google AI Studio (bawaan, kunci dari https://aistudio.google.com/apikey):
+REM   set "GEMINI_API_KEY=isi-kunci-di-sini"
+REM
+REM Groq - endpoint OpenAI-compatible juga, jadi cukup ganti ketiganya:
+REM   set "GEMINI_API_KEY=gsk_..."
+REM   set "GEMINI_BASE_URL=https://api.groq.com/openai/v1"
+REM   set "GEMINI_MODEL=openai/gpt-oss-120b"
 
 if not defined API_HOST    set "API_HOST=127.0.0.1"
 if not defined API_PORT    set "API_PORT=8000"
@@ -98,11 +116,12 @@ start "ACW frontend (port %WEB_PORT%)" cmd /k ^
     "cd /d "%~dp0Dashboard_Monitoring" && "%VPY%" -m http.server %WEB_PORT% --bind 127.0.0.1"
 
 REM --- 5. Jembatan papan NEMA ---------------------------------------------------
-REM Sementara, selama modem di papan belum punya kartu SIM aktif: papan ditanya
-REM lewat konsol UART dari PC, lalu jawabannya diterbitkan ke broker. Begitu
-REM kartu baru terpasang, papan menerbitkan sendiri dan bagian ini dimatikan
-REM dengan  set NEMA_BRIDGE=0  sebelum menjalankan skrip ini.
-if not defined NEMA_BRIDGE set "NEMA_BRIDGE=1"
+REM Sudah TIDAK diperlukan sejak kartu SIM baru terpasang (12 Okt 2026): papan
+REM menerbitkan telemetrinya sendiri lewat modem 4G dan berlangganan topik
+REM perintahnya sendiri. Jembatan ini hanya untuk keadaan darurat - papan tanpa
+REM sinyal, ditanya lewat konsol UART dari PC. Nyalakan dengan
+REM   set NEMA_BRIDGE=1  sebelum menjalankan skrip ini.
+if not defined NEMA_BRIDGE set "NEMA_BRIDGE=0"
 if not defined NEMA_PORT   set "NEMA_PORT=COM6"
 if not defined NEMA_DEVICE set "NEMA_DEVICE=NEMA-01"
 

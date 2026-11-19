@@ -131,6 +131,14 @@ function connectWebSocket() {
                         alerts: incomingData.alerts || 0,
                         uptime: incomingData.uptime || 0,
                         dim: incomingData.dim !== undefined ? parseInt(incomingData.dim) : 8,
+                        // Ikut dibawa juga di sini. Cabang "lampu sudah dikenal"
+                        // di bawah menyebar ...incomingData apa adanya, tapi objek
+                        // di cabang ini disusun field demi field - yang tidak
+                        // disebut akan hilang.
+                        ...(incomingData.relay === undefined
+                            ? {} : { relay: incomingData.relay }),
+                        ...(incomingData.auto === undefined
+                            ? {} : { auto: incomingData.auto }),
                         // Pesan WS ini SENDIRI adalah bukti lampu baru saja lapor - beda dari
                         // fetch awal (lastUpdate ikut node.last_update dari DB), di sini
                         // "sekarang" itu sendiri sudah akurat, tidak perlu tanya backend
@@ -490,7 +498,8 @@ function refreshCustomSelectLabel(selectId) {
 // otomatis nangkep lewat MutationObserver-nya masing-masing, tidak perlu dipanggil
 // manual di sini) - dipakai baik pas sektor baru dibuat maupun pas refresh dari server
 function addSectorOptionEverywhere(sectorName) {
-    ["sector-selector-input", "telemetry-sector-selector", "provision-device-sector"].forEach(id => {
+    ["sector-selector-input", "telemetry-sector-selector", "provision-device-sector",
+     "move-device-sector"].forEach(id => {
         const select = document.getElementById(id);
         if (!select) return;
         const exists = Array.from(select.options).some(opt => opt.value === sectorName);
@@ -614,6 +623,99 @@ function handleProvisionDevice(event) {
         .finally(() => { submitBtn.disabled = false; });
 }
 
+// Tampilkan sektor lampu yang sedang dipilih di formulir pindah. Tanpa ini admin
+// tidak punya cara melihat sektor lampu TERTENTU dari halaman ini - dropdown hanya
+// menampilkan ID, dan memindahkan lampu ke sektor yang sudah jadi tempatnya itu
+// kebingungan yang mudah dihindari.
+function renderMoveDeviceCurrent() {
+    const el = document.getElementById("move-device-current");
+    if (!el) return;
+
+    const deviceId = document.getElementById("move-device-id")?.value || "";
+    const data = devicesData[deviceId];
+    if (!deviceId || !data) {
+        el.textContent = "";
+        return;
+    }
+    el.textContent = `Tiang ${deviceId} sekarang di: ${data.sector || "tanpa sektor"}`;
+}
+
+function handleMoveDevice(event) {
+    event.preventDefault();
+    const idSelect = document.getElementById("move-device-id");
+    const sectorSelect = document.getElementById("move-device-sector");
+    const submitBtn = document.getElementById("move-device-submit");
+
+    const deviceId = idSelect.value;
+    const sectorName = sectorSelect.value;
+
+    if (!deviceId) {
+        renderProvisionMsg("move-device-msg", "Pilih lampu yang mau dipindahkan dulu.", true);
+        return;
+    }
+    if (!sectorName) {
+        renderProvisionMsg("move-device-msg", "Pilih sektor tujuannya dulu.", true);
+        return;
+    }
+
+    const sekarang = devicesData[deviceId]?.sector;
+    if (sekarang === sectorName) {
+        renderProvisionMsg("move-device-msg", `Tiang ${deviceId} sudah ada di ${sectorName}.`, true);
+        return;
+    }
+
+    submitBtn.disabled = true;
+    fetch(`${API_BASE_URL}/api/devices/${encodeURIComponent(deviceId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-ACW-Token': authToken || '' },
+        body: JSON.stringify({ sector_name: sectorName })
+    })
+        .then(res => {
+            // 403 di sini hampir selalu berarti sesi kedaluwarsa, bukan "kamu bukan admin" -
+            // halaman ini sendiri cuma terbuka untuk admin (lihat applyRoleRestrictions).
+            if (res.status === 403) {
+                sessionExpired();
+                throw new Error("Sesi login kedaluwarsa, silakan login lagi.");
+            }
+            if (res.ok) return res.json();
+            return res.json().catch(() => ({})).then(data => { throw new Error(data?.error || `HTTP ${res.status}`); });
+        })
+        .then(data => {
+            // Keadaan lokal diperbarui langsung, tanpa memuat ulang semuanya: kita yang
+            // paling tahu lampu mana yang baru pindah ke mana.
+            if (devicesData[data.device_id]) {
+                devicesData[data.device_id].sector = data.sector_name;
+            }
+
+            renderProvisionMsg(
+                "move-device-msg",
+                `Tiang ${data.device_id} dipindahkan ke ${data.sector_name}. Mulai sekarang ia mengikuti jadwal sektor itu.`,
+                false
+            );
+            renderMoveDeviceCurrent();
+
+            // Halaman Riwayat Data dikelompokkan per sektor - daftarnya harus ikut berubah,
+            // kalau tidak lampu ini masih tampil di sektor lamanya sampai halaman dimuat ulang.
+            if (typeof renderTelemetrySectorList === "function" && currentTelemetrySector) {
+                renderTelemetrySectorList(currentTelemetrySector);
+            }
+
+            // Panel lampu aktif ikut menampilkan sektor, jadi ia perlu dirender ulang.
+            if (document.getElementById("current-device-id")?.innerText === data.device_id) {
+                switchDevice(data.device_id);
+            }
+
+            if (typeof updateMarkerStyles === "function") {
+                updateMarkerStyles(data.device_id);
+            }
+        })
+        .catch(err => {
+            console.error("Gagal memindahkan lampu:", err);
+            renderProvisionMsg("move-device-msg", `Gagal: ${err.message}`, true);
+        })
+        .finally(() => { submitBtn.disabled = false; });
+}
+
 function addDeviceToDropdowns(deviceId, sector) {
     const devSelector = document.getElementById("device-selector");
     const telSectorSelector = document.getElementById("telemetry-sector-selector");
@@ -630,6 +732,18 @@ function addDeviceToDropdowns(deviceId, sector) {
         // Hapus teks ' (Healthy)' di bawah ini
         opt.textContent = `Tiang ${deviceId}`;
         devSelector.appendChild(opt);
+    }
+
+    // Dropdown lampu di formulir "Pindahkan Lampu" (Kelola Lampu). Sengaja diisi dari
+    // jalur yang sama: lampu yang baru didaftarkan tapi belum pernah mengirim telemetri
+    // pun harus bisa dipindahkan - justru lampu itulah yang paling mungkin salah sektor.
+    const moveSelector = document.getElementById("move-device-id");
+    if (moveSelector && !optionExists(moveSelector, deviceId)) {
+        const opt = document.createElement("option");
+        opt.value = deviceId;
+        opt.textContent = `Tiang ${deviceId}`;
+        moveSelector.appendChild(opt);
+        refreshCustomSelectLabel("move-device-id");
     }
 
     // Riwayat Data dikelompokkan per sektor (bukan per lampu lagi) - dropdown ini cuma
@@ -720,6 +834,9 @@ function addNewMapMarker(data) {
 
 let currentRole = null;
 let authToken = null;
+// Diisi dari jawaban /api/login, bukan dari apa yang diketik di form: ejaan yang
+// dipakai halaman Pengaturan Akun harus sama dengan baris di tabel users.
+let currentUsername = null;
 let dashboardInitialized = false;
 
 // Interval hitung-mundur kunci tombol submit saat kena rate limit login (429) -
@@ -765,7 +882,8 @@ function handleLogin(event) {
         .then(data => {
             sessionStorage.setItem("acw_role", data.role);
             sessionStorage.setItem("acw_token", data.token);
-            enterDashboard(data.role, data.token);
+            sessionStorage.setItem("acw_username", data.username || "");
+            enterDashboard(data.role, data.token, data.username);
             submitBtn.disabled = false;
         })
         .catch((err) => {
@@ -812,6 +930,20 @@ function _startLoginLockoutCountdown(submitBtn, seconds) {
     _loginLockoutInterval = setInterval(tick, 1000);
 }
 
+// Sesi di server disimpan di memori: backend yang dinyalakan ulang membuang
+// semuanya, sementara browser masih memegang token lama. Akibatnya setiap
+// perintah dijawab 403 dan tombol terlihat seperti rusak - padahal cuma perlu
+// masuk lagi. Dulu pesannya malah berbunyi "hanya admin yang bisa", yang
+// menyesatkan karena orangnya memang admin.
+function sessionExpired() {
+    sessionStorage.removeItem("acw_role");
+    sessionStorage.removeItem("acw_token");
+    sessionStorage.removeItem("acw_username");
+    authToken = null;
+    alert("Sesi kamu sudah berakhir. Masuk lagi untuk melanjutkan.");
+    location.href = location.pathname;
+}
+
 function logout() {
     // Cabut token di server juga (bukan cuma hapus di browser) - fire-and-forget,
     // reload di bawah jalan terus walau request-nya gagal/lambat. Tanpa ini token lama
@@ -824,12 +956,14 @@ function logout() {
     }
     sessionStorage.removeItem("acw_role");
     sessionStorage.removeItem("acw_token");
+    sessionStorage.removeItem("acw_username");
     location.href = location.pathname; // reload bersih, hapus hash halaman terakhir
 }
 
-function enterDashboard(role, token) {
+function enterDashboard(role, token, username) {
     currentRole = role;
     authToken = token;
+    currentUsername = username || sessionStorage.getItem("acw_username") || "";
 
     const finishEnterDashboard = () => {
         document.getElementById("login-overlay").style.display = "none";
@@ -842,7 +976,8 @@ function enterDashboard(role, token) {
 
         if (!dashboardInitialized) {
             dashboardInitialized = true;
-            ["device-selector", "sector-selector-input", "telemetry-sector-selector", "alert-node-filter", "provision-device-sector"]
+            ["device-selector", "sector-selector-input", "telemetry-sector-selector", "alert-node-filter",
+             "provision-device-sector", "move-device-id", "move-device-sector"]
                 .forEach(initCustomSelect);
             initDashboardData();
         }
@@ -913,6 +1048,17 @@ function initDashboardData() {
                     lng: parseFloat(node.lng),
                     alerts: node.health === "Healthy" ? 0 : 1,
                     dim: node.dim !== undefined ? parseInt(node.dim) : 8,
+                    // Keadaan relai & mode auto dari database, bukan posisi
+                    // bawaan. Tanpa dua baris ini, saklar selalu tampil MATI
+                    // setiap halaman dimuat ulang atau login baru - apa pun
+                    // yang sedang terjadi pada lampu. Kunci sengaja TIDAK
+                    // dibuat kalau papan belum pernah melapor (null): saklar
+                    // lebih baik dibiarkan apa adanya daripada ditegaskan
+                    // mati atas dasar ketiadaan data (lihat switchDevice).
+                    ...(node.relay_on === null || node.relay_on === undefined
+                        ? {} : { relay: node.relay_on ? "on" : "off" }),
+                    ...(node.auto_mode === null || node.auto_mode === undefined
+                        ? {} : { auto: node.auto_mode }),
                     // Timestamp baris telemetry TERAKHIR di DB (bukan "sekarang") - dasar
                     // badge "terakhir lapor" biar lampu yang berhenti kirim data ketahuan,
                     // bukan diam-diam nampilin angka basi selamanya. null kalau lampu ini
@@ -972,7 +1118,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const savedRole = sessionStorage.getItem("acw_role");
     const savedToken = sessionStorage.getItem("acw_token");
     if (savedRole && savedToken) {
-        enterDashboard(savedRole, savedToken);
+        enterDashboard(savedRole, savedToken, sessionStorage.getItem("acw_username"));
     }
 });
 
@@ -1380,6 +1526,11 @@ function switchDevice(deviceId) {
         renderAutoToggle(data.auto);
     }
 
+    // Keadaan relai juga datang dari papan, bukan dari klik terakhir.
+    if (data.relay !== undefined) {
+        renderRelayToggle(String(data.relay).toLowerCase() === "on");
+    }
+
     // Badge count dikelola oleh updateAlertBadge() dari sistem alert terpusat
     updateAlertBadge();
 
@@ -1411,6 +1562,7 @@ function switchDevice(deviceId) {
     }
 
     renderLastUpdateNote(data.lastUpdate);
+    renderLinkStatus();
 
     // Panggil fungsi lifespan jika fungsi tersebut ada
     if (typeof updateLifespanUI === "function") {
@@ -2121,6 +2273,7 @@ function sendDimControl(val) {
             .catch(err => {
                 const isForbidden = err.message === 'forbidden';
                 console.error("[HTTP] Gagal mengirim perintah kecerahan ke perangkat:", err);
+                if (isForbidden) { sessionExpired(); return; }
                 addAlert({
                     nodeId: currentDeviceId,
                     severity: 'warning',
@@ -2156,6 +2309,7 @@ function navigateTo(pageId, element) {
     document.getElementById("page-manage").style.display = "none";
     document.getElementById("page-telemetry").style.display = "none";
     document.getElementById("page-alerts").style.display = "none";
+    document.getElementById("page-account").style.display = "none";
 
     // Hapus kelas aktif dari semua li di menu sidebar
     const menuItems = document.querySelectorAll("#sidebar-menu li");
@@ -2223,6 +2377,9 @@ function navigateTo(pageId, element) {
     } else if (pageId === 'alerts') {
         document.getElementById("page-alerts").style.display = "block";
         fetchAlertsFromDB();
+    } else if (pageId === 'account') {
+        document.getElementById("page-account").style.display = "block";
+        renderAccountInfo();
     }
 
     element.classList.add("active");
@@ -2639,6 +2796,56 @@ let manualUnlocked = false;
 // LDR lebih kuat daripada tangan. Selama auto menyala, slider dimatikan - papan
 // akan menolak perintah kecerahan, dan slider yang bisa digeser tapi tidak
 // berefek lebih membingungkan daripada slider yang jelas-jelas mati.
+// Irama lapor papan 60 detik, jadi satu laporan terlewat masih wajar - radio
+// bergeser sedikit, satu pesan hilang. Dua laporan terlewat sudah bukan jitter.
+// Angka ini SENGAJA beda dari STALE_WARNING_MS (15 menit) di halaman Monitor:
+// yang itu menjawab "lampu ini masih hidup?", yang ini menjawab "perintahku
+// sampai sekarang?" - dan lima belas menit jauh terlalu lama untuk pertanyaan
+// kedua. Padamnya sepuluh menit yang terukur tanggal 13 Okt 2026 tampil
+// sepenuhnya sehat di dashboard, dan itulah sumber salah pahamnya.
+const LINK_WARN_MS = 150000;   // 2,5 menit - dua laporan terlewat
+const LINK_DOWN_MS = 300000;   // 5 menit - anggap papan tidak terjangkau
+
+// Gambar penanda sambungan papan di panel Kendali Cepat.
+function renderLinkStatus() {
+    const el = document.getElementById("link-status-text");
+    if (!el) return;
+
+    const deviceId = document.getElementById("current-device-id")?.innerText;
+    const last = (deviceId && devicesData[deviceId]) ? devicesData[deviceId].lastUpdate : null;
+
+    if (!last) {
+        el.innerText = "BELUM PERNAH LAPOR";
+        el.style.color = "var(--text-muted)";
+        el.title = "Lampu ini belum pernah mengirim telemetri sama sekali.";
+        return;
+    }
+
+    const umur = Date.now() - new Date(last).getTime();
+    const menit = Math.floor(umur / 60000);
+
+    if (umur >= LINK_DOWN_MS) {
+        el.innerText = `PAPAN TIDAK TERJANGKAU (${menit} menit)`;
+        el.style.color = "var(--danger, #dc3545)";
+        el.title = "Papan berhenti melapor. Perintah yang dikirim sekarang mungkin tidak sampai - "
+            + "perintah terakhir disimpan broker selama 5 menit, jadi perintah itu akan menyusul "
+            + "kalau papan kembali dalam waktu itu.";
+    } else if (umur >= LINK_WARN_MS) {
+        el.innerText = `LAPORAN TERTUNDA (${menit} menit)`;
+        el.style.color = "var(--warning, #e0a800)";
+        el.title = "Papan melewatkan beberapa laporan. Biasanya sinyal 4G yang sedang tersendat; "
+            + "ia pulih sendiri. Perintah bisa hilang selama ini.";
+    } else {
+        el.innerText = "PAPAN TERSAMBUNG";
+        el.style.color = "var(--success)";
+        el.title = "Papan melapor dalam irama normalnya. Perintah sampai dalam hitungan detik.";
+    }
+}
+
+// Lima detik, dan TIDAK digantung pada halaman mana yang terbuka: penanda ini
+// harus sudah benar pada detik seseorang menekan tombol, bukan menyusul.
+setInterval(renderLinkStatus, 5000);
+
 function applyControlAvailability() {
     const dimSlider = document.getElementById("dim-slider");
     const cctSlider = document.getElementById("cct-slider");
@@ -2662,6 +2869,57 @@ function applyControlAvailability() {
         lockStatusText.innerText = "AKTIF (SIAP DIKONTROL)";
         lockStatusText.style.color = "var(--success)";
     }
+}
+
+// Gambar ulang saklar relai dari keadaan yang dilaporkan papan.
+function renderRelayToggle(isOn) {
+    const toggle = document.getElementById("relay-toggle");
+    const text = document.getElementById("relay-status-text");
+    if (toggle) toggle.checked = !!isOn;
+    if (text) {
+        text.innerText = isOn ? "LAMPU HIDUP" : "LAMPU MATI";
+        text.style.color = isOn ? "var(--success)" : "var(--text-muted)";
+    }
+}
+
+// Putus atau sambungkan jala listrik ke lampu. Beda dari kecerahan 0%: itu
+// tetap mengalirkan listrik ke driver, ini memutusnya sama sekali.
+function sendRelay(wantOn) {
+    const currentDeviceId = document.getElementById("current-device-id")?.innerText;
+    if (!currentDeviceId || currentDeviceId === "-") return;
+
+    renderRelayToggle(wantOn);
+
+    fetch(`${API_BASE_URL}/api/lights/${currentDeviceId}/command`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-ACW-Token': authToken || ''
+        },
+        body: JSON.stringify({ relay: wantOn ? "on" : "off" })
+    })
+        .then(res => {
+            if (res.status === 403) throw new Error('forbidden');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
+            console.log(`[HTTP] Relai ${wantOn ? "ON" : "OFF"} dikirim ke ${currentDeviceId}:`, data);
+        })
+        .catch(err => {
+            renderRelayToggle(!wantOn);
+            const isForbidden = err.message === 'forbidden';
+            console.error("[HTTP] Gagal mengirim perintah relai:", err);
+            if (isForbidden) { sessionExpired(); return; }
+            addAlert({
+                nodeId: currentDeviceId,
+                severity: 'warning',
+                type: 'command_failed',
+                message: isForbidden
+                    ? 'Hanya admin yang bisa menyalakan atau mematikan lampu.'
+                    : 'Perintah nyala/mati gagal terkirim ke perangkat.'
+            });
+        });
 }
 
 // Gambar ulang saklar AUTO dari keadaan yang dilaporkan papan.
@@ -2708,6 +2966,7 @@ function sendAutoMode(wantOn) {
             renderAutoToggle(!wantOn);
             const isForbidden = err.message === 'forbidden';
             console.error("[HTTP] Gagal mengirim mode otomatis:", err);
+            if (isForbidden) { sessionExpired(); return; }
             addAlert({
                 nodeId: currentDeviceId,
                 severity: 'warning',
@@ -3044,7 +3303,8 @@ function cancelDeleteSectorModal() {
 // Lepas sektor dari semua dropdown + state lokal setelah beneran kehapus di server -
 // tidak perlu refetch, kita yang paling tahu sektor mana yang barusan hilang
 function removeSectorEverywhere(sectorName) {
-    ["sector-selector-input", "telemetry-sector-selector", "provision-device-sector"].forEach(id => {
+    ["sector-selector-input", "telemetry-sector-selector", "provision-device-sector",
+     "move-device-sector"].forEach(id => {
         const select = document.getElementById(id);
         if (!select) return;
         const opt = Array.from(select.options).find(o => o.value === sectorName);
@@ -3694,4 +3954,92 @@ async function handleAiChatSubmit(event) {
 // yang masih dipakai luas di index.html - lihat catatan CSP soal itu).
 if (typeof module !== "undefined" && module.exports) {
     module.exports = { escapeHtml, escapeJsString, stripMarkdownNoise };
+}
+
+// ============================================================
+//  Pengaturan Akun
+// ============================================================
+
+function renderAccountInfo() {
+    const isAdmin = currentRole === "admin";
+    const set = (id, teks) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = teks;
+    };
+
+    set("account-username", currentUsername || "-");
+    set("account-role", isAdmin ? "Admin" : "Petugas Monitoring");
+    set("account-access", isAdmin
+        ? "Penuh: kendali lampu, kelola sektor, jadwal, hapus peringatan"
+        : "Baca saja, plus menandai peringatan terbaca");
+
+    // Field username tersembunyi diisi supaya password manager browser tahu
+    // kredensial siapa yang sedang diperbarui. Tanpa itu sebagian browser
+    // menawarkan menyimpan password tanpa akun yang jelas.
+    const hidden = document.getElementById("change-password-username");
+    if (hidden) hidden.value = currentUsername || "";
+}
+
+function renderChangePasswordMsg(teks, isError) {
+    renderProvisionMsg("change-password-msg", teks, isError);
+}
+
+function handleChangePassword(event) {
+    event.preventDefault();
+
+    const lamaEl = document.getElementById("current-password");
+    const baruEl = document.getElementById("new-password");
+    const ulangEl = document.getElementById("confirm-password");
+    const submitBtn = document.getElementById("change-password-submit");
+
+    const lama = lamaEl.value;
+    const baru = baruEl.value;
+
+    // Dicek di sini DAN di server. Yang di sini cuma menghemat satu perjalanan
+    // bolak-balik; yang mengikat tetap pemeriksaan di routes_auth.py.
+    if (baru.length < 8) {
+        renderChangePasswordMsg("Password baru minimal 8 karakter.", true);
+        return;
+    }
+    if (baru !== ulangEl.value) {
+        renderChangePasswordMsg("Ketikan password baru tidak sama.", true);
+        return;
+    }
+    if (baru === lama) {
+        renderChangePasswordMsg("Password baru sama dengan yang lama.", true);
+        return;
+    }
+
+    submitBtn.disabled = true;
+    renderChangePasswordMsg("Menyimpan...", false);
+
+    fetch(`${API_BASE_URL}/api/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-ACW-Token": authToken },
+        body: JSON.stringify({ current_password: lama, new_password: baru }),
+    })
+        .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data?.detail?.error || "Gagal mengganti password.");
+            }
+            return data;
+        })
+        .then((data) => {
+            lamaEl.value = "";
+            baruEl.value = "";
+            ulangEl.value = "";
+            const dicabut = data.sessions_revoked || 0;
+            renderChangePasswordMsg(
+                dicabut > 0
+                    ? `Password diganti. ${dicabut} sesi lain dicabut dan harus login ulang.`
+                    : "Password diganti.",
+                false);
+        })
+        .catch((err) => {
+            renderChangePasswordMsg(err.message, true);
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+        });
 }

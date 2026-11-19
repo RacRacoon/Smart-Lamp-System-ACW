@@ -96,6 +96,9 @@ async def db_pool_exhausted_handler(request, exc: psycopg2.pool.PoolError):
 class HealthResponse(BaseModel):
     status: str
     db: str
+    mqtt: str
+    broker: str
+    ai: str
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -105,9 +108,33 @@ def health():
     orchestrator/monitoring uptime eksternal (belum ada sebelumnya - lihat audit
     arsitektur sebelumnya, "nol endpoint /health")."""
     db_ok = db.is_healthy()
+
+    # Sambungan MQTT ikut dilaporkan, LENGKAP DENGAN NAMA BROKER-nya. Tanpa ini
+    # /health menjawab "ok" untuk backend yang menerbitkan perintah ke broker
+    # orang lain - sudah dua kali terjadi, dan dari luar gejalanya terbaca
+    # seperti papan yang membandel, bukan seperti backend yang salah alamat.
+    mq = mqtt_ingest.status()
+
+    # Kunci AI SENGAJA tidak ikut menentukan status keseluruhan. Asisten AI itu
+    # fitur tambahan: tanpa kunci, endpoint chat/analisis menjawab 503 dan
+    # seluruh sisa dashboard tetap benar. Menjadikan backend "degraded" karena
+    # itu akan menenggelamkan tanda bahaya yang sungguhan.
+    #
+    # Yang dilaporkan hanya ADA atau TIDAK ADA - kuncinya sendiri tidak pernah
+    # ikut keluar dari endpoint ini, juga tidak sepotong pun.
+    ai_ok = bool(config.GEMINI_API_KEY)
+
+    all_ok = db_ok and mq["connected"]
+
     return JSONResponse(
-        status_code=200 if db_ok else 503,
-        content={"status": "ok" if db_ok else "degraded", "db": "ok" if db_ok else "error"},
+        status_code=200 if all_ok else 503,
+        content={
+            "status": "ok" if all_ok else "degraded",
+            "db": "ok" if db_ok else "error",
+            "mqtt": "ok" if mq["connected"] else "error",
+            "broker": mq["broker"],
+            "ai": "ok" if ai_ok else "tanpa kunci",
+        },
     )
 
 
@@ -141,6 +168,34 @@ def on_startup():
     logger.info("ACW backend siap - REST, WebSocket, dan ingest MQTT aktif.")
 
 
+def _port_sudah_dipakai(port: int) -> bool:
+    """Cek apakah sudah ada yang mendengar di 127.0.0.1:<port>.
+
+    Bukan paranoia: default API_HOST itu 0.0.0.0, dan Windows mengizinkan
+    0.0.0.0:8000 hidup berdampingan dengan 127.0.0.1:8000 milik proses lain.
+    Jadi uvicorn TIDAK gagal - dia nyala tanpa keluhan, sementara alamat
+    127.0.0.1 yang lebih spesifik membuat semua permintaan "localhost" mendarat
+    di backend yang satunya. Dua backend, dua broker, dan perintah dashboard
+    hilang tanpa jejak error di mana pun.
+    """
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
 if __name__ == "__main__":
+    import sys
+
     import uvicorn
+
+    if _port_sudah_dipakai(config.API_PORT):
+        logger.error(
+            "Port %d sudah dipakai proses lain - backend TIDAK dijalankan. "
+            "Hentikan backend yang lama dulu, jangan jalankan dua-duanya: "
+            "yang menjawab localhost belum tentu yang ini.",
+            config.API_PORT,
+        )
+        sys.exit(1)
+
     uvicorn.run(app, host=config.API_HOST, port=config.API_PORT)

@@ -8,7 +8,22 @@ import re
 
 # --- MQTT ---
 # Broker publik yang sama dipakai oleh flow Node-RED lama (docker_mosquitto_broker).
-MQTT_HOST = os.environ.get("MQTT_HOST", "broker.emqx.io")
+# NAMA DOMAIN, bukan IP. Bawaannya sempat dipaku sebagai broker.hivemq.com - satu
+# simpul HiveMQ yang kebetulan terpakai - dan 21 Okt 2026 simpul itu berhenti
+# menjawab, sementara nama domainnya menunjuk ke simpul lain yang sehat. Jangan
+# pernah menaruh IP hasil resolve di sini lagi.
+#
+# Catatan: ini broker PUBLIK tanpa auth. Siapa pun yang tahu nama topiknya bisa
+# menerbitkan perintah ke relai lampu. Cukup untuk purwarupa, tidak cukup untuk
+# dipasang di jalan - itu menuntut broker sendiri dengan kredensial.
+#
+# Bawaannya dulu
+# broker.emqx.io - warisan flow Node-RED - dan itu jebakan yang mahal: broker
+# publik itu menerima sambungan siapa pun tanpa keluhan, jadi backend yang lupa
+# diberi MQTT_HOST menyala normal, mencatat "terhubung", lalu menerbitkan
+# perintah ke hardware fisik di broker orang lain. Tidak ada error di mana pun;
+# yang terlihat hanyalah papan yang tidak merespons.
+MQTT_HOST = os.environ.get("MQTT_HOST", "broker.hivemq.com")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", "1883"))
 MQTT_TELEMETRY_TOPIC = os.environ.get("MQTT_TELEMETRY_TOPIC", "iot/lights/+/telemetry")
 MQTT_CLIENT_ID = os.environ.get("MQTT_CLIENT_ID", "acw_python_ingest")
@@ -118,6 +133,11 @@ UPTIME_WARNING_HOURS = 8000
 # tiap telemetri masuk, enam per menit, dan Kotak Peringatan jadi tidak terbaca
 # justru saat paling dibutuhkan. Gangguan yang sama tetap dilaporkan ulang
 # setelah jeda ini, jadi yang berkepanjangan tidak hilang diam-diam.
+# Umur perintah tersimpan di broker. Setelah lewat, broker dibersihkan supaya
+# perangkat yang baru menyala tidak menerima perintah basi - lampu yang
+# dimatikan semalam tidak boleh ikut padam lagi saat dinyalakan besok pagi.
+RETAINED_COMMAND_TTL_SECONDS = int(os.environ.get("RETAINED_COMMAND_TTL_SECONDS", "300"))
+
 ALERT_COOLDOWN_SECONDS = int(os.environ.get("ALERT_COOLDOWN_SECONDS", "300"))
 
 VOLT_SPIKE_THRESHOLD = 240
@@ -134,4 +154,19 @@ CURRENT_SPIKE_THRESHOLD = 1.5
 # env var (lihat .env di folder docker-compose, sengaja tidak ikut repo git).
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
-GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+#
+# Base URL-nya IKUT bisa ditimpa env. Sebelumnya dipaku, dan itu berarti pindah
+# penyedia menuntut ubah kode - padahal ai_chat.py tidak memakai SDK apa pun,
+# cuma httpx ke /chat/completions. Siapa pun yang menyediakan endpoint
+# OpenAI-compatible dengan tool-calling dan streaming bisa dipasang di sini
+# tanpa menyentuh satu baris kode pun. Contoh yang sudah dicek bentuk API-nya:
+#
+#   Google AI Studio  https://generativelanguage.googleapis.com/v1beta/openai
+#                     model: gemini-flash-lite-latest
+#   Groq              https://api.groq.com/openai/v1
+#                     model: openai/gpt-oss-120b
+#
+# Ketiganya (kunci, model, base URL) HARUS diganti bersama-sama - kunci satu
+# penyedia tidak berlaku di penyedia lain, dan nama modelnya pun berbeda.
+GEMINI_BASE_URL = os.environ.get(
+    "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai")

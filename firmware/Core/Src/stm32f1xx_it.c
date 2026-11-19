@@ -210,8 +210,15 @@ void SysTick_Handler(void)
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
+/* Nilainya harus sama dengan yang di main.c - keduanya memilih kaki mana
+   memegang konsol dan mana memegang modem. */
+#define MODEM_BRINGUP 1
+
 extern void uart_rx_push(uint8_t b);
 extern void gps_rx_push(uint8_t b);
+#if MODEM_BRINGUP
+extern void modem_rx_push(uint8_t b);
+#endif
 extern void meter_rx_push(uint8_t b);
 extern void pf_edge(uint8_t level);
 
@@ -227,7 +234,12 @@ extern void pf_edge(uint8_t level);
 void USART2_IRQHandler(void)
 {
   if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_RXNE) != RESET) {
-    uart_rx_push((uint8_t) (huart2.Instance->DR & 0xFF));
+    uint8_t b = (uint8_t) (huart2.Instance->DR & 0xFF);
+#if MODEM_BRINGUP
+    modem_rx_push(b);          /* PA2/PA3 memegang modem di build ini */
+#else
+    uart_rx_push(b);           /* PA2/PA3 memegang konsol */
+#endif
     return;
   }
   HAL_UART_IRQHandler(&huart2);
@@ -243,7 +255,12 @@ void USART2_IRQHandler(void)
 void USART3_IRQHandler(void)
 {
   if (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_RXNE) != RESET) {
-    gps_rx_push((uint8_t) (huart3.Instance->DR & 0xFF));
+    uint8_t b = (uint8_t) (huart3.Instance->DR & 0xFF);
+#if MODEM_BRINGUP
+    uart_rx_push(b);           /* PB10/PB11 memegang konsol di build ini */
+#else
+    gps_rx_push(b);            /* PB10/PB11 memegang GPS */
+#endif
     return;
   }
   HAL_UART_IRQHandler(&huart3);

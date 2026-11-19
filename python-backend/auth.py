@@ -89,6 +89,12 @@ def is_legacy_hash(stored_hash: str) -> bool:
 
 @dataclass
 class Session:
+    # Username ikut disimpan, bukan cuma role. Tanpa ini backend tahu PERAN
+    # pemanggil tapi tidak tahu SIAPA dia, dan endpoint ganti password tidak
+    # punya cara menentukan baris mana di tabel users yang harus diubah selain
+    # mempercayai username yang dikirim klien - yang berarti siapa pun yang
+    # sudah login bisa mengganti password orang lain.
+    username: str
     role: str
     expires_at: float
 
@@ -105,10 +111,13 @@ def _prune_expired() -> None:
         del _sessions[t]
 
 
-def issue_session(role: str) -> str:
+def issue_session(username: str, role: str) -> str:
     _prune_expired()
     token = "tok_" + secrets.token_urlsafe(24)
-    _sessions[token] = Session(role=role, expires_at=time.time() + config.SESSION_DURATION_HOURS * 3600)
+    _sessions[token] = Session(
+        username=username, role=role,
+        expires_at=time.time() + config.SESSION_DURATION_HOURS * 3600,
+    )
     return token
 
 
@@ -136,6 +145,21 @@ def invalidate_session(token: Optional[str]) -> None:
     benar-benar menutup akses."""
     if token:
         _sessions.pop(token, None)
+
+
+def invalidate_user_sessions(username: str, kecuali: Optional[str] = None) -> int:
+    """Cabut semua sesi milik satu username, kecuali satu token yang ditentukan.
+
+    Dipanggil setelah password diganti. Sesi lama dibuat dengan password LAMA,
+    jadi membiarkannya hidup berarti orang yang sudah menguasai sesi itu tetap
+    masuk sampai 12 jam setelah pemiliknya mengganti password justru untuk
+    mengusirnya. Sesi yang sedang dipakai penggantinya sendiri dikecualikan,
+    supaya dia tidak ikut terlempar ke layar login.
+    """
+    korban = [t for t, s in _sessions.items() if s.username == username and t != kecuali]
+    for t in korban:
+        del _sessions[t]
+    return len(korban)
 
 
 # Hitung kegagalan login BERTURUT-TURUT per username - beda dari rate_limit.py yang

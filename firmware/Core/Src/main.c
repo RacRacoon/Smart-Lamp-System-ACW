@@ -21,6 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <string.h>
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -51,12 +52,46 @@ UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-#define RX_RING_SIZE  64u
+/* Harus menampung satu baris penuh, bukan sekadar perintah pendek. Dulu 64,
+   dan baris AT 67 karakter terpotong diam-diam di karakter ke-64: di 115200
+   baud seluruh baris tiba dalam 6 ms, sedangkan loop utama baru mengurasnya
+   tiap 100 ms. Tidak ada pesan galat - perintahnya hanya separuh sampai. */
+#define RX_RING_SIZE  256u
 /* Panjang ini dulu 24 dan diam-diam memotong perintah AT yang panjang. Modem
    Quectel-nya sekarang dilepas, tapi angkanya dibiarkan longgar: satu baris
    JSON telemetri tetap sepanjang itu, dan modul akan kembali begitu kartu SIM
    baru terpasang. */
 #define LINE_MAX      200u
+
+/* Papan ini punya tiga UART dan empat hal yang ingin memakainya: konsol, modem
+   4G, GPS, dan power meter. Meter memegang USART1 selamanya. Modem terpasang
+   mati di PA2/PA3 (USART2) dan GPS di PB10/PB11 (USART3) - keduanya soket
+   fisik, tidak bisa ditukar lewat program. Jadi konsol harus menumpang salah
+   satunya, dan yang ditumpangi kehilangan perangkatnya.
+
+   MODEM_BRINGUP 1 : konsol di PB10/PB11 (colok USB-TTL ke soket GPS)
+                     modem hidup di PA2/PA3, perintah "at..." diteruskan
+                     GPS tidak dipakai - letak tiang sudah tersimpan di flash
+   MODEM_BRINGUP 0 : konsol di PA2/PA3, GPS hidup di PB10/PB11, tanpa modem
+
+   Dipakai 1 selama menyiapkan jalur 4G, supaya modem bisa diajak bicara sambil
+   tetap melihat jawabannya. Setelah mesin keadaan AT berjalan sendiri, papan
+   tidak lagi butuh konsol dan ini kembali ke 0. */
+#define MODEM_BRINGUP 1
+
+/* Harus sama dengan device_id yang terdaftar di tabel devices backend -
+   telemetri dari ID yang tidak terdaftar ditolak seluruhnya. */
+#define MQTT_DEVICE_ID "NEMA-01"
+#define MQTT_TOPIC     "iot/lights/" MQTT_DEVICE_ID "/telemetry"
+#define MQTT_CMD_TOPIC "iot/lights/" MQTT_DEVICE_ID "/command"
+
+#if MODEM_BRINGUP
+#define CONSOLE_UART   huart3
+#define CONSOLE_IRQN   USART3_IRQn
+#else
+#define CONSOLE_UART   huart2
+#define CONSOLE_IRQN   USART2_IRQn
+#endif
 
 /* PB8 dan PB9 adalah LED papan, aktif rendah - pinout NEMA menyebutnya begitu.
    Labelnya di .ioc tertulis GPS_2 dan GPS, dan nama itu menyesatkan: GPS bicara
@@ -92,6 +127,15 @@ static uint8_t line_len;
 static volatile uint8_t gp_ring[GPS_RING_SIZE];
 static volatile uint16_t gp_head;   /* written by the ISR only */
 static volatile uint16_t gp_tail;   /* written by the main loop only */
+
+#if MODEM_BRINGUP
+/* Modem menjawab dalam semburan: satu balasan +COPS=? bisa ratusan byte dan
+   datang lebih cepat daripada loop utama menguras cincinnya. */
+#define MODEM_RING_SIZE 512u
+static volatile uint8_t md_ring[MODEM_RING_SIZE];
+static volatile uint16_t md_head;   /* ditulis ISR saja */
+static volatile uint16_t md_tail;   /* ditulis loop utama saja */
+#endif
 
 /* The longest sentence a consumer module emits is GSV at about 80 characters.
    A little headroom, and anything longer is dropped rather than truncated:
@@ -305,6 +349,14 @@ static void handle_line(char *s);
 static void rx_service(void);
 static void console_init(void);
 static void gps_init(void);
+#if MODEM_BRINGUP
+static void modem_init(void);
+static void modem_send(const char *s);
+static void modem_raw(const char *s, uint16_t n);
+static void mqtt_service(void);
+static void mqtt_restart(void);
+static void print_mqtt(void);
+#endif
 static void gps_service(void);
 static void gps_set_baud(uint32_t baud);
 static void gps_loopback(void);
@@ -396,13 +448,31 @@ int main(void)
      lit, and the coil draws nothing until the lamp is switched off.
      relay_set() drives the lamp-state LED to match, so PB9 needs nothing here. */
   relay_set(1);
+
+  /* Dan LDR langsung memegang kemudi. Sebuah lampu jalan yang baru dinyalakan
+     setelah padam berjam-jam harus bekerja sendiri tanpa menunggu siapa pun:
+     kalau 4G belum tersambung - dan setelah mati lama, modem perlu menit-menit
+     untuk mendaftar lagi - papan tetap meredup di siang hari dan terang di
+     malam hari. Sebelumnya bawaannya manual pada 0 %, jadi lampu berdiri gelap
+     sampai ada perintah dari dashboard yang mungkin tidak pernah datang.
+
+     ldr_avg diisi sekali di sini supaya penghalusan mulai dari cahaya yang
+     sebenarnya, bukan dari nol - tanpa itu lampu menyala penuh dulu lalu turun
+     perlahan selama setengah menit. */
+  dim_auto = 1;
+  ldr_avg = ldr_read();
 #if USE_STATUS_LEDS
   HAL_GPIO_WritePin(HEARTBEAT_GPIO_Port, HEARTBEAT_Pin, LED_OFF);
 #endif
 
   /* The console has to exist before anything prints. */
   console_init();
+#if MODEM_BRINGUP
+  modem_init();
+  mqtt_restart();
+#else
   gps_init();
+#endif
 
   /* PB13 carries the power-factor signal from the meter front end. It has
      no timer capture path, so time both edges in an interrupt instead, and
@@ -435,7 +505,12 @@ int main(void)
   cfg_load();
 
   printf("\r\n=== APM32F103CB | console USART2 115200 8N1 | PA2=TX PA3=RX ===\r\n");
+#if MODEM_BRINGUP
+  printf("=== USART2 -> Quectel modem   USART1 -> power meter ===\r\n");
+  printf("=== GPS off in this build, site comes from flash ===\r\n");
+#else
   printf("=== USART3 -> GPS   USART1 -> power meter ===\r\n");
+#endif
   print_help();
   print_status();
   printf("> ");
@@ -449,6 +524,12 @@ int main(void)
     /* USER CODE BEGIN 3 */
     rx_service();
     meter_service();
+#if MODEM_BRINGUP
+    mqtt_service();
+#endif
+    /* Tetap dipanggil walau GPS tidak dipakai: cincinnya kosong karena ISR
+       USART3 mengantar byte ke konsol, jadi ini langsung kembali. Lebih murah
+       daripada satu cabang lagi, dan menjaga kode tetap satu jalur. */
     gps_service();
 
     /* One second of housekeeping every 10 loops of 100 ms. */
@@ -2406,6 +2487,9 @@ static void print_status(void) {
   read_accel();
   print_mains();
   print_gps();
+#if MODEM_BRINGUP
+  print_mqtt();
+#endif
   print_relay();
   print_thresholds();
   printf("LOGS    light %-3s   meter %-3s   meter hex %s\r\n",
@@ -2458,11 +2542,16 @@ static void print_help(void) {
   printf("                  also feeds it - read the count, not a verdict\r\n");
 
   printf("\r\n== MODEM ==\r\n");
-  printf("  no AT here      The Quectel answered AT on USART2 until its SIM\r\n");
-  printf("                  expired. That port is this console now, so the\r\n");
-  printf("                  passthrough is gone - not broken, removed.\r\n");
-  printf("                  A new SIM puts the modem back on PA2/PA3, and\r\n");
-  printf("                  the console moves off it again.\r\n");
+#if MODEM_BRINGUP
+  printf("  at...           send the typed line to the Quectel on USART2\r\n");
+  printf("                  its replies print here by themselves\r\n");
+  printf("  pub             state, or publish now when idle\r\n");
+  printf("  pub r / t / o   restart the link / trace / on-off\r\n");
+#else
+  printf("  no AT here      this build puts the console on USART2, where the\r\n");
+  printf("                  modem lives. Rebuild with MODEM_BRINGUP 1 to talk\r\n");
+  printf("                  to it - the console then moves to PB10/PB11.\r\n");
+#endif
 
   printf("\r\n== DIAGNOSTICS ==\r\n");
   printf("  z               scan the I2C bus on PB6/PB7\r\n");
@@ -2524,6 +2613,684 @@ static uint32_t parse_arg(const char *s) {
   return v;
 }
 
+/* ------------------------------------------------------------------------
+   Mesin keadaan MQTT lewat AT.
+
+   Papan mengurus sendiri seluruh rantai: menunggu jaringan, mengaktifkan
+   konteks data, membuka soket ke broker, mendaftar sebagai klien, lalu
+   menerbitkan telemetri berkala - dan menyambung ulang saat putus.
+
+   Tidak boleh memblokir. Loop utama punya pekerjaan lain tiap 100 ms: membaca
+   LDR, merakit bingkai meter, mengurai kalimat GPS. Jadi tiap langkah di sini
+   hanya mengirim satu perintah lalu kembali; jawabannya diperiksa di putaran
+   berikutnya. Satu langkah yang menunggu 45 detik secara blocking - dan
+   qiact memang bisa selama itu - akan membekukan semuanya.
+
+   Beberapa keputusan di sini lahir dari kegagalan nyata saat bring-up:
+
+   - Broker dialamati dengan IP, bukan nama. DNS di modem ini rusak: nama
+     domain dijawab galat 559, alamat IP selalu berhasil.
+   - msgid WAJIB 0 saat QoS 0. Nilai lain dijawab ERROR polos, dan perintahnya
+     tidak pernah sampai ke tahap prompt.
+   - +QMTSTAT dipantau. Sesi ke broker publik putus sendiri beberapa kali
+     dalam satu jam pengujian; tanpa pemulihan otomatis papan akan diam
+     selamanya setelah putus pertama.
+   - Radio diputar kalau jaringan tidak kunjung didapat. Sekali modem berhenti
+     mencari sama sekali (+CEREG: 0,0) dan hanya pulih setelah CFUN 0 lalu 1.
+   ------------------------------------------------------------------------ */
+
+/* Nama domain, BUKAN IP. Alamat ini sebelumnya dipaku sebagai 18.153.87.221,
+   satu simpul broker publik HiveMQ yang kebetulan terpakai saat itu. IP simpul
+   broker publik BERGANTI: 21 Okt 2026 alamat itu berhenti menjawab sama sekali
+   - ping mati, 1883 dan 8883 dua-duanya tertutup - sementara nama domainnya
+   menunjuk ke simpul lain yang sehat. Dengan IP yang dipaku, pergantian itu
+   menuntut papan di-flash ulang; dengan nama domain, modem yang menyelesaikan
+   DNS-nya sendiri lewat konteks data dan papan ikut berpindah tanpa disentuh.
+
+   AT+QMTOPEN menerima nama domain apa adanya, jadi tidak ada yang perlu
+   ditambahkan selain ini. */
+#define MQTT_BROKER_HOST "broker.hivemq.com"
+/* 8883, bukan 1883. Port polos ditolak di sebagian kumpulan alamat yang
+   diberikan operator: TCP-nya tidak pernah terbuka, dan modem menjawab
+   +QMTOPEN: 0,-1 seolah jaringannya mati. Lalu lintas terenkripsi lolos di
+   kumpulan yang sama. Untuk lapangan TLS memang wajib juga - broker tanpa
+   sandi bukan tempat mengendalikan lampu jalan. */
+#define MQTT_BROKER_PORT 8883
+#define MQTT_CLIENT_ID   "nema01sultan2026"
+
+/* Jeda antar telemetri. 60 detik menghasilkan sekitar 12 MB sebulan - cukup
+   lapang untuk kuota 4 GB, dan tetap lebih sering daripada yang dibutuhkan
+   lampu jalan. */
+#define MQTT_PERIOD_MS   60000u
+
+/* Setelah gagal, tunggu sebelum mengulang dari awal. Jangan terlalu rapat:
+   menyambung ulang terus-menerus ke broker yang sedang menolak justru membuat
+   kita diblokir, dan memakan kuota. */
+#define MQTT_RETRY_MS    20000u
+
+/* Saat LDR memegang kemudi, kecerahan bergerak terus - AUTO_STEP per detik,
+   satu sapuan penuh sekitar lima puluh detik. Dengan jeda 60 detik, angka di
+   dashboard bisa tertinggal satu sapuan utuh: tepat setelah mode auto
+   dinyalakan, yang terlaporkan masih kecerahan MANUAL terakhir, dan selama
+   semenit berikutnya itulah satu-satunya angka yang dilihat orang. Jadi
+   telemetri dipercepat SELAMA kecerahannya masih bergerak, lalu kembali ke
+   jeda normal begitu tenang - bukan dipercepat terus-terusan, karena kuota
+   kartu yang dibayar bukan untuk melaporkan angka yang tidak berubah. */
+#define MQTT_AUTO_MIN_MS 10000u  /* laporan cepat tidak lebih rapat dari ini */
+#define MQTT_AUTO_DELTA  30u     /* per mille - 3 %, sudah terlihat di mata */
+
+typedef enum {
+  MQ_BOOT = 0,     /* beri modem waktu menyala */
+  MQ_PING,         /* AT - pastikan modem menjawab */
+  MQ_NET,          /* tunggu terdaftar di jaringan */
+  MQ_RADIO,        /* modem berhenti mencari: putar radionya */
+  MQ_APN,          /* setel titik akses */
+  MQ_PDP,          /* aktifkan konteks data */
+  MQ_PDPCHK,       /* pastikan konteksnya benar-benar aktif */
+  MQ_SSL,          /* setel TLS sebelum membuka */
+  MQ_CLOSE,        /* lepaskan sesi lama sebelum membuka yang baru */
+  MQ_SETTLE,       /* beri modem waktu melepas soketnya */
+  MQ_OPEN,         /* buka soket ke broker */
+  MQ_CONN,         /* daftar sebagai klien MQTT */
+  MQ_SUB,          /* berlangganan topik perintah */
+  MQ_IDLE,         /* siap, menunggu giliran terbit */
+  MQ_PROMPT,       /* menunggu tanda > dari modem */
+  MQ_ACK,          /* menunggu +QMTPUB */
+  MQ_WAIT          /* jeda setelah gagal */
+} mq_state_t;
+
+static mq_state_t mq_state;
+static uint32_t mq_deadline;     /* batas waktu langkah sekarang */
+static uint32_t mq_next_pub;     /* kapan telemetri berikutnya */
+static uint32_t mq_last_pub;     /* kapan telemetri terakhir dikirim */
+static uint16_t mq_pub_level;    /* kecerahan yang ikut di laporan terakhir */
+static uint8_t mq_tries;         /* kegagalan beruntun di langkah ini */
+/* Tiap perintah AT berakhir dengan OK atau ERROR. Pesan di antaranya - seperti
+   +CEREG: 0,1 - hanya DATA, bukan tanda selesai. Dulu perpindahan dilakukan
+   begitu data itu terlihat, sehingga OK penutupnya datang belakangan dan dikira
+   jawaban perintah berikutnya. Seluruh rantai lalu bergeser satu langkah, dan
+   ERROR milik satu perintah dibaca sebagai kegagalan perintah lain. */
+static uint8_t mq_net_ok;        /* +CEREG melaporkan sudah terdaftar */
+static uint8_t mq_cfg_step;      /* langkah ke berapa dalam penyetelan TLS */
+/* Penanda tersendiri untuk langkah memutar radio. Dulu memakai mq_tries, yang
+   juga dipakai pencacah pemulihan sesi - begitu pencacah itu naik, syarat
+   pengiriman CFUN=1 tidak pernah terpenuhi lagi dan radio modem tertinggal
+   MATI selamanya. Papan terlihat sehat, lampu menyala, tapi +CFUN: 0 dan
+   +QNWINFO: NO SERVICE. Satu variabel dua guna, satu jam hilang. */
+static uint8_t mq_radio_up;      /* CFUN=1 sudah dikirim di putaran ini */
+static uint8_t mq_verbose = 1;   /* cetak perpindahan keadaan ke konsol */
+static uint8_t mq_enabled = 1;   /* 0 = jangan sentuh modem sama sekali */
+static uint32_t mq_sent;         /* telemetri yang dikonfirmasi broker */
+static uint32_t mq_failed;       /* percobaan yang gagal */
+static uint32_t mq_cmds;         /* perintah dari dashboard yang dijalankan */
+
+static char mq_line[128];
+static uint8_t mq_len;
+
+static char mq_body[220];
+static uint16_t mq_body_len;
+
+static const char *mq_state_name(mq_state_t s) {
+  switch (s) {
+  case MQ_BOOT:   return "boot";
+  case MQ_PING:   return "ping";
+  case MQ_NET:    return "net";
+  case MQ_RADIO:  return "radio";
+  case MQ_APN:    return "apn";
+  case MQ_PDP:    return "pdp";
+  case MQ_PDPCHK: return "pdp?";
+  case MQ_SSL:    return "ssl";
+  case MQ_CLOSE:  return "close";
+  case MQ_SETTLE: return "settle";
+  case MQ_OPEN:   return "open";
+  case MQ_CONN:   return "conn";
+  case MQ_SUB:    return "sub";
+  case MQ_IDLE:   return "idle";
+  case MQ_PROMPT: return "prompt";
+  case MQ_ACK:    return "ack";
+  default:        return "wait";
+  }
+}
+
+static void mq_go(mq_state_t s, uint32_t timeout_ms) {
+  if (mq_verbose && s != mq_state) {
+    printf("MQTT    %s -> %s\r\n", mq_state_name(mq_state), mq_state_name(s));
+  }
+  mq_state = s;
+  mq_deadline = HAL_GetTick() + timeout_ms;
+}
+
+/**
+ * @brief Susun satu muatan telemetri JSON ke mq_body.
+ *
+ * Bentuknya sama persis dengan yang dikirim jembatan PC selama ini, supaya
+ * backend tidak perlu diubah saat jalur berpindah ke 4G.
+ *
+ * snprintf di sini newlib-nano tanpa float: tiap angka pecahan dirakit dari
+ * bagian bulat dan sisanya sebagai dua bilangan bulat terpisah.
+ */
+static void mq_build_body(void) {
+  meter_t m;
+  uint32_t volt_mv = 0;
+  uint32_t cur_ua = 0;
+  uint32_t pw_mw = 0;
+  int n;
+
+  meter_decode(&m);
+  if (m.ok && !m.stale && m.v >= MAINS_MIN_V) {
+    volt_mv = (uint32_t) (m.v * 1000.0);
+    if (m.has_current) {
+      cur_ua = (uint32_t) (m.i * 1000000.0);
+      pw_mw = (uint32_t) (m.p * 1000.0);
+    }
+  }
+
+  n = snprintf(mq_body, sizeof mq_body,
+               "{\"id\":\"%s\",\"volt\":%lu.%03lu,\"current\":%lu.%03lu,"
+               "\"power\":%lu.%03lu,\"dim\":%lu,\"relay\":\"%s\","
+               "\"auto\":%s,\"lat\":%s%ld.%06ld,\"lng\":%s%ld.%06ld,"
+               "\"uptime\":%lu}",
+               MQTT_DEVICE_ID,
+               (unsigned long) (volt_mv / 1000u), (unsigned long) (volt_mv % 1000u),
+               (unsigned long) (cur_ua / 1000000u), (unsigned long) ((cur_ua / 1000u) % 1000u),
+               (unsigned long) (pw_mw / 1000u), (unsigned long) (pw_mw % 1000u),
+               (unsigned long) (dim_level / 10u),
+               relay_is_on() ? "on" : "off",
+               dim_auto ? "true" : "false",
+               (site_lat < 0) ? "-" : "",
+               (long) ((site_lat < 0 ? -site_lat : site_lat) / 1000000),
+               (long) ((site_lat < 0 ? -site_lat : site_lat) % 1000000),
+               (site_lon < 0) ? "-" : "",
+               (long) ((site_lon < 0 ? -site_lon : site_lon) / 1000000),
+               (long) ((site_lon < 0 ? -site_lon : site_lon) % 1000000),
+               (unsigned long) (HAL_GetTick() / 1000u));
+
+  mq_body_len = (n > 0 && n < (int) sizeof mq_body) ? (uint16_t) n : 0u;
+}
+
+/**
+ * @brief Ambil bilangan bulat yang mengikuti sebuah kunci JSON.
+ *
+ * Pengurai seadanya, bukan parser JSON penuh - muatan perintah di sini selalu
+ * pendek dan bentuknya kita sendiri yang menentukan. Mengembalikan 0 kalau
+ * kuncinya tidak ada, dan menulis nilainya lewat out.
+ */
+static uint8_t json_int(const char *s, const char *key, long *out) {
+  const char *p = strstr(s, key);
+  long v = 0;
+  uint8_t any = 0;
+  uint8_t neg = 0;
+
+  if (p == NULL) {
+    return 0u;
+  }
+  p += strlen(key);
+  while (*p == ' ' || *p == ':' || *p == '"') {
+    p++;
+  }
+  if (*p == '-') {
+    neg = 1;
+    p++;
+  }
+  while (*p >= '0' && *p <= '9') {
+    v = (v * 10) + (*p - '0');
+    any = 1;
+    p++;
+  }
+  if (!any) {
+    return 0u;
+  }
+  *out = neg ? -v : v;
+  return 1u;
+}
+
+/**
+ * @brief Jalankan satu muatan perintah dari dashboard.
+ *
+ * Aturan yang sama dengan konsol berlaku di sini: selama mode otomatis menyala,
+ * LDR yang menentukan kecerahan dan permintaan dim ditolak. Dashboard memang
+ * sudah mematikan slidernya, tapi papan tidak boleh bergantung pada itu -
+ * perintah bisa datang dari klien mana pun yang tahu topiknya.
+ */
+static void mq_apply_command(const char *payload) {
+  long v = 0;
+  uint8_t did = 0;
+
+  if (strstr(payload, "\"auto\"") != NULL) {
+    uint8_t want = (strstr(payload, "true") != NULL) ? 1u : 0u;
+
+    if (want != dim_auto) {
+      dim_auto = want;
+      if (dim_auto) {
+        ldr_avg = ldr_read();
+      }
+    }
+    printf("MQTT    command: auto %s\r\n", dim_auto ? "on" : "off");
+    did = 1;
+  }
+
+  /* Relai lebih dulu daripada dim: menyalakan lampu lalu menyetel
+     kecerahannya dalam satu perintah harus berakhir pada kecerahan itu, bukan
+     pada nilai lama yang sempat terpasang sesaat. */
+  if (strstr(payload, "\"relay\"") != NULL) {
+    uint8_t want = (strstr(payload, "\"on\"") != NULL) ? 1u : 0u;
+
+    relay_set(want);
+    printf("MQTT    command: relay %s\r\n", want ? "on" : "off");
+    did = 1;
+  }
+
+  if (json_int(payload, "\"dim\"", &v)) {
+    if (dim_auto) {
+      printf("MQTT    command: dim %ld ignored, the LDR is driving\r\n", v);
+    } else {
+      if (v < 0) {
+        v = 0;
+      }
+      if (v > 100) {
+        v = 100;
+      }
+      dim_set_permille((uint16_t) (v * 10));
+      printf("MQTT    command: dim %ld %%\r\n", v);
+    }
+    did = 1;
+  }
+
+  if (did) {
+    mq_cmds++;
+    mq_next_pub = HAL_GetTick();   /* laporkan keadaan barunya segera */
+  } else {
+    printf("MQTT    command not understood: %s\r\n", payload);
+  }
+}
+
+/**
+ * @brief Tangani satu baris lengkap dari modem.
+ *
+ * Dipanggil untuk setiap baris, apa pun keadaannya - termasuk pesan tak diminta
+ * seperti +QMTSTAT yang bisa datang kapan saja.
+ */
+static void mq_on_line(const char *s) {
+  /* Pesan masuk dari dashboard. Datang kapan saja - termasuk di tengah
+     penerbitan - jadi ditangani sebelum urusan keadaan. */
+  if (strstr(s, "+QMTRECV:") != NULL) {
+    const char *body = strchr(s, '{');
+
+    if (body != NULL) {
+      mq_apply_command(body);
+    } else {
+      printf("MQTT    command without a body: %s\r\n", s);
+    }
+    return;
+  }
+
+  /* Sesi ke broker putus. Bisa datang di keadaan apa pun, termasuk saat kita
+     sedang menunggu hal lain, jadi diperiksa lebih dulu daripada yang lain. */
+  if (strstr(s, "+QMTSTAT:") != NULL) {
+    if (mq_state >= MQ_CONN) {
+      printf("MQTT    broker dropped us: %s\r\n", s);
+      /* Yang putus hanya lapisan MQTT-nya. Jaringan, konteks data, dan setelan
+         TLS semuanya masih berdiri, jadi mengulang dari pendaftaran jaringan
+         membuang menit-menit percuma - dan selama itu tiap perintah dari
+         dashboard ikut hilang. Cukup bangun ulang sesinya.
+
+         Kalau ternyata jaringannya yang bermasalah, QMTOPEN akan gagal dan
+         jalur panjang tetap dipakai sebagai cadangan. */
+      mq_tries++;
+      if (mq_tries <= 3u) {
+        mq_go(MQ_CLOSE, 15000u);
+        modem_send("AT+QMTCLOSE=0");
+      } else {
+        mq_tries = 0;
+        mq_go(MQ_WAIT, MQTT_RETRY_MS);
+      }
+    }
+    return;
+  }
+
+  switch (mq_state) {
+  case MQ_PING:
+    if (strstr(s, "OK") != NULL) {
+      modem_send("ATE0");          /* gema modem hanya menambah derau */
+      mq_net_ok = 0;
+      mq_go(MQ_NET, 90000u);
+    }
+    break;
+
+  case MQ_NET:
+    if (strstr(s, "+CEREG: 0,1") != NULL || strstr(s, "+CEREG: 0,5") != NULL) {
+      mq_net_ok = 1;               /* data; tunggu OK penutupnya */
+    } else if (strstr(s, "+CEREG:") != NULL) {
+      mq_net_ok = 0;
+    } else if (mq_net_ok && strstr(s, "OK") != NULL) {
+      mq_tries = 0;
+      mq_go(MQ_APN, 15000u);
+      modem_send("AT+QICSGP=1,1,\"internet\",\"\",\"\",1");
+    }
+    break;
+
+  case MQ_APN:
+    if (strstr(s, "OK") != NULL) {
+      mq_go(MQ_PDP, 60000u);
+      modem_send("AT+QIACT=1");
+    } else if (strstr(s, "ERROR") != NULL) {
+      mq_go(MQ_WAIT, MQTT_RETRY_MS);
+    }
+    break;
+
+  case MQ_PDP:
+    if (strstr(s, "OK") != NULL || strstr(s, "ERROR") != NULL) {
+      /* ERROR di sini BISA berarti konteks sudah aktif dari sesi sebelumnya,
+         tapi bisa juga berarti gagal betulan. Dulu keduanya dianggap sama dan
+         mesin melaju ke QMTOPEN yang lalu dijawab -1 "gagal buka jaringan" -
+         kegagalan yang sebenarnya berasal dari dua langkah sebelumnya.
+         Jadi sekarang ditanyakan, bukan diduga. */
+      mq_go(MQ_PDPCHK, 15000u);
+      mq_net_ok = 0;
+      modem_send("AT+QIACT?");
+    }
+    break;
+
+  case MQ_PDPCHK:
+    if (strstr(s, "+QIACT: 1,1") != NULL) {
+      mq_net_ok = 1;               /* data; tunggu OK penutupnya */
+    } else if (mq_net_ok && strstr(s, "OK") != NULL) {
+      mq_cfg_step = 0;
+      mq_go(MQ_SSL, 15000u);
+      modem_send("AT+QMTCFG=\"ssl\",0,1,0");
+    } else if (strstr(s, "OK") != NULL || strstr(s, "ERROR") != NULL) {
+      printf("MQTT    no data context yet, backing off\r\n");
+      mq_go(MQ_WAIT, MQTT_RETRY_MS);
+    }
+    break;
+
+  case MQ_SSL:
+    /* Empat setelan berurutan, satu per jawaban. ERROR pun dilanjutkan: sebagian
+       modem menolak salah satu kunci tapi tetap bisa ber-TLS, dan berhenti di
+       sini hanya akan membuat papan diam selamanya. */
+    if (strstr(s, "OK") != NULL || strstr(s, "ERROR") != NULL) {
+      mq_cfg_step++;
+      switch (mq_cfg_step) {
+      case 1:
+        modem_send("AT+QSSLCFG=\"seclevel\",0,0");
+        break;
+      case 2:
+        modem_send("AT+QSSLCFG=\"sslversion\",0,4");
+        break;
+      case 3:
+        modem_send("AT+QSSLCFG=\"ciphersuite\",0,0XFFFF");
+        break;
+      case 4:
+        /* Sesi BERSIH. Bawaan modem adalah sesi persisten, dan dipasangkan
+           dengan langganan QoS 1 itu berarti broker menyimpan setiap perintah
+           yang datang selagi papan offline, lalu menumpahkan semuanya saat
+           papan kembali. Satu malam mati listrik akan memutar ulang seharian
+           klik dashboard dalam beberapa detik.
+
+           Perintah terakhir tetap sampai setelah tersambung ulang - lewat
+           pesan TERSIMPAN di topik perintah, yang memang cuma menyimpan satu
+           yang terbaru dan punya umur lima menit. Itu jalur yang benar untuk
+           "kejar keadaan terkini"; antrean offline jalur yang salah. */
+        modem_send("AT+QMTCFG=\"session\",0,1");
+        break;
+      default:
+        mq_go(MQ_CLOSE, 15000u);
+        modem_send("AT+QMTCLOSE=0");
+        break;
+      }
+      mq_deadline = HAL_GetTick() + 15000u;
+    }
+    break;
+
+  case MQ_CLOSE:
+    /* Berhasil atau tidak sama saja: yang penting klien 0 bebas. Tanpa ini
+       QMTOPEN dijawab +QMTOPEN: 0,2 - nomor klien masih dipegang sesi lama. */
+    if (strstr(s, "OK") != NULL || strstr(s, "ERROR") != NULL) {
+      /* Jangan langsung membuka. Melepas soket butuh waktu di dalam modem, dan
+         QMTOPEN yang menyusul terlalu cepat dijawab -1 "gagal buka jaringan" -
+         kegagalan yang terlihat seperti masalah jaringan padahal murni soal
+         jeda. Urutan manual yang berhasil selalu punya jeda dua detik di sini;
+         mesin ini dulu tidak, dan itu satu-satunya bedanya. */
+      mq_go(MQ_SETTLE, 3000u);
+    }
+    break;
+
+  case MQ_OPEN:
+    if (strstr(s, "+QMTOPEN: 0,0") != NULL) {
+      mq_go(MQ_CONN, 30000u);
+      modem_send("AT+QMTCONN=0,\"" MQTT_CLIENT_ID "\"");
+    } else if (strstr(s, "+QMTOPEN:") != NULL || strstr(s, "ERROR") != NULL) {
+      printf("MQTT    open failed: %s\r\n", s);
+      mq_go(MQ_WAIT, MQTT_RETRY_MS);
+    }
+    break;
+
+  case MQ_CONN:
+    if (strstr(s, "+QMTCONN: 0,0,0") != NULL) {
+      printf("MQTT    connected to " MQTT_BROKER_HOST "\r\n");
+      mq_tries = 0;
+      mq_go(MQ_SUB, 20000u);
+      /* QoS 1, bukan 0. Dengan QoS 0 broker mengirim perintah sekali saja,
+         tanpa konfirmasi dan tanpa pengulangan: radio yang tersendat tepat
+         pada detik itu membuat perintah hilang tanpa jejak di mana pun -
+         dashboard menganggapnya terkirim, papan tidak pernah menerimanya,
+         dan gejalanya "kadang menjawab kadang tidak". QoS 1 membuat broker
+         menunggu pengakuan dan mengulang bila perlu. Modem yang mengirim
+         PUBACK-nya sendiri, jadi tidak ada tambahan kerja di sisi kita. */
+      modem_send("AT+QMTSUB=0,1,\"" MQTT_CMD_TOPIC "\",1");
+    } else if (strstr(s, "+QMTCONN:") != NULL || strstr(s, "ERROR") != NULL) {
+      printf("MQTT    connect refused: %s\r\n", s);
+      mq_go(MQ_WAIT, MQTT_RETRY_MS);
+    }
+    break;
+
+  case MQ_SUB:
+    if (strstr(s, "+QMTSUB: 0,1,0") != NULL) {
+      printf("MQTT    listening on " MQTT_CMD_TOPIC "\r\n");
+      mq_tries = 0;
+      mq_next_pub = HAL_GetTick();      /* terbitkan segera, jangan tunggu */
+      mq_go(MQ_IDLE, 0u);
+    } else if (strstr(s, "+QMTSUB:") != NULL || strstr(s, "ERROR") != NULL) {
+      /* Tanpa langganan papan tetap bisa melapor, hanya tidak bisa disetir.
+         Lebih baik jalan separuh daripada tidak sama sekali. */
+      printf("MQTT    subscribe failed, telemetry only: %s\r\n", s);
+      mq_next_pub = HAL_GetTick();
+      mq_go(MQ_IDLE, 0u);
+    }
+    break;
+
+  case MQ_ACK:
+    if (strstr(s, "+QMTPUB: 0,0,0") != NULL) {
+      mq_sent++;
+      mq_next_pub = HAL_GetTick() + MQTT_PERIOD_MS;
+      mq_go(MQ_IDLE, 0u);
+    } else if (strstr(s, "+QMTPUB:") != NULL || strstr(s, "ERROR") != NULL) {
+      mq_failed++;
+      printf("MQTT    publish failed: %s\r\n", s);
+      mq_go(MQ_WAIT, MQTT_RETRY_MS);
+    }
+    break;
+
+  default:
+    break;
+  }
+}
+
+/**
+ * @brief Satu putaran mesin keadaan. Dipanggil dari loop utama tiap 100 ms.
+ */
+static void mqtt_service(void) {
+  uint32_t now;
+
+  if (!mq_enabled) {
+    /* Tetap kuras dan gemakan. Dulu fungsi ini langsung kembali, sehingga
+       mematikan mesin juga membungkam seluruh balasan modem - persis saat
+       seseorang ingin memeriksanya dengan tangan. */
+    while (md_tail != md_head) {
+      uint8_t b = md_ring[md_tail];
+      md_tail = (uint16_t) ((md_tail + 1u) % MODEM_RING_SIZE);
+      if (b == '\r' || b == '\n' || (b >= 0x20u && b < 0x7Fu)) {
+        printf("%c", (char) b);
+      }
+    }
+    return;
+  }
+
+  /* Kuras cincin modem jadi baris utuh. Tanda > datang tanpa akhir baris,
+     jadi diperiksa byte per byte, bukan per baris. */
+  while (md_tail != md_head) {
+    uint8_t b = md_ring[md_tail];
+    md_tail = (uint16_t) ((md_tail + 1u) % MODEM_RING_SIZE);
+
+    if (mq_state == MQ_PROMPT && b == '>') {
+      modem_raw(mq_body, mq_body_len);
+      modem_raw("\x1A", 1);            /* Ctrl+Z menutup muatan */
+      mq_go(MQ_ACK, 20000u);
+      continue;
+    }
+
+    if (b == '\n' || b == '\r') {
+      if (mq_len > 0u) {
+        mq_line[mq_len] = '\0';
+        if (mq_verbose) {
+          printf("        < %s\r\n", mq_line);
+        }
+        mq_on_line(mq_line);
+        mq_len = 0;
+      }
+    } else if (mq_len < (sizeof mq_line - 1u)) {
+      mq_line[mq_len++] = (char) b;
+    }
+  }
+
+  now = HAL_GetTick();
+
+  /* Langkah yang sudah lewat batas waktunya. MQ_IDLE tidak punya batas. */
+  if (mq_state != MQ_IDLE && mq_state != MQ_SETTLE
+      && (int32_t) (now - mq_deadline) >= 0) {
+    if (mq_state == MQ_NET) {
+      /* Tidak kunjung terdaftar. Sekali modem benar-benar berhenti mencari,
+         dan hanya radio yang diputar yang menolong. */
+      mq_radio_up = 0;
+      mq_go(MQ_RADIO, 30000u);
+      modem_send("AT+CFUN=0");
+      return;
+    }
+    if (mq_state == MQ_WAIT) {
+      mq_go(MQ_PING, 10000u);
+      modem_send("AT");
+      return;
+    }
+    mq_failed++;
+    printf("MQTT    %s timed out\r\n", mq_state_name(mq_state));
+    mq_go(MQ_WAIT, MQTT_RETRY_MS);
+    return;
+  }
+
+  switch (mq_state) {
+  case MQ_BOOT:
+    /* Modul butuh beberapa detik menyala sebelum menjawab AT. */
+    if ((int32_t) (now - mq_deadline) >= 0) {
+      mq_go(MQ_PING, 10000u);
+      modem_send("AT");
+    }
+    break;
+
+  case MQ_RADIO:
+    /* CFUN=0 sudah dikirim saat masuk sini; nyalakan lagi di tengah jendela. */
+    if (!mq_radio_up && (int32_t) (now - (mq_deadline - 25000u)) >= 0) {
+      mq_radio_up = 1;
+      modem_send("AT+CFUN=1");
+    }
+    if ((int32_t) (now - (mq_deadline - 5000u)) >= 0) {
+      mq_go(MQ_NET, 90000u);
+    }
+    break;
+
+  case MQ_NET:
+    /* Tanya keadaan jaringan tiap dua detik sampai terdaftar, dan sesekali
+       pastikan radionya memang menyala - CFUN=0 yang tertinggal membuat papan
+       menunggu selamanya tanpa pernah menyebut sebabnya. */
+    if (((now / 2000u) != ((now - 100u) / 2000u))) {
+      modem_send("AT+CEREG?");
+    }
+    if (((now / 20000u) != ((now - 100u) / 20000u))) {
+      modem_send("AT+CFUN=1");
+    }
+    break;
+
+  case MQ_SETTLE:
+    /* Batas waktunya sekaligus jedanya: begitu lewat, barulah membuka. */
+    if ((int32_t) (now - mq_deadline) >= 0) {
+      mq_go(MQ_OPEN, 45000u);
+      modem_send("AT+QMTOPEN=0,\"" MQTT_BROKER_HOST "\",8883");
+    }
+    break;
+
+  case MQ_IDLE: {
+    uint8_t due = ((int32_t) (now - mq_next_pub) >= 0) ? 1u : 0u;
+
+    /* Kecerahan sudah bergeser jauh dari yang terakhir dilaporkan, dan jeda
+       minimum sudah lewat: laporkan lebih awal tanpa menunggu giliran. */
+    if (!due && dim_auto
+        && (int32_t) (now - (mq_last_pub + MQTT_AUTO_MIN_MS)) >= 0) {
+      uint16_t moved = (dim_level > mq_pub_level)
+                         ? (uint16_t) (dim_level - mq_pub_level)
+                         : (uint16_t) (mq_pub_level - dim_level);
+      if (moved >= MQTT_AUTO_DELTA) {
+        due = 1u;
+      }
+    }
+
+    if (due) {
+      mq_build_body();
+      if (mq_body_len == 0u) {
+        mq_next_pub = now + MQTT_PERIOD_MS;
+        break;
+      }
+      /* Dicatat di sini, bukan setelah +QMTPUB: yang dijaga adalah jarak
+         antar PERMINTAAN kirim. Kalau yang ini gagal, pengulangannya tidak
+         boleh ikut memicu laporan cepat berikutnya seketika. */
+      mq_pub_level = dim_level;
+      mq_last_pub = now;
+      modem_send("AT+QMTPUB=0,0,0,0,\"" MQTT_TOPIC "\"");
+      mq_go(MQ_PROMPT, 10000u);
+    }
+    break;
+  }
+
+  default:
+    break;
+  }
+}
+
+/**
+ * @brief Mulai dari awal: dipakai saat boot dan oleh perintah konsol.
+ */
+static void mqtt_restart(void) {
+  mq_state = MQ_BOOT;
+  mq_deadline = HAL_GetTick() + 3000u;
+  mq_len = 0;
+  mq_tries = 0;
+}
+
+/**
+ * @brief Laporan singkat keadaan jalur 4G untuk perintah status.
+ */
+static void print_mqtt(void) {
+  printf("MQTT    %s   sent %lu   failed %lu   commands %lu   %s\r\n",
+         mq_enabled ? mq_state_name(mq_state) : "off",
+         (unsigned long) mq_sent, (unsigned long) mq_failed,
+         (unsigned long) mq_cmds,
+         mq_verbose ? "trace on" : "trace off");
+  printf("        broker " MQTT_BROKER_HOST ":%u   topic " MQTT_TOPIC "\r\n",
+         (unsigned) MQTT_BROKER_PORT);
+  if (mq_state == MQ_IDLE) {
+    uint32_t left = (mq_next_pub - HAL_GetTick()) / 1000u;
+    printf("        next publish in %lu s\r\n", (unsigned long) left);
+  }
+}
+
 /**
  * @brief Run one complete command line. Called from the main loop, never the ISR.
  */
@@ -2535,9 +3302,43 @@ static void handle_line(char *s) {
      the first letter - so AT would silently run 'a' and start the LDR log.
      Say what happened instead of doing something unrelated. */
   if ((s[0] == 'a' || s[0] == 'A') && (s[1] == 't' || s[1] == 'T')) {
-    printf("No modem on this board: USART2 is the console now. See ? MODEM.\r\n");
+#if MODEM_BRINGUP
+    /* Diteruskan apa adanya. Balasannya datang belakangan dan dicetak sendiri
+       oleh modem_service() dari loop utama. */
+    modem_send(s);
+#else
+    printf("No modem in this build: USART2 is the console. See ? MODEM.\r\n");
+#endif
     return;
   }
+
+#if MODEM_BRINGUP
+  /* Terbitkan satu muatan telemetri lewat modem. */
+  if ((s[0] == 'p' || s[0] == 'P') && (s[1] == 'u' || s[1] == 'U')
+      && (s[2] == 'b' || s[2] == 'B')) {
+    const char *a = s + 3;
+
+    while (*a == ' ' || *a == '\t') {
+      a++;
+    }
+    if (*a == 'r' || *a == 'R') {
+      mqtt_restart();
+      printf("MQTT    restarting from the top\r\n");
+    } else if (*a == 't' || *a == 'T') {
+      mq_verbose = mq_verbose ? 0u : 1u;
+      printf("MQTT    trace %s\r\n", mq_verbose ? "on" : "off");
+    } else if (*a == 'o' || *a == 'O') {
+      mq_enabled = mq_enabled ? 0u : 1u;
+      printf("MQTT    %s\r\n", mq_enabled ? "enabled" : "disabled");
+    } else if (mq_state == MQ_IDLE) {
+      mq_next_pub = HAL_GetTick();     /* terbitkan di putaran berikutnya */
+      printf("MQTT    publishing now\r\n");
+    } else {
+      print_mqtt();
+    }
+    return;
+  }
+#endif
 
   /* GPS commands are words, because g on its own is already the dimmer curve.
      They sit before the switch for the same reason set, save and zero do. */
@@ -2808,10 +3609,60 @@ static void handle_line(char *s) {
  * receiver moved into the console's old socket on PB10/PB11.
  */
 static void console_init(void) {
+  HAL_NVIC_SetPriority(CONSOLE_IRQN, 5, 0);
+  HAL_NVIC_EnableIRQ(CONSOLE_IRQN);
+  __HAL_UART_ENABLE_IT(&CONSOLE_UART, UART_IT_RXNE);
+}
+
+#if MODEM_BRINGUP
+/**
+ * @brief Buka USART2 untuk modem Quectel. CubeMX sudah membukanya di 115200
+ *        8N1, yang memang rate autobaud modul itu, jadi tinggal interupsinya.
+ */
+static void modem_init(void) {
   HAL_NVIC_SetPriority(USART2_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(USART2_IRQn);
   __HAL_UART_ENABLE_IT(&huart2, UART_IT_RXNE);
 }
+
+/**
+ * @brief Simpan satu byte dari modem. Dipanggil dari ISR.
+ */
+void modem_rx_push(uint8_t b) {
+  uint16_t next = (uint16_t) ((md_head + 1u) % MODEM_RING_SIZE);
+
+  if (next != md_tail) {
+    md_ring[md_head] = b;
+    md_head = next;
+  }
+}
+
+/**
+ * @brief Kirim byte apa adanya ke modem - tanpa CR, tanpa LF.
+ *
+ * Muatan MQTT harus tiba persis sepanjang yang dijanjikan, jadi tidak boleh
+ * ada karakter tambahan yang diselipkan.
+ */
+static void modem_raw(const char *s, uint16_t n) {
+  HAL_UART_Transmit(&huart2, (uint8_t *) s, n, 1000);
+}
+
+/**
+ * @brief Kirim satu baris AT, diakhiri cara yang modem harapkan.
+ */
+static void modem_send(const char *s) {
+  uint16_t n = 0;
+
+  while (s[n] != '\0' && n < (LINE_MAX - 1u)) {
+    n++;
+  }
+  if (n == 0u) {
+    return;
+  }
+  HAL_UART_Transmit(&huart2, (uint8_t *) s, n, 500);
+  HAL_UART_Transmit(&huart2, (uint8_t *) "\r\n", 2, 100);
+}
+#endif
 
 /**
  * @brief Open USART3 for the GPS receiver on PB10/PB11.
@@ -3329,6 +4180,22 @@ static void gps_save_site(void) {
 static void print_gps(void) {
   uint32_t quiet;
 
+#if MODEM_BRINGUP
+  /* USART3 sedang dipakai konsol, jadi tidak ada penerima yang mendengarkan.
+     Letak tiang tetap diketahui - itulah gunanya disimpan ke flash. */
+  printf("GPS     off in this build: USART3 carries the console\r\n");
+  if (site_set) {
+    printf("        site ");
+    put_udeg(site_lat);
+    printf("  ");
+    put_udeg(site_lon);
+    printf("   (saved)\r\n");
+  } else {
+    printf("        no site saved either - type gps set <lat> <lon>\r\n");
+  }
+  return;
+#endif
+
   if (gps_rx_tick == 0u) {
     printf("GPS     nothing on PB11 yet (USART3 at %lu baud)\r\n",
            (unsigned long) gps_baud);
@@ -3459,7 +4326,7 @@ static void rx_service(void) {
  */
 int _write(int file, char *ptr, int len) {
   (void) file;
-  HAL_UART_Transmit(&huart2, (uint8_t *) ptr, (uint16_t) len, HAL_MAX_DELAY);
+  HAL_UART_Transmit(&CONSOLE_UART, (uint8_t *) ptr, (uint16_t) len, HAL_MAX_DELAY);
   return len;
 }
 /* USER CODE END 4 */

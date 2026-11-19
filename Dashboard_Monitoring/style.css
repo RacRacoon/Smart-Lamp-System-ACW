@@ -624,14 +624,16 @@ select:focus-visible,
 
 /* Sidebar Layout */
 .sidebar {
-    /* 260px -> 300px: sidebar-footer-row sekarang nampung 3 item (role-badge + toggle
-       tema + logout), bukan 2 kayak sebelum tombol toggle ditambah - lebar lama bikin
-       tombol logout mepet ujung kanan, apalagi role "Petugas Monitoring" yang teksnya
-       lebih panjang dari "Admin". */
-    width: 300px;
+    /* 300px -> 232px, jadi area konten dapat 68px tambahan - paling kerasa di tabel
+       Riwayat Data dan grid kartu Monitor Lampu. Lebar 300px sebelumnya dipakai supaya
+       role-badge "Petugas Monitoring" sejajar dengan dua tombol ikon dalam satu baris;
+       badge itu sekarang punya barisnya sendiri (lihat .sidebar-footer-row), jadi lebar
+       sidebar tidak lagi ditentukan oleh baris footer. Label menu terpanjang ("Kotak
+       Peringatan" plus badge jumlah peringatan) tetap utuh di lebar baru ini. */
+    width: 232px;
     flex-shrink: 0;
     background-color: var(--bg-card);
-    padding: 20px;
+    padding: 20px 16px;
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
@@ -663,13 +665,16 @@ select:focus-visible,
     background-color: var(--text-muted);
 }
 
+/* Kolom, bukan baris: indikator koneksi dan baris peran/tombol masing-masing memakai
+   lebar penuh sidebar. Sewaktu keduanya berdampingan, teks "Menghubungkan..." harus
+   berbagi 300px dengan role-badge dan dua tombol, dan itu menahan lebar sidebar. */
 .sidebar-footer {
     margin-top: auto;
     padding-top: 16px;
     border-top: 1px solid var(--border);
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: stretch;
     gap: 8px;
 }
 
@@ -746,8 +751,8 @@ select:focus-visible,
 
 .sidebar h2 {
     color: var(--text-main);
-    margin-bottom: 30px;
-    font-size: 22px;
+    margin-bottom: 22px;
+    font-size: 19px;
     text-align: center;
 }
 
@@ -780,7 +785,7 @@ select:focus-visible,
 }
 
 .sidebar ul li {
-    padding: 10px 15px;
+    padding: 10px 12px;
     margin-bottom: 4px;
     border-radius: var(--radius-sm);
     cursor: pointer;
@@ -794,7 +799,7 @@ select:focus-visible,
     font-size: 14px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .nav-icon {
@@ -805,6 +810,12 @@ select:focus-visible,
 
 .nav-label {
     flex: 1;
+}
+
+/* Label menu tidak boleh membungkus - satu item yang jadi dua baris merusak jarak
+   vertikal seluruh daftar. */
+.sidebar .nav-label {
+    white-space: nowrap;
 }
 
 .sidebar ul li:hover {
@@ -826,12 +837,16 @@ select:focus-visible,
     opacity: 1;
 }
 
+/* Dirapatkan dari 2px 8px/12px: di sidebar 232px, badge jumlah peringatan berbagi
+   baris dengan label menu terpanjang ("Kotak Peringatan"), dan ukuran lamanya
+   mendorong label itu membungkus jadi dua baris begitu angkanya dua digit. */
 .badge {
     background-color: var(--danger);
     color: white;
-    padding: 2px 8px;
+    padding: 1px 6px;
     border-radius: 10px;
-    font-size: 12px;
+    font-size: 11px;
+    flex-shrink: 0;
 }
 
 /* --- Indikator koneksi WebSocket real-time (sidebar footer) --- */
@@ -841,7 +856,6 @@ select:focus-visible,
     gap: 8px;
     font-size: 12px;
     color: var(--text-muted);
-    margin-bottom: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -866,11 +880,19 @@ select:focus-visible,
     box-shadow: 0 0 6px rgba(242, 61, 61, 0.7);
 }
 
+/* Badge peran mengambil barisnya sendiri lewat flex-basis 100%, dua tombol ikon turun
+   ke baris di bawahnya. "PETUGAS MONITORING" butuh sekitar 165px pada 12px uppercase,
+   sedangkan satu baris bersama dua tombol 36px hanya menyisakan 112px di lebar 232px -
+   teksnya akan terpotong ellipsis. */
 .sidebar-footer-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
+}
+
+.sidebar-footer-row .role-badge {
+    flex: 1 1 100%;
 }
 
 /* Main Content Area */
@@ -1853,9 +1875,15 @@ header h1 {
     -moz-appearance: none;
     appearance: none;
     width: 100%;
-    height: 6px;
-    border-radius: 3px;
-    background: #445068;
+    /* content-box, melawan aturan global * { box-sizing: border-box }.
+       Dengan border-box, height 6px sudah TERMASUK padding 12px atas-bawah,
+       sehingga kotak isinya nol tinggi - dan background-clip: content-box lalu
+       melukis warna di area setinggi nol. Jalurnya ada, hanya tak pernah
+       tergambar: yang terlihat cuma bulatan penggesernya, melayang tanpa rel. */
+    box-sizing: content-box;
+    height: 8px;
+    border-radius: 4px;
+    background: #4a5873;
     outline: none;
     /* Perbesar area sentuh vertikal tanpa mengubah tampilan track (aksesibilitas touch) */
     padding: 12px 0;
@@ -1881,14 +1909,14 @@ header h1 {
    native OS (kotak kecil nyaris tak kelihatan di background gelap) */
 .slider::-moz-range-track {
     width: 100%;
-    height: 6px;
-    border-radius: 3px;
-    background: #445068;
+    height: 8px;
+    border-radius: 4px;
+    background: #4a5873;
 }
 
 .slider::-moz-range-progress {
-    height: 6px;
-    border-radius: 3px;
+    height: 8px;
+    border-radius: 4px;
     background: var(--primary);
 }
 
@@ -2829,6 +2857,23 @@ input:checked+.slider-round:before {
         white-space: nowrap;
     }
 
+    /* Sidebar selebar layar di sini, jadi pemisahan baris yang dipakai di layar lebar
+       tidak diperlukan - ketiga item kembali sejajar seperti sebelumnya. */
+    .sidebar-footer {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .sidebar-footer-row {
+        flex-wrap: nowrap;
+        justify-content: flex-end;
+    }
+
+    .sidebar-footer-row .role-badge {
+        flex: 1 1 auto;
+    }
+
     .main-content {
         padding: 16px;
     }
@@ -3114,4 +3159,42 @@ input:checked+.slider-round:before {
         right: 16px;
         bottom: 16px;
     }
+}
+/* --- Halaman Pengaturan Akun --- */
+.account-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+}
+
+.account-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.account-info-label {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.account-info-value {
+    color: var(--text-main);
+    font-size: 15px;
+}
+
+/* Label membungkus input-nya, jadi mengklik teksnya ikut memindahkan fokus ke
+   kotak isian di bawahnya. */
+.account-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.account-field .input-control {
+    width: 100%;
 }

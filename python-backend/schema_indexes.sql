@@ -29,3 +29,11 @@ ON alerts (created_at DESC);
 -- angkanya berhenti di nol.
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS lamp_hours DOUBLE PRECISION NOT NULL DEFAULT 0;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS lamp_seen  TIMESTAMP;
+
+-- Keadaan relai & mode otomatis terakhir yang dilaporkan papan. Database yang
+-- dibuat sebelum kedua kolom ini ada tetap jalan setelah berkas ini dijalankan;
+-- tanpa keduanya, saklar di dashboard selalu kembali ke posisi MATI tiap halaman
+-- dimuat ulang, karena tidak ada tempat menyimpan keadaan papan di antara dua
+-- telemetri.
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS relay_on  BOOLEAN;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS auto_mode BOOLEAN;

@@ -9,6 +9,7 @@ begitu pesan MQTT diterima.
 """
 import json
 import logging
+import threading
 import time
 import uuid
 
@@ -25,6 +26,19 @@ logger = logging.getLogger("acw.mqtt")
 # saat backend dinyalakan ulang, dan itu justru yang diinginkan - setelah
 # restart, gangguan yang masih berlangsung layak dilaporkan sekali lagi.
 _alert_seen: dict[tuple[str, str], float] = {}
+
+# Penghapus perintah tersimpan, satu per perangkat.
+#
+# Perintah diterbitkan dengan retain=True supaya tidak hilang saat perangkat
+# sedang menyambung ulang - itu tetap perlu. Tapi "tersimpan" di MQTT berarti
+# SELAMANYA: lampu yang dimatikan dari dashboard malam ini akan menerima
+# perintah mati itu lagi setiap kali ia menyala, berminggu-minggu kemudian,
+# dan dari luar terlihat seperti perangkat yang menolak bekerja.
+#
+# Protokolnya sendiri tidak punya kedaluwarsa, dan pesan tersimpan tidak
+# membawa stempel waktu - perangkat tak punya cara menilai umurnya. Jadi yang
+# menghapus adalah pihak yang tahu kapan ia menerbitkan: backend ini.
+_retain_timers: dict[str, threading.Timer] = {}
 
 
 def _alert_due(device_id: str, alert_type: str) -> bool:
@@ -71,6 +85,13 @@ def _parse_payload(topic: str, raw: dict) -> dict:
     # dim saja - itu yang menentukan apakah lampu benar-benar menua.
     lamp_on = dim > 0 and str(raw.get("relay", "on")).lower() != "off"
 
+    # Keadaan yang DIAKUI papan di telemetri ini - dasar posisi saklar di
+    # dashboard. None berarti papan tidak melaporkannya, bukan "mati": kolomnya
+    # tidak boleh ditimpa oleh tebakan, karena nilai lama masih lebih benar
+    # daripada nilai karangan.
+    relay_on = None if raw.get("relay") is None else str(raw["relay"]).lower() != "off"
+    auto_mode = None if raw.get("auto") is None else bool(raw["auto"])
+
     return {
         "device_id": device_id,
         "sector": sector,
@@ -83,6 +104,8 @@ def _parse_payload(topic: str, raw: dict) -> dict:
         "lamp_on": lamp_on,
         "volt_reported": volt_reported,
         "dim": dim,
+        "relay_on": relay_on,
+        "auto_mode": auto_mode,
     }
 
 
@@ -140,6 +163,15 @@ def _handle_telemetry(data: dict) -> None:
     except Exception:
         logger.exception("Gagal memperbarui usia pakai lampu untuk %s", device_id)
 
+    # Keadaan papan disimpan supaya bertahan melewati muat ulang dashboard,
+    # restart backend, dan login baru. Sebelum ini tidak ada yang menyimpannya:
+    # saklar relai & auto selalu kembali ke posisi MATI tiap halaman dibuka,
+    # apa pun yang sedang terjadi pada lampu sebenarnya.
+    try:
+        db.save_reported_state(device_id, data["relay_on"], data["auto_mode"])
+    except Exception:
+        logger.exception("Gagal menyimpan keadaan relai/auto untuk %s", device_id)
+
     health = alerts.classify_health(data["uptime_hours"])
 
     try:
@@ -159,6 +191,12 @@ def _handle_telemetry(data: dict) -> None:
         "current": data["current"],
         "power": data["power"],
         "dim": data["dim"],
+        # Saklar di dashboard mengikuti pengakuan papan. Kunci ini sengaja
+        # dihilangkan kalau papan tidak melaporkannya - dashboard membedakan
+        # "tidak dilaporkan" dari "mati" lewat undefined (lihat switchDevice).
+        **({"relay": "on" if data["relay_on"] else "off"}
+           if data["relay_on"] is not None else {}),
+        **({"auto": data["auto_mode"]} if data["auto_mode"] is not None else {}),
         # Posisi hanya ikut kalau memang dilaporkan. Tanpa kunci ini, dashboard
         # menerima lat/lng kosong lalu menggambar penanda di koordinat nol.
         **({"lat": data["lat"], "lng": data["lng"]}
@@ -199,7 +237,20 @@ def _handle_telemetry(data: dict) -> None:
 def _on_connect(client, userdata, flags, rc):
     if rc == 0:
         client.subscribe(config.MQTT_TELEMETRY_TOPIC, qos=1)
-        logger.info("Terhubung ke broker MQTT, subscribe topic %s", config.MQTT_TELEMETRY_TOPIC)
+        # Sebut broker-nya terang-terangan. MQTT_HOST default di config.py itu
+        # broker.emqx.io yang publik, jadi backend yang lupa diberi env var tetap
+        # menyala mulus, tetap bilang "terhubung", dan diam-diam menerbitkan
+        # perintah ke broker orang lain - perangkat tidak pernah menerimanya.
+        # Sudah kejadian: dua backend jalan bareng, yang menjawab localhost justru
+        # yang salah broker, dan gejalanya terbaca seperti NEMA yang membandel.
+        logger.info("Terhubung ke broker MQTT %s:%s, subscribe topic %s",
+                    config.MQTT_HOST, config.MQTT_PORT, config.MQTT_TELEMETRY_TOPIC)
+
+        # Dilakukan di sini, bukan di start(): menerbitkan sesuatu hanya mungkin
+        # setelah benar-benar tersambung. Ikut jalan di tiap sambungan ulang,
+        # dan itu memang yang diinginkan - sambungan yang putus lama juga
+        # meninggalkan perintah tersimpan yang umurnya tidak lagi diketahui.
+        _clear_orphan_retained_commands()
     else:
         logger.error("Gagal konek ke broker MQTT, kode: %s", rc)
 
@@ -222,7 +273,23 @@ _client: mqtt.Client | None = None
 
 
 def start() -> mqtt.Client:
-    """Konek & mulai network loop di thread background (non-blocking), balikin client-nya."""
+    """Mulai network loop MQTT di thread background. TIDAK menunggu sambungan.
+
+    Dulu di sini dipakai client.connect(), yang menyambung secara sinkron dan
+    MELEMPAR kalau broker tidak terjangkau. Karena fungsi ini dipanggil dari
+    event startup FastAPI, lemparan itu menjatuhkan seluruh proses:
+    "Application startup failed. Exiting." Satu broker yang mati membuat
+    dashboard, riwayat telemetri, kotak peringatan, login - semuanya -
+    ikut tidak bisa dibuka, padahal semua itu ada di Postgres dan sama sekali
+    tidak butuh MQTT. Terjadi 21 Okt 2026: server broker turun, dan yang
+    terlihat oleh pengguna adalah "backend error".
+
+    connect_async() menyerahkan penyambungan ke loop background, yang juga
+    mengulang sendiri dengan jeda menanjak. Jadi backend selalu menyala, dan
+    begitu broker kembali ia menyambung tanpa perlu direstart. Keadaan
+    sambungannya tidak disembunyikan - /health melaporkannya (dan menjawab
+    503), jadi yang hilang cuma matinya, bukan kabarnya.
+    """
     global _client
     # Suffix acak per proses - client_id tetap pernah ketabrak sesama instance (restart lama
     # belum lepas, atau dua instance jalan bareng) dan broker.emqx.io menolak terus (CONNACK
@@ -231,10 +298,87 @@ def start() -> mqtt.Client:
     client = mqtt.Client(client_id=client_id, clean_session=True)
     client.on_connect = _on_connect
     client.on_message = _on_message
-    client.connect(config.MQTT_HOST, config.MQTT_PORT, keepalive=60)
+
+    # Jeda ulang menanjak: 1 detik di percobaan pertama sampai 60 detik. Rapat
+    # di awal supaya gangguan sekejap nyaris tak terasa, melebar sesudahnya
+    # supaya broker yang mati berjam-jam tidak dihujani percobaan sambung.
+    client.reconnect_delay_set(min_delay=1, max_delay=60)
+    client.connect_async(config.MQTT_HOST, config.MQTT_PORT, keepalive=60)
     client.loop_start()
     _client = client
+    logger.info("Loop MQTT dimulai, menyambung ke %s:%s di latar belakang",
+                config.MQTT_HOST, config.MQTT_PORT)
     return client
+
+
+def status() -> dict:
+    """Keadaan sambungan MQTT, buat endpoint /health.
+
+    Broker-nya ikut disebut, bukan cuma "tersambung atau tidak". Backend yang
+    tersambung ke broker SALAH tetap menjawab "tersambung" dengan jujur, dan
+    itulah bentuk kegagalan yang paling sulit dilihat: semua tampak sehat,
+    perintah terbit tanpa error, papan tidak pernah menerimanya.
+    """
+    return {
+        "connected": bool(_client is not None and _client.is_connected()),
+        "broker": f"{config.MQTT_HOST}:{config.MQTT_PORT}",
+    }
+
+
+def _clear_retained_command(device_id: str, alasan: str | None = None) -> None:
+    """Hapus perintah tersimpan: muatan kosong, retain tetap True.
+
+    Broker membacanya sebagai perintah hapus, bukan pesan baru - pelanggan
+    berikutnya tidak menerima apa pun saat berlangganan.
+
+    Dipanggil dari dua jalur: timer TTL yang jatuh tempo, dan pembersihan
+    pesan yatim saat tersambung. Alasannya ikut dicatat supaya keduanya bisa
+    dibedakan di log.
+    """
+    _retain_timers.pop(device_id, None)
+    if _client is None:
+        return
+    try:
+        topic = config.MQTT_COMMAND_TOPIC_TEMPLATE.format(device_id=device_id)
+        _client.publish(topic, payload=b"", qos=1, retain=True)
+        logger.info("Perintah tersimpan untuk %s dihapus (%s)", device_id,
+                    alasan or "umur %d detik terlampaui" % config.RETAINED_COMMAND_TTL_SECONDS)
+    except Exception:
+        logger.exception("Gagal menghapus perintah tersimpan untuk %s", device_id)
+
+
+def _clear_orphan_retained_commands() -> None:
+    """Hapus perintah tersimpan yang tidak dijaga timer proses ini.
+
+    Umur perintah tersimpan dijaga oleh timer di MEMORI proses ini, dan itu
+    punya satu lubang: backend yang berhenti - restart, mati listrik, ganti
+    kode - membawa timernya mati bersamanya, sementara pesan tersimpannya
+    tetap hidup di broker SELAMANYA. Tidak ada lagi yang berniat
+    menghapusnya, dan tiap kali papan tersambung ulang broker mengirimkannya
+    lagi. Satu {"relay": "off"} yang tertinggal berarti lampu dipaksa padam
+    setiap kali ia kembali - persis bencana yang TTL ini dibuat untuk
+    mencegah. Terbukti terjadi 13 Okt 2026, setelah restart backend biasa.
+
+    Protokolnya tidak memberi stempel waktu pada pesan tersimpan, jadi umur
+    pesan yang kita temukan di broker TIDAK BISA diketahui. Satu-satunya
+    bacaan yang aman adalah "kedaluwarsa": perintah dari masa lalu yang tak
+    bertuan lebih berbahaya daripada perintah yang hilang, karena yang hilang
+    terlihat - dashboard tetap menampilkan keadaan papan yang sebenarnya.
+
+    Perangkat yang masih punya timer hidup DILEWATI: perintahnya baru saja
+    diterbitkan oleh proses ini, umurnya diketahui, dan masih berhak sampai
+    ke papan yang sedang menyambung ulang.
+    """
+    try:
+        device_ids = db.get_all_device_ids()
+    except Exception:
+        logger.exception("Gagal membaca daftar perangkat untuk membersihkan perintah yatim")
+        return
+
+    for device_id in device_ids:
+        if device_id in _retain_timers:
+            continue
+        _clear_retained_command(device_id, alasan="yatim, tidak ada timer yang menjaganya")
 
 
 def publish_control_command(device_id: str, payload: dict) -> None:
@@ -249,7 +393,39 @@ def publish_control_command(device_id: str, payload: dict) -> None:
     if _client is None:
         raise RuntimeError("MQTT belum konek, panggil start() dulu")
     topic = config.MQTT_COMMAND_TOPIC_TEMPLATE.format(device_id=device_id)
-    _client.publish(topic, json.dumps(payload), qos=1, retain=False)
+
+    # retain=True, dan ini bukan pilihan gaya. Perangkat di jaringan seluler
+    # putus-sambung terus; perintah yang kebetulan terbit saat ia sedang
+    # menyambung ulang akan hilang tanpa jejak - operator menggeser slider,
+    # tidak terjadi apa-apa, dan tidak ada yang memberi tahu kenapa.
+    #
+    # Dengan retained, broker menyimpan perintah TERAKHIR dan mengirimkannya
+    # begitu perangkat berlangganan lagi. Yang disimpan jadi "keadaan yang
+    # diinginkan", bukan "kejadian sesaat" - dan untuk kecerahan serta mode
+    # otomatis, itu memang artinya.
+    info = _client.publish(topic, json.dumps(payload), qos=1, retain=True)
+
+    # Hasilnya DIPERIKSA. Tanpa ini, perintah yang diterbitkan selagi MQTT
+    # terputus tetap membuat endpoint menjawab 200: dashboard melapor
+    # "terkirim", operator menunggu, dan tidak ada apa pun yang memberi tahu
+    # bahwa perintah itu tidak pernah meninggalkan proses ini.
+    if info.rc != mqtt.MQTT_ERR_SUCCESS:
+        raise RuntimeError(
+            "perintah gagal diterbitkan ke broker %s:%s (kode %s) - "
+            "sambungan MQTT sedang terputus"
+            % (config.MQTT_HOST, config.MQTT_PORT, info.rc)
+        )
+
+    # Jadwalkan penghapusannya. Perintah berikutnya membatalkan jadwal lama dan
+    # memulai hitungan baru, jadi yang berlaku selalu umur perintah TERAKHIR.
+    old = _retain_timers.pop(device_id, None)
+    if old is not None:
+        old.cancel()
+    t = threading.Timer(config.RETAINED_COMMAND_TTL_SECONDS,
+                        _clear_retained_command, args=(device_id,))
+    t.daemon = True          # jangan menahan proses saat backend dihentikan
+    t.start()
+    _retain_timers[device_id] = t
 
 
 def publish_dim_command(device_id: str, dim: int) -> None:

@@ -155,6 +155,28 @@ def create_device(device_id: str, sector_name: str, lat: float, lng: float, max_
     )
 
 
+def update_device_sector(device_id: str, sector_name: str) -> dict[str, Any] | None:
+    """Pindahkan satu lampu ke sektor lain. None kalau device_id tidak terdaftar.
+
+    Sektor bukan sekadar label tempat: jadwal kecerahan RTC disimpan PER SEKTOR
+    (tabel sector_schedules), jadi memindahkan lampu berarti menggantikan jadwal
+    yang berlaku untuknya - lampunya sendiri yang mengeksekusi jadwal itu lewat
+    RTC-nya, bukan backend. Riwayat telemetri dan alert TIDAK ikut berubah:
+    keduanya menunjuk device_id, bukan sektor, jadi tidak ada data yang hilang
+    atau berpindah sejarah saat lampu dipindahkan.
+    """
+    rows = _fetch(
+        """
+        UPDATE devices
+        SET sector_name = %s
+        WHERE device_id = %s
+        RETURNING device_id, sector_name;
+        """,
+        (sector_name, device_id),
+    )
+    return rows[0] if rows else None
+
+
 def accrue_lamp_hours(device_id: str, lamp_on: bool, max_gap_seconds: int = 900) -> float:
     """Tambahkan waktu sejak telemetri terakhir ke usia pakai lampu, lalu kembalikan
     totalnya.
@@ -187,6 +209,28 @@ def accrue_lamp_hours(device_id: str, lamp_on: bool, max_gap_seconds: int = 900)
         (lamp_on, max_gap_seconds, device_id),
     )
     return float(rows[0]["lamp_hours"]) if rows else 0.0
+
+
+def save_reported_state(device_id: str, relay_on: bool | None, auto_mode: bool | None) -> None:
+    """Simpan keadaan relai & mode otomatis yang BARU SAJA DILAPORKAN papan.
+
+    Ini bukan catatan perintah yang dikirim dashboard - itu cuma keinginan, dan
+    keinginan bisa tidak terlaksana (sinyal hilang, mode auto menolak perintah dim,
+    atau seseorang mengubahnya dari konsol UART papan). Yang disimpan di sini adalah
+    pengakuan papan sendiri di telemetri terakhirnya.
+
+    Nilai None berarti papan tidak melaporkan field itu - kolomnya dibiarkan apa
+    adanya, tidak ditimpa dengan tebakan.
+    """
+    _run(
+        """
+        UPDATE devices
+        SET relay_on  = COALESCE(%s, relay_on),
+            auto_mode = COALESCE(%s, auto_mode)
+        WHERE device_id = %s;
+        """,
+        (relay_on, auto_mode, device_id),
+    )
 
 
 def insert_telemetry(
@@ -240,6 +284,10 @@ def get_devices_latest() -> list[dict[str, Any]]:
             COALESCE(t.power, 0) AS power,
             COALESCE(d.lamp_hours, 0) AS uptime,
             COALESCE(t.dim, 80) AS dim,
+            -- Keadaan papan, bukan perintah terakhir dashboard. Inilah yang
+            -- dipakai dashboard untuk memasang saklarnya saat halaman dimuat.
+            d.relay_on AS relay_on,
+            d.auto_mode AS auto_mode,
             t.created_at AS last_update
         FROM devices d
         LEFT JOIN telemetry_logs t ON d.device_id = t.device_id
@@ -261,6 +309,8 @@ def get_device_latest(device_id: str) -> dict[str, Any] | None:
             COALESCE(t.power, 0) AS power,
             COALESCE(d.lamp_hours, 0) AS uptime,
             COALESCE(t.dim, 80) AS dim,
+            d.relay_on AS relay_on,
+            d.auto_mode AS auto_mode,
             t.created_at AS last_update
         FROM devices d
         LEFT JOIN telemetry_logs t ON d.device_id = t.device_id
@@ -436,6 +486,14 @@ def replace_sector_schedule(sector_name: str, phases: list[dict[str, Any]]) -> N
         raise
     finally:
         _pool.putconn(conn)
+
+
+def get_all_device_ids() -> list[str]:
+    """Semua device_id terdaftar. Dipakai membersihkan perintah tersimpan yatim
+    di broker saat backend tersambung - lihat
+    mqtt_ingest._clear_orphan_retained_commands()."""
+    rows = _fetch("SELECT device_id FROM devices;", ())
+    return [r["device_id"] for r in rows]
 
 
 def get_device_ids_by_sector(sector_name: str) -> list[str]:

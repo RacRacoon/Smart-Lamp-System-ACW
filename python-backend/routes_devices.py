@@ -30,6 +30,12 @@ class DeviceLatest(BaseModel):
     power: float
     uptime: float
     dim: int
+    # Keadaan terakhir yang dilaporkan papan. WAJIB terdaftar di sini:
+    # response_model FastAPI membuang field yang tidak disebut, jadi kolom
+    # yang sudah benar di database pun tidak akan pernah sampai ke dashboard.
+    # None = papan belum pernah melaporkannya.
+    relay_on: bool | None = None
+    auto_mode: bool | None = None
     last_update: datetime | None = None
 
 

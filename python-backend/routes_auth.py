@@ -18,6 +18,10 @@ import ws_manager
 logger = logging.getLogger("acw.routes.auth")
 router = APIRouter(prefix="/api", tags=["auth"])
 
+# Panjang minimal password baru lewat /api/change-password. Akun yang dibuat
+# langsung lewat SQL atau tools/ganti_password.py tidak melewati jalur ini.
+MIN_PASSWORD_LENGTH = 8
+
 # Kelipatan kegagalan berturut-turut yang memicu alert (3, 6, 9, ...) - lihat
 # auth.record_login_failure() & alerts.repeated_login_failure_alert().
 REPEATED_FAILURE_ALERT_EVERY = 3
@@ -37,6 +41,10 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     role: str
     token: str
+    # Username ikut dikembalikan supaya dashboard bisa menampilkannya di
+    # halaman Pengaturan Akun tanpa menyimpan apa yang diketik di form login.
+    # Yang dikirim adalah ejaan dari database, bukan dari ketikan.
+    username: str
 
 
 class LogoutResponse(BaseModel):
@@ -97,8 +105,11 @@ def login(body: LoginRequest, request: Request):
     if auth.is_legacy_hash(user["password_hash"]):
         db.update_password_hash(username, auth.hash_password(password))
 
-    token = auth.issue_session(user["role"])
-    return {"role": user["role"], "token": token}
+    # Username diambil dari BARIS DATABASE, bukan dari yang diketik pemanggil:
+    # pencocokannya bisa saja tidak sama persis (spasi sudah di-strip di atas),
+    # dan sesi harus menunjuk ke baris yang sebenarnya.
+    token = auth.issue_session(user["username"], user["role"])
+    return {"role": user["role"], "token": token, "username": user["username"]}
 
 
 def _notify_repeated_login_failure(username: str, failures: int, client_ip: str) -> None:
@@ -136,3 +147,81 @@ def logout(x_acw_token: str | None = Header(default=None, alias="X-ACW-Token")):
     # supaya klien tidak perlu bedakan "berhasil logout" vs "sesi sudah mati sendiri".
     auth.invalidate_session(x_acw_token)
     return {"ok": True}
+
+
+class ChangePasswordRequest(BaseModel):
+    # max_length sama alasannya dengan LoginRequest: gerbang di sumber, supaya
+    # kiriman raksasa tidak sempat masuk ke argon2id yang mahal.
+    current_password: str = Field(default="", max_length=200)
+    new_password: str = Field(default="", max_length=200)
+
+
+class ChangePasswordResponse(BaseModel):
+    ok: bool
+    sessions_revoked: int
+
+
+@router.post("/change-password", response_model=ChangePasswordResponse)
+def change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    x_acw_token: str | None = Header(default=None, alias="X-ACW-Token"),
+):
+    """Ganti password akun yang sedang login. Berlaku untuk admin dan user.
+
+    Yang diubah SELALU akun pemilik token, tidak pernah akun lain. Endpoint ini
+    sengaja tidak menerima field username: kalau menerimanya, admin mana pun
+    (atau siapa pun yang menguasai satu token) bisa menimpa password orang lain
+    tanpa tahu password lamanya.
+    """
+    session = auth.get_session(x_acw_token)
+    if session is None:
+        raise HTTPException(status_code=401, detail={"error": "Sesi tidak valid, silakan login ulang"})
+
+    # Dibatasi per-IP dengan parameter yang sama dengan login. Tanpa ini password
+    # LAMA bisa ditebak lewat endpoint ini secepat jaringan mengizinkan, dan
+    # pembatas login di depan sana tidak menutupinya - ini pintu yang berbeda.
+    allowed, retry_after = rate_limit.check(
+        "password", rate_limit.client_ip(request),
+        config.RATE_LIMIT_LOGIN_MAX, config.RATE_LIMIT_LOGIN_WINDOW,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": f"Terlalu banyak percobaan. Coba lagi dalam {retry_after} detik.",
+                "retry_after_seconds": retry_after,
+            },
+        )
+
+    baru = body.new_password
+    if len(baru) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": f"Password baru minimal {MIN_PASSWORD_LENGTH} karakter"},
+        )
+    if baru == body.current_password:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "Password baru sama dengan yang lama"},
+        )
+
+    user = db.get_user_by_username(session.username)
+    if user is None:
+        # Barisnya hilang sementara sesinya masih hidup: akunnya dihapus
+        # langsung di database. Sesinya ikut dicabut, bukan dibiarkan.
+        auth.invalidate_session(x_acw_token)
+        raise HTTPException(status_code=401, detail={"error": "Akun sudah tidak ada"})
+
+    if not auth.verify_password(body.current_password, user["password_hash"]):
+        raise HTTPException(status_code=403, detail={"error": "Password lama salah"})
+
+    try:
+        db.update_password_hash(session.username, auth.hash_password(baru))
+    except Exception:
+        logger.exception("Gagal menyimpan password baru untuk '%s'", session.username)
+        raise HTTPException(status_code=500, detail={"error": "Gagal menyimpan password baru"})
+
+    dicabut = auth.invalidate_user_sessions(session.username, kecuali=x_acw_token)
+    logger.info("Password '%s' diganti, %d sesi lain dicabut", session.username, dicabut)
+    return {"ok": True, "sessions_revoked": dicabut}
