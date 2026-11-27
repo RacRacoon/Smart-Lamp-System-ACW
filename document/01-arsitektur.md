@@ -5,15 +5,14 @@
 ## 1.1 Lingkup pekerjaan
 
 Board NEMA ini aslinya mengirim data ke web milik pembuat board, dan pemakai
-hanya bisa melihat apa yang disediakan web itu. Pekerjaan di sini memindahkan
+hanya bisa melihat apa yang disediakan web itu. Modifikasi di sini memindahkan
 aliran datanya: firmware diarahkan ke broker MQTT dan backend yang dibangun
 sendiri, sehingga format payload, basis data, aturan peringatan, dan tampilan
 dashboard sepenuhnya di tangan sendiri.
 
 Pengujian seluruh rantai dilakukan di meja kerja. Controller duduk di soket
-NEMA dan menyalakan satu luminaire, belum dipasang di tiang lampu jalan.
-Koordinat yang tersimpan di flash karena itu masih koordinat titik uji, bukan
-titik tiang sebenarnya.
+NEMA dan menyalakan satu luminaire. Koordinat yang tersimpan di flash karena
+itu masih koordinat titik uji, bukan titik tiang sebenarnya.
 
 ## 1.2 Lima lapisan sistem
 
@@ -27,9 +26,9 @@ titik tiang sebenarnya.
 
 ## 1.3 Board dan backend terhubung lewat broker
 
-Keduanya menyambung ke broker, dan broker yang meneruskan. Dengan pemisahan
-ini, satu alamat IP publik cukup untuk melayani board di balik NAT operator
-seluler, tanpa port forwarding dan tanpa alamat tetap di sisi board.
+Keduanya menyambung ke broker, dan broker yang meneruskan. Pemisahan ini
+menyebabkan satu alamat IP publik cukup untuk melayani board di balik NAT
+operator seluler, tanpa port forwarding dan tanpa alamat tetap di sisi board.
 
 Akibatnya, status "NEMA terhubung ke backend" terdiri atas dua jalur, dan
 masing-masing bisa gagal sendiri.
@@ -45,7 +44,7 @@ Arah turun tidak bisa dibuktikan dari layar. Alat
 
 ## 1.4 Arah naik: telemetri dari board
 
-1. Board merakit satu baris JSON berisi tegangan, arus, daya, kecerahan,
+1. Board menulis satu baris JSON berisi tegangan, arus, daya, kecerahan,
    status relai, mode otomatis, koordinat, dan uptime.
 2. Board menerbitkannya lewat `AT+QMTPUB` ke `iot/lights/NEMA-01/telemetry`,
    QoS 0, tiap 60 detik.
@@ -83,7 +82,7 @@ Pilihan itu punya risiko, dan risiko itu pernah terjadi: perintah
 `{"relay":"off"}` yang tertinggal di broker memadamkan lampu setiap kali board
 menyambung ulang, berhari-hari setelah tombolnya ditekan. Karena itu backend
 menghapus retained message setelah `RETAINED_COMMAND_TTL_SECONDS` (300 detik),
-dan menyapu sisa perintah yatim di `_on_connect()` setiap kali backend hidup.
+dan menyapu sisa perintah orphan di `_on_connect()` setiap kali backend hidup.
 
 ## 1.7 Struktur folder
 

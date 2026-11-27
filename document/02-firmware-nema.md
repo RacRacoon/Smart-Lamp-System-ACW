@@ -31,11 +31,7 @@ Clock 72 MHz dari kristal luar lewat PLL.
 | PA2, PA3 | USART2, modem Quectel EG800K | 115200 8N1 |
 | PB10, PB11 | USART3, GPS | 115200 8N1 |
 
-Label `GPS` dan `GPS_2` di berkas `.ioc` menyesatkan dan dibiarkan apa adanya
-supaya regenerate CubeMX tidak memutus kompilasi. Keduanya menunjuk PB9 dan
-PB8, yang pada F103 tidak punya fungsi USART sama sekali.
-
-### Pembagian tiga UART untuk empat perangkat
+### Pembagian tiga UART untuk empat perangkat saat debug
 
 Board punya tiga UART dan empat perangkat yang menginginkannya: konsol, modem
 4G, GPS, dan meter daya. Meter memegang USART1 selamanya. Modem terpasang mati
